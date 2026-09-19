@@ -1,0 +1,8 @@
+WILLY AI 0.0.7 — INSTALACIÓN
+
+1. En GitHub pulsa Code y después Download ZIP.
+2. Extrae el ZIP descargado.
+3. Abre la carpeta INSTALADOR_WILLY_AI.
+4. Haz doble clic en INSTALAR_WILLY_AI.bat.
+
+No abras ni cambies las cinco piezas .bin. El botón las une, comprueba que están completas y abre el instalador automáticamente.
