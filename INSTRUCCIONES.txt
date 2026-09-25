@@ -1,0 +1,45 @@
+WILLY AI - Instalación en tu ordenador (Windows 11)
+====================================================
+
+QUÉ HACE ESTE PROGRAMA
+----------------------
+Instala WILLY AI en tu equipo con su propio acceso directo en el menú
+Inicio y en el Escritorio. Al abrir "WILLY AI" se encarga de todo, solo:
+
+  1. Abre Docker Desktop (si no estaba ya abierto) y levanta los servicios.
+  2. Arranca tu motor de IA local (Ollama) con su modelo.
+  3. Arranca el backend en http://localhost:4000 (si está la carpeta "backend").
+  4. Abre WILLY AI en tu navegador: http://localhost:3000
+
+Todo funciona en tu ordenador. No se conecta a internet para funcionar.
+
+ANTES DEL PRIMER ARRANQUE (una sola vez)
+----------------------------------------
+1. Instala Node.js si no lo tienes: https://nodejs.org/es/download
+   (si falta, el arranque te lo avisa y abre la descarga solo).
+2. Instala Ollama si no lo tienes: https://ollama.com/download
+   y descarga tu modelo, por ejemplo:
+       ollama pull qwen2.5-coder:14b
+3. (Opcional) Docker Desktop: https://www.docker.com/products/docker-desktop
+4. (Opcional) Copia tu backend (el que te generó ChatGPT) dentro de la
+   carpeta de instalación, en una subcarpeta llamada "backend". Si está,
+   se arranca solo con "pnpm run dev".
+
+CÓMO SE USA
+-----------
+- Menú Inicio → WILLY AI (o el acceso directo del Escritorio).
+- Espera unos segundos: se abre solo http://localhost:3000
+- En la aplicación, activa "Servidor backend" en Configuración para
+  conectar con tu backend en http://localhost:4000
+
+IPHONE / ANDROID (misma red)
+----------------------------
+Con el ordenador encendido y WILLY AI arrancada, abre en el móvil:
+    http://IP-DE-TU-ORDENADOR:3000
+(La IP se ve en Windows con "ipconfig"). Luego usa "Añadir a pantalla
+de inicio" (iPhone) o "Instalar aplicación" (Android) para tenerla
+como una app más, con su icono.
+
+DESINSTALAR
+-----------
+Menú Inicio → WILLY AI → Desinstalar.

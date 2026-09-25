@@ -1,16 +1,12 @@
 import { useEffect, useState } from "react";
 import { Apple, Check, Download, Monitor, Smartphone, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PanelCard as Card } from "@/components/panel-card";
 import { downloadFile } from "@/lib/workspace-store";
 import { DEFAULT_PORTS, LAUNCHERS, launcherScript, localAppUrl } from "@/lib/launchers";
-
-type Ping = (m: string) => void;
+import type { Ping } from "@/types/domain";
 
 type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
-
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-xl border border-border bg-card p-4 ${className}`}>{children}</div>;
-}
 
 /** Acceso directo: instalar WILLY AI como aplicación y arrancar la IA local de un clic. */
 export function InstallView({ endpoint, model, ping }: { endpoint: string; model: string; ping: Ping }) {

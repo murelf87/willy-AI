@@ -1,4 +1,4 @@
-// Catálogo de modelos libres y gratuitos para el motor local (Ollama/Forge).
+// Catálogo de modelos libres y gratuitos para el motor local (Ollama u otro compatible).
 // Todos son de descarga abierta: no hacen falta claves ni cuentas de pago.
 // La descarga se hace contra el propio motor local (POST /api/pull), con progreso real.
 
@@ -56,14 +56,6 @@ export const MODEL_CATALOG: CatalogModel[] = [
     best: true,
   },
   {
-    name: "mistral:7b-instruct",
-    label: "Mistral 7B Instruct",
-    tag: "General",
-    size: "4,1 GB",
-    ram: "8 GB",
-    desc: "Rápido y ligero, responde muy bien en español.",
-  },
-  {
     name: "gemma2:9b",
     label: "Gemma 2 9B",
     tag: "General",
@@ -88,14 +80,6 @@ export const MODEL_CATALOG: CatalogModel[] = [
     desc: "Piensa paso a paso antes de responder. Útil para arquitectura y decisiones técnicas.",
   },
   {
-    name: "phi3:mini",
-    label: "Phi-3 Mini",
-    tag: "Ligero",
-    size: "2,3 GB",
-    ram: "4 GB",
-    desc: "Diminuto y rápido. Funciona hasta en portátiles sin tarjeta gráfica.",
-  },
-  {
     name: "llama3.2:3b",
     label: "Llama 3.2 3B",
     tag: "Ligero",
@@ -104,20 +88,28 @@ export const MODEL_CATALOG: CatalogModel[] = [
     desc: "Respuestas instantáneas para tareas sencillas y borradores.",
   },
   {
-    name: "llava:13b",
-    label: "LLaVA 13B",
-    tag: "Visión",
-    size: "8,0 GB",
-    ram: "16 GB",
-    desc: "Entiende imágenes: puedes pasarle una captura y pedirle que replique el diseño.",
+    name: "phi4-mini",
+    label: "Phi-4 Mini 3.8B",
+    tag: "Ligero",
+    size: "2,5 GB",
+    ram: "4 GB",
+    desc: "Pequeño y sólido para su tamaño. Sustituye a Phi-3 Mini.",
   },
   {
-    name: "llama3.2-vision:11b",
-    label: "Llama 3.2 Visión 11B",
+    name: "gemma3:4b",
+    label: "Gemma 3 4B (visión)",
     tag: "Visión",
-    size: "7,9 GB",
-    ram: "16 GB",
-    desc: "Lee capturas de pantalla y maquetas con mucho detalle.",
+    size: "3,3 GB",
+    ram: "8 GB",
+    desc: "Entiende imágenes y escribe bien en español; cabe entero en 6 GB de memoria gráfica. Necesita Ollama 0.6 o superior.",
+  },
+  {
+    name: "qwen2.5vl:3b",
+    label: "Qwen 2.5 VL 3B (visión)",
+    tag: "Visión",
+    size: "≈3 GB",
+    ram: "8 GB",
+    desc: "Ligero y bueno leyendo el texto de las imágenes (capturas, documentos).",
   },
   {
     name: "nomic-embed-text",

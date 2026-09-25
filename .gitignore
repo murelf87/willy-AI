@@ -30,3 +30,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# WILLY AI — nunca subir a GitHub (instalación local)
+datos-privados/
+backups/
+copias-*/
+backup-mi-yo-ia-*/
+intercambio-front/
+updates/
+tools/
+node/
+app/
+app.zip
+*.exe
+*.log
+package-lock.json.bak

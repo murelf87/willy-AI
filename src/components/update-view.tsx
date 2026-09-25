@@ -1,70 +1,42 @@
-import { useState } from "react";
-import { Download, FileCheck2, RefreshCw, ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { APP_VERSION } from "@/lib/version";
-import { downloadFile } from "@/lib/workspace-store";
-import { readSelfBuild } from "@/lib/self-build-store";
+import { RefreshCw, ShieldCheck } from "lucide-react";
+import type { SystemInfo } from "@/lib/maintenance-client";
 
-type Ping = (message: string) => void;
+// Actualizaciones (Ajustes → Sistema). Antes pedía un «.exe» y lo volvía a descargar, sin instalar nada: las
+// actualizaciones de WILLY llegan como un archivo «ACTUALIZAR_WILLY_AI_….bat». Aquí se enseña lo que hay de verdad: la
+// versión que tienes, la última actualización instalada (con lo que trajo) y cómo se instala la siguiente.
 
-export function UpdateView({ ping }: { ping: Ping }) {
-  const [installer, setInstaller] = useState<File | null>(null);
+const dateText = (iso: string): string => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("es-ES", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+};
 
-  const choose = (file?: File) => {
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".exe")) {
-      setInstaller(null);
-      ping("Selecciona un instalador de WILLY con extensión .exe.");
-      return;
-    }
-    setInstaller(file);
-    ping(`Actualización preparada: ${file.name}.`);
-  };
-
-  const prepare = () => {
-    if (!installer) return ping("Selecciona primero el nuevo instalador .exe.");
-    const backup = {
-      currentVersion: APP_VERSION,
-      createdAt: new Date().toISOString(),
-      settings: window.localStorage.getItem("willy-settings"),
-      profile: window.localStorage.getItem("willy-profile"),
-      selfBuild: readSelfBuild(),
-    };
-    downloadFile(
-      `willy-ai-${APP_VERSION}-antes-de-actualizar.json`,
-      JSON.stringify(backup, null, 2),
-      "application/json;charset=utf-8",
-    );
-    const url = URL.createObjectURL(installer);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = installer.name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    ping("Copia creada. Abre el instalador descargado para completar la actualización.");
-  };
-
+export function UpdateView({ info }: { info: SystemInfo | null }) {
+  const last = info?.lastUpdate ?? null;
   return (
     <section className="rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><RefreshCw className="size-5" /></div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">Actualizar WILLY AI</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Instala una versión nueva desde un único archivo .exe. Antes se descarga una copia de tus ajustes.</p>
+          <p className="text-sm font-semibold">Actualizaciones</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            {info ? `Tienes WILLY AI ${info.version} (revisión ${info.revision}).` : "No se pudo leer la versión: el servidor de WILLY no respondió."}
+            {last?.at ? ` La última actualización (${last.version}) se instaló el ${dateText(last.at)}.` : ""}
+          </p>
         </div>
-        <span className="rounded-full border border-border bg-background px-3 py-1 font-mono text-xs font-semibold">v{APP_VERSION}</span>
+        {info && <span className="rounded-full border border-border bg-background px-3 py-1 font-mono text-xs font-semibold">v{info.version} · r{info.revision}</span>}
       </div>
-      <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-md border border-dashed border-border bg-background p-3 text-sm hover:border-primary">
-        <FileCheck2 className="size-5 shrink-0 text-primary" />
-        <span className="min-w-0 flex-1 truncate">{installer?.name ?? "Seleccionar actualización .exe"}</span>
-        <input type="file" accept=".exe,application/vnd.microsoft.portable-executable" className="sr-only" onChange={(event) => choose(event.target.files?.[0])} />
-      </label>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button type="button" className="gap-2" disabled={!installer} onClick={prepare}><Download className="size-4" />Preparar actualización</Button>
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-4 text-primary" />Copia previa automática</span>
-      </div>
+      {last && last.notes.length > 0 && (
+        <details className="mt-3 rounded-md border border-border bg-background p-3">
+          <summary className="cursor-pointer text-xs font-semibold">Qué trajo la última actualización</summary>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+            {last.notes.map((note) => <li key={note}>{note}</li>)}
+          </ul>
+        </details>
+      )}
+      <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+        <span>Las actualizaciones llegan como un archivo «ACTUALIZAR_WILLY_AI_….bat»: ábrelo con doble clic. Antes de cambiar nada hace una copia de seguridad y, si algo falla, WILLY vuelve solo a como estaba.</span>
+      </p>
     </section>
   );
 }

@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useDarkTheme } from "@/hooks/use-dark-theme";
 
 import { Button } from "@/components/ui/button";
 import { authService } from "@/services/auth-service";
@@ -50,14 +51,7 @@ function Index() {
   const [infoPanel, setInfoPanel] = useState<"privacy" | "terms" | "contact" | null>(null);
   const [demoOpen, setDemoOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [dark, setDark] = useState(true);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem("willy-theme");
-    const nextDark = saved ? saved === "dark" : true;
-    setDark(nextDark);
-    document.documentElement.classList.toggle("dark", nextDark);
-  }, []);
+  const [dark, setDark] = useDarkTheme();
 
   useEffect(() => {
     const closeDesktopMenu = () => {

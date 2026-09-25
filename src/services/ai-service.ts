@@ -10,6 +10,11 @@ export type ChatRequest = {
   model: string;
   messages: ChatMsg[];
   onDelta?: (delta: string) => void;
+  maxOutputTokens?: number;
+  /** Permite cortar la generación de verdad (botón Detener). */
+  signal?: AbortSignal;
+  /** Memoria de contexto que debe reservar el motor (tokens). */
+  numCtx?: number;
 };
 
 export interface AIProvider {
@@ -97,14 +102,29 @@ const localProvider: AIProvider = {
 
   async chat(req) {
     const viaLocal = () =>
-      resolveLocalModel(req.endpoint, req.model).then((model) =>
-        chatLocalStream({
-          endpoint: req.endpoint,
-          model,
-          messages: req.messages,
-          ...(req.onDelta ? { onDelta: req.onDelta } : {}),
-        }),
-      );
+      resolveLocalModel(req.endpoint, req.model).then(async (model) => {
+        let received = false;
+        const run = (numCtx?: number) =>
+          chatLocalStream({
+            endpoint: req.endpoint,
+            model,
+            messages: req.messages,
+            onDelta: (delta) => {
+              received = true;
+              req.onDelta?.(delta);
+            },
+            ...(req.maxOutputTokens ? { maxOutputTokens: req.maxOutputTokens } : {}),
+            ...(req.signal ? { signal: req.signal } : {}),
+            ...(numCtx ? { numCtx } : {}),
+          });
+        try {
+          return await run(req.numCtx);
+        } catch (error) {
+          // Si el motor rechaza la memoria pedida y aún no había respondido nada, se repite sin ella.
+          if (req.numCtx && !received && !req.signal?.aborted) return await run();
+          throw error;
+        }
+      });
 
     try {
       return ok(await viaLocal());

@@ -3,6 +3,7 @@
 // de funcionar hasta que se reactive.
 
 import { useEffect, useMemo, useState } from "react";
+import { PanelCard as Card } from "@/components/panel-card";
 import { BadgeCheck, Ban, CalendarClock, Check, Copy, KeyRound, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_ADMIN, readAdmin, saveAdmin } from "@/services/auth-service";
@@ -12,10 +13,6 @@ import {
   serverSnippet, suspend, updateLicense,
   type License,
 } from "@/services/licensing";
-
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-xl border border-border bg-card p-4 ${className}`}>{children}</div>;
-}
 
 const fmtDate = (ts: number) =>
   new Date(ts).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });

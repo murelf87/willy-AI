@@ -5,6 +5,27 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * Tipografía del diseño (Manrope, licencia OFL 1.1, archivos en public/fonts): se sirve desde el propio equipo,
+ * sin internet. Antes el sistema de diseño la declaraba pero nunca la cargaba y se veía la letra de Windows.
+ */
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("/fonts/manrope-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("/fonts/manrope-latin-ext-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/*
  * Design system definition.
  *
  * The @theme inline block maps CSS custom properties to Tailwind utility
@@ -65,32 +86,39 @@
   --color-panel-elevated: var(--panel-elevated);
   --color-brand-cyan: var(--brand-cyan);
   --color-brand-violet: var(--brand-violet);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --shadow-glow: 0 18px 50px color-mix(in oklab, var(--primary) 30%, transparent);
+  --shadow-card: 0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent), 0 8px 24px -12px color-mix(in oklab, var(--foreground) 10%, transparent);
 }
 
 :root {
-  --radius: 0.5rem;
-  --background: oklch(0.985 0.006 255);
-  --foreground: oklch(0.19 0.04 265);
+  /* Tokens del nuevo diseño (maquetas de 24/09): fondo gris azulado muy claro, tarjetas blancas con borde fino,
+     violeta como color principal, esquinas más redondeadas (12 px base; tarjetas 16 px). */
+  --radius: 0.75rem;
+  --background: oklch(0.975 0.007 265);
+  --foreground: oklch(0.21 0.04 270);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.19 0.04 265);
+  --card-foreground: oklch(0.21 0.04 270);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.19 0.04 265);
+  --popover-foreground: oklch(0.21 0.04 270);
   --primary: oklch(0.57 0.22 285);
   --primary-foreground: oklch(0.99 0.005 250);
-  --secondary: oklch(0.95 0.015 260);
-  --secondary-foreground: oklch(0.24 0.04 265);
-  --muted: oklch(0.95 0.012 260);
-  --muted-foreground: oklch(0.48 0.035 260);
-  --accent: oklch(0.92 0.04 270);
-  --accent-foreground: oklch(0.22 0.04 265);
+  --secondary: oklch(0.96 0.012 265);
+  --secondary-foreground: oklch(0.26 0.04 270);
+  --muted: oklch(0.955 0.01 265);
+  --muted-foreground: oklch(0.52 0.03 265);
+  --accent: oklch(0.945 0.035 285);
+  --accent-foreground: oklch(0.3 0.12 285);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.87 0.025 260);
-  --input: oklch(0.84 0.025 260);
+  --border: oklch(0.915 0.012 265);
+  --input: oklch(0.88 0.015 265);
   --ring: oklch(0.57 0.22 285);
   --panel: oklch(0.965 0.012 260);
   --panel-elevated: oklch(1 0 0);
+  --success: oklch(0.65 0.18 150);
+  --warning: oklch(0.72 0.17 70);
   --brand-cyan: oklch(0.52 0.15 205);
   --brand-violet: oklch(0.57 0.22 294);
   --chart-1: oklch(0.646 0.222 41.116);
@@ -132,6 +160,8 @@
   --panel-elevated: oklch(0.21 0.045 264);
   --brand-cyan: oklch(0.78 0.16 205);
   --brand-violet: oklch(0.68 0.22 294);
+  --success: oklch(0.72 0.17 150);
+  --warning: oklch(0.78 0.16 70);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -205,6 +235,13 @@
 }
 
 @utility shadow-glow { box-shadow: var(--shadow-glow); }
+@utility shadow-card { box-shadow: var(--shadow-card); }
+
+/* Barra de desplazamiento fina y discreta (paneles del nuevo armazón). */
+@utility scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
+}
 
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(18px); }

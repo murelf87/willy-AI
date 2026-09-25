@@ -8,11 +8,12 @@ import { pushNotice } from "@/lib/notifications";
 import { useSettings } from "@/lib/workspace-store";
 import { aiService } from "@/services/ai-service";
 import { TASK_LABELS, runTask, type TaskKind } from "@/services/orchestrator";
-import { speakText, type SpeechHandle } from "@/lib/tts-voice";
-
-function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-xl border border-border bg-card p-4 ${className}`}>{children}</div>;
-}
+import type { SpeechHandle } from "@/lib/tts-voice";
+import { speakBest } from "@/lib/natural-voice";
+import { ClarifyButton } from "@/components/clarify-button";
+import { usePersistentState } from "@/lib/persistent-state";
+import { PanelCard as Card } from "@/components/panel-card";
+import { VoiceSelect } from "@/components/voice-select";
 
 export type Extra = {
   id: string;
@@ -50,12 +51,12 @@ export function ExtrasView() {
   const [extras, setExtras] = useState<Extra[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
-  const [instructions, setInstructions] = useState("");
+  const [name, setName] = usePersistentState("funciones:nueva-nombre", "");
+  const [desc, setDesc] = usePersistentState("funciones:nueva-descripcion", "");
+  const [instructions, setInstructions] = usePersistentState("funciones:nueva-instrucciones", "");
   const [kind, setKind] = useState<TaskKind>("general");
-  const [input, setInput] = useState("");
-  const [result, setResult] = useState("");
+  const [input, setInput] = usePersistentState("funciones:entrada", "");
+  const [result, setResult] = usePersistentState("funciones:resultado", "");
   const [running, setRunning] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -151,8 +152,10 @@ export function ExtrasView() {
       return;
     }
     setSpeaking(true);
-    speech.current = speakText(result, {
-      voice: window.localStorage.getItem("willy-voz") ?? "Kore",
+    const naturalVoice = window.localStorage.getItem("willy-voz-natural") ?? "";
+    speech.current = speakBest(result, {
+      ...(naturalVoice ? { naturalVoice } : {}),
+      onPreparing: (m) => pushNotice(m, "info"),
       onEnd: () => setSpeaking(false),
       onError: (m) => { setSpeaking(false); pushNotice(`⚠️ ${m}`, "warn"); },
     });
@@ -201,10 +204,7 @@ export function ExtrasView() {
             >
               {Object.entries(TASK_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
-            <Button variant="secondary" className="gap-2" onClick={() => void draft()} disabled={drafting || (!name.trim() && !desc.trim())}>
-              {drafting ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
-              Que lo redacte la IA
-            </Button>
+            <ClarifyButton context="funcion" variant="secondary" label="Que lo redacte la IA" value={[name, desc, instructions].map((part) => part.trim()).filter(Boolean).join(". ")} onApply={setInstructions} />
             <Button className="gap-2" onClick={create} disabled={!name.trim() || !instructions.trim()}>
               <Plus className="size-4" />Crear función
             </Button>
@@ -281,6 +281,7 @@ export function ExtrasView() {
                   {speaking ? <Square className="size-4" /> : <Volume2 className="size-4" />}
                   {speaking ? "Parar" : "Escucharlo"}
                 </Button>
+                <VoiceSelect className="self-center" />
                 <Button
                   variant="outline"
                   className="gap-2"

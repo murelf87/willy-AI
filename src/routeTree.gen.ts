@@ -13,11 +13,22 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as DescargarRouteImport } from './routes/descargar'
+import { Route as MovilRouteImport } from './routes/movil'
+import { Route as ApiActualizacionRouteImport } from './routes/api/actualizacion'
+import { Route as ApiAvatarRouteImport } from './routes/api/avatar'
 import { Route as ApiBuildInstallerRouteImport } from './routes/api/build-installer'
 import { Route as ApiEngineRouteImport } from './routes/api/engine'
+import { Route as ApiFabricaRouteImport } from './routes/api/fabrica'
 import { Route as ApiFetchUrlRouteImport } from './routes/api/fetch-url'
+import { Route as ApiIphoneRouteImport } from './routes/api/iphone'
+import { Route as ApiLanRouteImport } from './routes/api/lan'
 import { Route as ApiLocalAiRouteImport } from './routes/api/local-ai'
+import { Route as ApiProyectosRouteImport } from './routes/api/proyectos'
+import { Route as ApiSelfBuildRouteImport } from './routes/api/self-build'
+import { Route as ApiSistemaRouteImport } from './routes/api/sistema'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
+import { Route as ApiVocesRouteImport } from './routes/api/voces'
+import { Route as ApiYoutubeRouteImport } from './routes/api/youtube'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -39,6 +50,21 @@ const DescargarRoute = DescargarRouteImport.update({
   path: '/descargar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MovilRoute = MovilRouteImport.update({
+  id: '/movil',
+  path: '/movil',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiActualizacionRoute = ApiActualizacionRouteImport.update({
+  id: '/api/actualizacion',
+  path: '/api/actualizacion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAvatarRoute = ApiAvatarRouteImport.update({
+  id: '/api/avatar',
+  path: '/api/avatar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBuildInstallerRoute = ApiBuildInstallerRouteImport.update({
   id: '/api/build-installer',
   path: '/api/build-installer',
@@ -49,9 +75,24 @@ const ApiEngineRoute = ApiEngineRouteImport.update({
   path: '/api/engine',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFabricaRoute = ApiFabricaRouteImport.update({
+  id: '/api/fabrica',
+  path: '/api/fabrica',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFetchUrlRoute = ApiFetchUrlRouteImport.update({
   id: '/api/fetch-url',
   path: '/api/fetch-url',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIphoneRoute = ApiIphoneRouteImport.update({
+  id: '/api/iphone',
+  path: '/api/iphone',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLanRoute = ApiLanRouteImport.update({
+  id: '/api/lan',
+  path: '/api/lan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLocalAiRoute = ApiLocalAiRouteImport.update({
@@ -59,9 +100,34 @@ const ApiLocalAiRoute = ApiLocalAiRouteImport.update({
   path: '/api/local-ai',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProyectosRoute = ApiProyectosRouteImport.update({
+  id: '/api/proyectos',
+  path: '/api/proyectos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSelfBuildRoute = ApiSelfBuildRouteImport.update({
+  id: '/api/self-build',
+  path: '/api/self-build',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSistemaRoute = ApiSistemaRouteImport.update({
+  id: '/api/sistema',
+  path: '/api/sistema',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
   id: '/api/tts',
   path: '/api/tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVocesRoute = ApiVocesRouteImport.update({
+  id: '/api/voces',
+  path: '/api/voces',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiYoutubeRoute = ApiYoutubeRouteImport.update({
+  id: '/api/youtube',
+  path: '/api/youtube',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -70,22 +136,44 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/descargar': typeof DescargarRoute
+  '/movil': typeof MovilRoute
+  '/api/actualizacion': typeof ApiActualizacionRoute
+  '/api/avatar': typeof ApiAvatarRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
   '/api/engine': typeof ApiEngineRoute
+  '/api/fabrica': typeof ApiFabricaRoute
   '/api/fetch-url': typeof ApiFetchUrlRoute
+  '/api/iphone': typeof ApiIphoneRoute
+  '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
+  '/api/proyectos': typeof ApiProyectosRoute
+  '/api/self-build': typeof ApiSelfBuildRoute
+  '/api/sistema': typeof ApiSistemaRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/voces': typeof ApiVocesRoute
+  '/api/youtube': typeof ApiYoutubeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/descargar': typeof DescargarRoute
+  '/movil': typeof MovilRoute
+  '/api/actualizacion': typeof ApiActualizacionRoute
+  '/api/avatar': typeof ApiAvatarRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
   '/api/engine': typeof ApiEngineRoute
+  '/api/fabrica': typeof ApiFabricaRoute
   '/api/fetch-url': typeof ApiFetchUrlRoute
+  '/api/iphone': typeof ApiIphoneRoute
+  '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
+  '/api/proyectos': typeof ApiProyectosRoute
+  '/api/self-build': typeof ApiSelfBuildRoute
+  '/api/sistema': typeof ApiSistemaRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/voces': typeof ApiVocesRoute
+  '/api/youtube': typeof ApiYoutubeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -93,11 +181,22 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/descargar': typeof DescargarRoute
+  '/movil': typeof MovilRoute
+  '/api/actualizacion': typeof ApiActualizacionRoute
+  '/api/avatar': typeof ApiAvatarRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
   '/api/engine': typeof ApiEngineRoute
+  '/api/fabrica': typeof ApiFabricaRoute
   '/api/fetch-url': typeof ApiFetchUrlRoute
+  '/api/iphone': typeof ApiIphoneRoute
+  '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
+  '/api/proyectos': typeof ApiProyectosRoute
+  '/api/self-build': typeof ApiSelfBuildRoute
+  '/api/sistema': typeof ApiSistemaRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/voces': typeof ApiVocesRoute
+  '/api/youtube': typeof ApiYoutubeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -106,33 +205,66 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/descargar'
+    | '/movil'
+    | '/api/actualizacion'
+    | '/api/avatar'
     | '/api/build-installer'
     | '/api/engine'
+    | '/api/fabrica'
     | '/api/fetch-url'
+    | '/api/iphone'
+    | '/api/lan'
     | '/api/local-ai'
+    | '/api/proyectos'
+    | '/api/self-build'
+    | '/api/sistema'
     | '/api/tts'
+    | '/api/voces'
+    | '/api/youtube'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
     | '/app'
     | '/descargar'
+    | '/movil'
+    | '/api/actualizacion'
+    | '/api/avatar'
     | '/api/build-installer'
     | '/api/engine'
+    | '/api/fabrica'
     | '/api/fetch-url'
+    | '/api/iphone'
+    | '/api/lan'
     | '/api/local-ai'
+    | '/api/proyectos'
+    | '/api/self-build'
+    | '/api/sistema'
     | '/api/tts'
+    | '/api/voces'
+    | '/api/youtube'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/app'
     | '/descargar'
+    | '/movil'
+    | '/api/actualizacion'
+    | '/api/avatar'
     | '/api/build-installer'
     | '/api/engine'
+    | '/api/fabrica'
     | '/api/fetch-url'
+    | '/api/iphone'
+    | '/api/lan'
     | '/api/local-ai'
+    | '/api/proyectos'
+    | '/api/self-build'
+    | '/api/sistema'
     | '/api/tts'
+    | '/api/voces'
+    | '/api/youtube'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -140,11 +272,22 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AppRoute: typeof AppRoute
   DescargarRoute: typeof DescargarRoute
+  MovilRoute: typeof MovilRoute
+  ApiActualizacionRoute: typeof ApiActualizacionRoute
+  ApiAvatarRoute: typeof ApiAvatarRoute
   ApiBuildInstallerRoute: typeof ApiBuildInstallerRoute
   ApiEngineRoute: typeof ApiEngineRoute
+  ApiFabricaRoute: typeof ApiFabricaRoute
   ApiFetchUrlRoute: typeof ApiFetchUrlRoute
+  ApiIphoneRoute: typeof ApiIphoneRoute
+  ApiLanRoute: typeof ApiLanRoute
   ApiLocalAiRoute: typeof ApiLocalAiRoute
+  ApiProyectosRoute: typeof ApiProyectosRoute
+  ApiSelfBuildRoute: typeof ApiSelfBuildRoute
+  ApiSistemaRoute: typeof ApiSistemaRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  ApiVocesRoute: typeof ApiVocesRoute
+  ApiYoutubeRoute: typeof ApiYoutubeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -177,6 +320,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DescargarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/movil': {
+      id: '/movil'
+      path: '/movil'
+      fullPath: '/movil'
+      preLoaderRoute: typeof MovilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/actualizacion': {
+      id: '/api/actualizacion'
+      path: '/api/actualizacion'
+      fullPath: '/api/actualizacion'
+      preLoaderRoute: typeof ApiActualizacionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/avatar': {
+      id: '/api/avatar'
+      path: '/api/avatar'
+      fullPath: '/api/avatar'
+      preLoaderRoute: typeof ApiAvatarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/build-installer': {
       id: '/api/build-installer'
       path: '/api/build-installer'
@@ -191,11 +355,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEngineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/fabrica': {
+      id: '/api/fabrica'
+      path: '/api/fabrica'
+      fullPath: '/api/fabrica'
+      preLoaderRoute: typeof ApiFabricaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/fetch-url': {
       id: '/api/fetch-url'
       path: '/api/fetch-url'
       fullPath: '/api/fetch-url'
       preLoaderRoute: typeof ApiFetchUrlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/iphone': {
+      id: '/api/iphone'
+      path: '/api/iphone'
+      fullPath: '/api/iphone'
+      preLoaderRoute: typeof ApiIphoneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/lan': {
+      id: '/api/lan'
+      path: '/api/lan'
+      fullPath: '/api/lan'
+      preLoaderRoute: typeof ApiLanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/local-ai': {
@@ -205,11 +390,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLocalAiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/proyectos': {
+      id: '/api/proyectos'
+      path: '/api/proyectos'
+      fullPath: '/api/proyectos'
+      preLoaderRoute: typeof ApiProyectosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/self-build': {
+      id: '/api/self-build'
+      path: '/api/self-build'
+      fullPath: '/api/self-build'
+      preLoaderRoute: typeof ApiSelfBuildRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sistema': {
+      id: '/api/sistema'
+      path: '/api/sistema'
+      fullPath: '/api/sistema'
+      preLoaderRoute: typeof ApiSistemaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tts': {
       id: '/api/tts'
       path: '/api/tts'
       fullPath: '/api/tts'
       preLoaderRoute: typeof ApiTtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voces': {
+      id: '/api/voces'
+      path: '/api/voces'
+      fullPath: '/api/voces'
+      preLoaderRoute: typeof ApiVocesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/youtube': {
+      id: '/api/youtube'
+      path: '/api/youtube'
+      fullPath: '/api/youtube'
+      preLoaderRoute: typeof ApiYoutubeRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -220,11 +440,22 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AppRoute: AppRoute,
   DescargarRoute: DescargarRoute,
+  MovilRoute: MovilRoute,
+  ApiActualizacionRoute: ApiActualizacionRoute,
+  ApiAvatarRoute: ApiAvatarRoute,
   ApiBuildInstallerRoute: ApiBuildInstallerRoute,
   ApiEngineRoute: ApiEngineRoute,
+  ApiFabricaRoute: ApiFabricaRoute,
   ApiFetchUrlRoute: ApiFetchUrlRoute,
+  ApiIphoneRoute: ApiIphoneRoute,
+  ApiLanRoute: ApiLanRoute,
   ApiLocalAiRoute: ApiLocalAiRoute,
+  ApiProyectosRoute: ApiProyectosRoute,
+  ApiSelfBuildRoute: ApiSelfBuildRoute,
+  ApiSistemaRoute: ApiSistemaRoute,
   ApiTtsRoute: ApiTtsRoute,
+  ApiVocesRoute: ApiVocesRoute,
+  ApiYoutubeRoute: ApiYoutubeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

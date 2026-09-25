@@ -6,12 +6,13 @@
 // combinan con los datos reales del servidor.
 
 import {
-  fail, ok, type GeneratedFile, type Project, type ProjectIcon,
-  type ProjectState, type ProjectVersion, type ServiceResult,
+  fail, ok, projectModeOf, type GeneratedFile, type Project, type ProjectIcon, type ProjectInput, type ProjectMode,
+  type ProjectOrigin, type ProjectPatch, type ProjectState, type ProjectVersion, type ServiceResult,
 } from "@/types/domain";
 import { api, attempt, refreshData } from "./backend";
 import type { ProjectService } from "./project-service";
 import { readList, write } from "./storage";
+import { VERSIONS_KEY, findVersion, versionsOf } from "./project-versions";
 
 type ApiProject = {
   id: string;
@@ -21,7 +22,7 @@ type ApiProject = {
   updatedAt?: string;
 };
 
-type Meta = { icon?: ProjectIcon; state?: ProjectState; prompt?: string; trashed?: string | null };
+type Meta = { icon?: ProjectIcon; state?: ProjectState; prompt?: string; trashed?: string | null; mode?: ProjectMode; origin?: ProjectOrigin; kind?: string; sessionId?: string };
 const META_KEY = "willy-remote-meta";
 
 function readMeta(): Record<string, Meta> {
@@ -44,6 +45,10 @@ function toProject(p: ApiProject, meta: Record<string, Meta> = readMeta()): Proj
     state: m.state ?? "Activo",
     icon: m.icon ?? "folder",
     prompt: m.prompt ?? "",
+    ...(m.mode && m.mode !== "standard" ? { mode: projectModeOf(m) } : {}),
+    ...(m.origin ? { origin: m.origin } : {}),
+    ...(m.kind ? { kind: m.kind } : {}),
+    ...(m.sessionId ? { sessionId: m.sessionId } : {}),
     files: [],
     createdAt: p.createdAt ?? at,
     updatedAt: at,
@@ -78,8 +83,6 @@ export async function fetchProjectFiles(projectId: string): Promise<GeneratedFil
   return files;
 }
 
-const VERSIONS_KEY = "willy-versions";
-
 export class ApiProjectService implements ProjectService {
   async list() {
     try {
@@ -108,7 +111,7 @@ export class ApiProjectService implements ProjectService {
     }
   }
 
-  async create(input: { name: string; desc?: string; prompt?: string; icon?: ProjectIcon }) {
+  async create(input: ProjectInput) {
     const name = input.name.trim();
     if (!name) return fail<Project>("El proyecto necesita un nombre.");
     const result = await attempt(async () => {
@@ -122,7 +125,11 @@ export class ApiProjectService implements ProjectService {
     patchMeta(result.data.id, {
       ...(input.icon ? { icon: input.icon } : {}),
       ...(input.prompt ? { prompt: input.prompt } : {}),
-      state: "Borrador",
+      ...(input.mode && input.mode !== "standard" ? { mode: input.mode } : {}),
+      ...(input.origin ? { origin: input.origin } : {}),
+      ...(input.kind ? { kind: input.kind } : {}),
+      ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+      state: input.state ?? "Borrador",
     });
     refreshData();
     return ok(toProject(result.data));
@@ -145,7 +152,7 @@ export class ApiProjectService implements ProjectService {
   async duplicate(id: string) {
     const source = await this.get(id);
     if (!source) return fail<Project>("Ese proyecto ya no existe.");
-    return this.create({ name: `${source.name} (copia)`, desc: source.desc, prompt: source.prompt, icon: source.icon });
+    return this.create({ name: `${source.name} (copia)`, desc: source.desc, prompt: source.prompt, icon: source.icon, mode: projectModeOf(source) });
   }
 
   async setState(id: string, state: ProjectState) {
@@ -153,6 +160,19 @@ export class ApiProjectService implements ProjectService {
     refreshData();
     const project = await this.get(id);
     return project ? ok({ ...project, state }) : fail<Project>("Ese proyecto ya no existe.");
+  }
+
+  async update(id: string, patch: ProjectPatch) {
+    patchMeta(id, {
+      ...(patch.icon ? { icon: patch.icon } : {}),
+      ...(patch.prompt !== undefined ? { prompt: patch.prompt } : {}),
+      ...(patch.origin ? { origin: patch.origin } : {}),
+      ...(patch.kind ? { kind: patch.kind } : {}),
+      ...(patch.sessionId ? { sessionId: patch.sessionId } : {}),
+    });
+    refreshData();
+    const project = await this.get(id);
+    return project ? ok(project) : fail<Project>("Ese proyecto ya no existe.");
   }
 
   async saveFiles(id: string, files: GeneratedFile[], label: string) {
@@ -191,11 +211,11 @@ export class ApiProjectService implements ProjectService {
   }
 
   async versions(projectId: string) {
-    return readList<ProjectVersion>(VERSIONS_KEY, []).filter((v) => v.projectId === projectId);
+    return versionsOf(projectId);
   }
 
   async restoreVersion(versionId: string) {
-    const version = readList<ProjectVersion>(VERSIONS_KEY, []).find((v) => v.id === versionId);
+    const version = findVersion(versionId);
     if (!version) return fail<Project>("Esa versión ya no está disponible.");
     const result = await attempt(() =>
       api<{ result: { success: boolean } }>(`/api/projects/${version.projectId}/rollback`, { method: "POST" }),

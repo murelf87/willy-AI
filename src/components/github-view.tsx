@@ -1,14 +1,10 @@
 import { useEffect, useState } from "react";
 import { Check, Github, Loader2, LogOut, Plus, RefreshCw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PanelCard as Card } from "@/components/panel-card";
 import type { GeneratedFile } from "@/lib/ai-standard";
 import { createRepo, listRepos, pushFiles, readAccount, saveAccount, verifyToken, type GitHubAccount, type Repo } from "@/lib/github";
-
-type Ping = (m: string) => void;
-
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-xl border border-border bg-card p-4 ${className}`}>{children}</div>;
-}
+import type { Ping } from "@/types/domain";
 
 /** Conexión del proyecto con GitHub: subir el código generado en un commit real. */
 export function GitHubView({ project, files, ping }: { project: string; files: GeneratedFile[]; ping: Ping }) {

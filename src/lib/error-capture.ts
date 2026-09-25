@@ -49,6 +49,29 @@ function isErrorLike(value: unknown): value is Error {
   return value instanceof Error;
 }
 
+// Últimos errores del servidor, para Ajustes → Diagnóstico → Registros (solo en memoria, se pierden al reiniciar).
+// Viven en globalThis: si este módulo acabara cargado dos veces, las dos copias comparten la misma lista.
+type RecentError = { at: number; text: string };
+const RECENT_LIMIT = 100;
+const globalStore = globalThis as unknown as { __willyErroresRecientes?: RecentError[] };
+const firstCopy = !globalStore.__willyErroresRecientes;
+const recent: RecentError[] = (globalStore.__willyErroresRecientes ??= []);
+
+/** Los errores más recientes que ha escrito el servidor (el más nuevo al final). */
+export function recentServerErrors(): RecentError[] {
+  return recent.slice();
+}
+
+function remember(args: unknown[]): void {
+  try {
+    const text = args.map((arg) => (typeof arg === "string" ? arg : safeStringify(arg))).join(" ").slice(0, 2000);
+    recent.push({ at: Date.now(), text });
+    if (recent.length > RECENT_LIMIT) recent.splice(0, recent.length - RECENT_LIMIT);
+  } catch {
+    /* anotar un error nunca debe provocar otro */
+  }
+}
+
 // Wrap console.error so errors logged by any layer — including h3's internal
 // unhandled-error logging, which this file cannot hook directly — are both
 // recorded for consumeLastCapturedError and expanded before serialization.
@@ -59,6 +82,8 @@ console.error = (...args: unknown[]) => {
     record(arg);
     return describeError(arg);
   });
+  // Si el módulo se vuelve a cargar (recarga en desarrollo), solo la primera copia anota: cada error queda una sola vez.
+  if (firstCopy) remember(expanded);
   originalConsoleError(...expanded);
 };
 

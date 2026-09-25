@@ -1,66 +1,70 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocalModels } from "@/lib/use-local-models";
+import { useEscapeToClose } from "@/hooks/use-escape-to-close";
 import type { GeneratedFile } from "@/lib/ai-standard";
 import {
-  Activity, Bot, Check, Clock, Cpu, Database, Download, FolderKanban, Gauge, HardDrive, Home, LayoutGrid,
-  LogOut, MessageSquare, MoreHorizontal, Pencil, Play, Plus, RefreshCw, RotateCcw, RotateCw, Search, Server, Settings, Shield, Square,
-  Terminal, Trash2, Wrench, X, Zap,
+  Check, Clock, Database, Download, FolderKanban, Gauge, LayoutGrid, LogOut, Pencil, Plus, RotateCcw, Search, Server, Settings, Terminal, Wrench, X, Zap, ArrowRight, FlaskConical, Paperclip, Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
+import { ClarifyButton } from "@/components/clarify-button";
+import { DataSourcesCard } from "@/components/data-sources-card";
+import { usePersistentState } from "@/lib/persistent-state";
 import { formatBytes, readFileAsDataUrl, useProfile } from "@/lib/profile";
-import { downloadFile, pingEndpoint, useSettings } from "@/lib/workspace-store";
+import { downloadFile, useSettings } from "@/lib/workspace-store";
 import { GitHubView } from "@/components/github-view";
+import { LiveResources, LiveStatusCards, LiveTools } from "@/components/home-live";
 import { InstallView } from "@/components/install-view";
 import { DemoView } from "@/components/demo-view";
 import { LicensesView } from "@/components/licenses-view";
 import { ReaderView } from "@/components/reader-view";
-import { APP_VERSION } from "@/lib/version";
 import { OcrView } from "@/components/ocr-view";
+import { TranscribeView } from "@/components/transcribe-view";
 import { AvatarView } from "@/components/avatar-view";
 import { TranslateView } from "@/components/translate-view";
 import { ExtrasView } from "@/components/extras-view";
 import { BookView } from "@/components/book-view";
 import { SuperIAView } from "@/components/superia-view";
+import { ProjectsView } from "@/components/projects-view";
 import { SelfBuildView } from "@/components/self-build-view";
-import { UpdateView } from "@/components/update-view";
+import { SettingsView } from "@/components/settings-view";
+import { IntelligenceCenter } from "@/components/intelligence-center";
+import { SectionHead as Head } from "@/components/section-ui";
 import { projectService, useProjects, useVersions } from "@/services/project-service";
-import { aiService } from "@/services/ai-service";
-import { apiAuthService } from "@/services/api-auth-service";
-import { backendOn, health, listOrganizations, refreshData, useBackend, type Organization } from "@/services/backend";
-import { PROJECT_STATES, type Project, type ProjectIcon, type ProjectState } from "@/types/domain";
-import {
-  CATALOG_TAGS, MODEL_CATALOG, pullModel, removeModel,
-  type CatalogModel, type CatalogTag, type PullProgress,
-} from "@/services/model-catalog";
+import { isExampleProject, type Ping, type Project, type ProjectIcon, type ProjectMode } from "@/types/domain";
+import { openView } from "@/lib/background-tasks";
+import { QUICK_ACTIONS, briefToPrompt, buildBrief, suggestName, type Attachment, type ProjectBrief } from "@/lib/project-brief";
+import { extractAnyText } from "@/lib/pdf-text";
+import { DEFAULT_REQUEST, REBUILD_DELIVERABLES, REBUILD_TARGETS, rebuildPrompt, suggestRebuildName, targetFeasibility, type RebuildDeliverable, type RebuildLevel, type RebuildRequest, type RebuildTarget } from "@/lib/product-rebuild";
+import { PanelCard as Card } from "@/components/panel-card";
 
+// Desde la revisión 20 ya no existen «Workspace», «Agentes», «Modelos», «Configuración» ni «Estado del sistema» como
+// pantallas: lo que tenían de verdad está en «Ajustes» y en el «Centro de Inteligencia» (ver MOVED_VIEWS en section-tabs).
 export type View =
-  | "chat" | "inicio" | "superia" | "autoconstruccion" | "proyectos" | "historial" | "workspace" | "agentes" | "modelos"
-  | "herramientas" | "documentacion" | "configuracion" | "cuenta" | "estado"
+  | "chat" | "inicio" | "superia" | "inteligencia" | "autoconstruccion" | "proyectos" | "historial"
+  | "herramientas" | "documentacion" | "ajustes" | "cuenta"
   | "github" | "instalacion" | "demo" | "licencias"
-  | "lectura" | "ocr" | "avatar" | "traducir" | "extras" | "libros";
+  | "lectura" | "ocr" | "avatar" | "traducir" | "extras" | "libros" | "transcribir";
 
 export const VIEW_TITLES: Record<View, string> = {
   chat: "Chats",
-  superia: "Súper IA",
+  superia: "SUPER WILLY",
   autoconstruccion: "Autoconstrucción",
   inicio: "Inicio",
   proyectos: "Proyectos",
   historial: "Historial",
-  workspace: "Workspace",
-  agentes: "Agentes",
-  modelos: "Modelos",
+  inteligencia: "Centro de Inteligencia",
   herramientas: "Herramientas",
   licencias: "Licencias",
   lectura: "Lectura en voz alta",
   ocr: "OCR de documentos",
+  transcribir: "Transcribir audio o vídeo",
   avatar: "Mi yo en IA",
   traducir: "Traducir enlace",
   extras: "Nuevas funciones",
   libros: "Libros",
   documentacion: "Documentación",
-  configuracion: "Configuración",
+  ajustes: "Ajustes",
   cuenta: "Cuenta",
-  estado: "Estado del sistema",
   github: "GitHub",
   instalacion: "Acceso directo",
   demo: "Demo para cliente",
@@ -72,95 +76,13 @@ export const PROJECT_ICONS: Record<ProjectIcon, typeof FolderKanban> = {
   database: Database, zap: Zap, store: Database, code: Terminal,
 };
 
-/** Tarjeta de conexión con el servidor backend (Fastify en localhost:4000). */
-function BackendCard({ ping }: { ping: Ping }) {
-  const [cfg, update] = useBackend();
-  const [urlDraft, setUrlDraft] = useState(cfg.url);
-  const [orgs, setOrgs] = useState<Organization[]>([]);
-  const [checking, setChecking] = useState(false);
-  const connected = cfg.enabled && backendOn();
-
-  const check = async () => {
-    setChecking(true);
-    ping(`Comprobando el servidor en ${urlDraft.trim()}...`);
-    const result = await health(urlDraft.trim());
-    setChecking(false);
-    if (!result.ok) return ping(`No responde ${urlDraft.trim()}. Comprueba que el backend está arrancado (pnpm run dev).`);
-    update({ url: urlDraft.trim() });
-    ping(`Servidor conectado en ${urlDraft.trim()}.`);
-    const list = await listOrganizations();
-    if (list.ok && list.data.length) setOrgs(list.data);
-  };
-
-  const toggle = async () => {
-    if (!cfg.enabled && !urlDraft.trim()) return ping("Escribe primero la dirección del servidor.");
-    if (!cfg.enabled) {
-      // Antes de activar, comprueba que el servidor realmente responde.
-      ping(`Comprobando el servidor en ${urlDraft.trim()}...`);
-      const probe = await health(urlDraft.trim());
-      if (!probe.ok) {
-        return ping(`No se pudo conectar con ${urlDraft.trim()}. Arranca el backend (pnpm run dev) y vuelve a intentarlo.`);
-      }
-      update({ url: urlDraft.trim(), enabled: true });
-      await apiAuthService.refresh();
-      refreshData();
-      return ping("Servidor conectado: proyectos y sesión ahora vienen del backend.");
-    }
-    update({ enabled: false });
-    return ping("Servidor desconectado. Tus datos vuelven a guardarse en este equipo.");
-  };
-
-  return (
-    <Card className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-sm font-semibold">
-            <Server className="size-4" /> Servidor backend
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {connected ? "Proyectos y sesión vienen del servidor." : "Sin conectar: los datos se guardan en este equipo."}
-          </p>
-        </div>
-        <Toggle on={cfg.enabled} label="Servidor backend" onClick={() => void toggle()} />
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-muted-foreground" htmlFor="backend-url">Dirección del servidor</label>
-        <input
-          id="backend-url"
-          value={urlDraft}
-          onChange={(e) => setUrlDraft(e.target.value)}
-          placeholder="http://localhost:4000"
-          className="mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-3 font-mono text-sm outline-none focus:border-primary"
-        />
-      </div>
-      {orgs.length > 0 && (
-        <div>
-          <label className="block text-xs font-semibold text-muted-foreground" htmlFor="backend-org">Organización</label>
-          <select
-            id="backend-org"
-            value={cfg.organizationId}
-            onChange={(e) => update({ organizationId: e.target.value })}
-            className="mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-          >
-            <option value="">Ninguna</option>
-            {orgs.map((o) => (
-              <option key={o.id} value={o.id}>{o.name} · {o.role}</option>
-            ))}
-          </select>
-        </div>
-      )}
-      <Button type="button" variant="secondary" disabled={checking} onClick={() => void check()}>
-        {checking ? "Comprobando..." : "Probar servidor"}
-      </Button>
-    </Card>
-  );
-}
 
 /** Historial de versiones del proyecto activo: cada generación queda guardada y se puede restaurar. */
 function HistoryView({ ping }: { ping: Ping }) {
   const [settings] = useSettings();
   const { projects } = useProjects();
-  const active = projects.find((p) => p.name === settings.project) ?? projects[0];
+  const active = (settings.projectId ? projects.find((p) => p.id === settings.projectId) : undefined)
+    ?? (settings.project ? projects.find((p) => p.name === settings.project) : undefined);
   const versions = useVersions(active?.id);
 
   return (
@@ -176,7 +98,7 @@ function HistoryView({ ping }: { ping: Ping }) {
             <Clock className="size-4 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{v.label}</p>
-              <p className="text-xs text-muted-foreground">{new Date(v.at).toLocaleString("es-ES")} · {v.files.length} archivo(s)</p>
+              <p className="text-xs text-muted-foreground">{new Date(v.at).toLocaleString("es-ES")} · {v.fileCount ?? v.files.length} archivo(s)</p>
             </div>
             <Button variant="secondary" size="sm" onClick={() => { if (window.confirm(`¿Restaurar «${v.label}»? Se sustituirán los archivos actuales del proyecto.`)) void projectService.restoreVersion(v.id).then((r) => ping(r.ok ? `Versión «${v.label}» restaurada en «${r.data.name}».` : `⚠️ ${r.error}`)); }}>
               <RotateCcw className="size-3.5" />Restaurar
@@ -188,296 +110,146 @@ function HistoryView({ ping }: { ping: Ping }) {
   );
 }
 
-type Ping = (m: string) => void;
-
-function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-xl border border-border bg-card p-4 ${className}`}>{children}</div>;
-}
-
-function Head({ title, desc, action }: { title: string; desc: string; action?: ReactNode }) {
-  return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="font-display text-xl font-bold sm:text-2xl">{title}</h1>
-        <p className="text-sm text-muted-foreground">{desc}</p>
-      </div>
-      {action}
-    </div>
-  );
-}
-
-function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-primary" : "bg-muted"}`}
-    >
-      <span className={`absolute top-0.5 size-5 rounded-full bg-background transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
-    </button>
-  );
-}
-
-export const PROJECTS = [
-  { name: "SaaS Clientes", desc: "Gestión de clientes con métricas", icon: FolderKanban, state: "Activo", files: 12 },
-  { name: "App Fitness", desc: "Rutinas y seguimiento diario", icon: Gauge, state: "Pausado", files: 28 },
-  { name: "Web Corporativa", desc: "Sitio institucional multiidioma", icon: LayoutGrid, state: "Listo", files: 19 },
-  { name: "API REST", desc: "Servicio de datos local en Node", icon: Server, state: "Activo", files: 34 },
-  { name: "Tienda Online", desc: "Catálogo y carrito sin pasarela", icon: Database, state: "Borrador", files: 7 },
-  { name: "Landing Page", desc: "Página de captación de leads", icon: Zap, state: "Listo", files: 5 },
-];
-
-export const AGENTS = [
-  { name: "Analist", role: "Analiza requisitos y define la arquitectura", model: "qwen2.5-coder:14b" },
-  { name: "Programmer", role: "Escribe y modifica el código del proyecto", model: "qwen2.5-coder:14b" },
-  { name: "Tester", role: "Ejecuta pruebas y valida los resultados", model: "llama3.1:8b" },
-  { name: "Debugger", role: "Detecta y corrige errores del código", model: "deepseek-coder:6.7b" },
-  { name: "Designer", role: "Propone estilos, temas y componentes", model: "llava:13b" },
-];
-
-export const MODELS = [
-  { name: "qwen2.5-coder:14b", size: "9,0 GB", tag: "Código", loaded: true },
-  { name: "llama3.1:8b", size: "4,7 GB", tag: "General", loaded: true },
-  { name: "deepseek-coder:6.7b", size: "3,8 GB", tag: "Código", loaded: false },
-  { name: "llava:13b", size: "8,0 GB", tag: "Visión", loaded: false },
-  { name: "nomic-embed-text", size: "274 MB", tag: "Embeddings", loaded: true },
-];
-
-export const TOOLS = [
-  { name: "Terminal local", desc: "Ejecuta comandos en tu equipo", icon: Terminal },
-  { name: "Sistema de archivos", desc: "Lee y escribe en la carpeta del proyecto", icon: HardDrive },
-  { name: "Base de datos local", desc: "SQLite y Postgres en tu máquina", icon: Database },
-  { name: "Navegador de pruebas", desc: "Abre la vista previa y captura errores", icon: Search },
-  { name: "Servidor de desarrollo", desc: "Arranca y reinicia el proyecto", icon: Play },
-  { name: "Analizador de seguridad", desc: "Revisa dependencias sin salir del equipo", icon: Shield },
-];
 
 const DOCS: { t: string; d: string; body: string[] }[] = [
   {
     t: "Primeros pasos",
-    d: "Instala el motor local y conecta WILLY AI en dos minutos.",
+    d: "Qué se hace en cada sitio de WILLY AI.",
     body: [
-      "1. Instala tu motor de IA local (por ejemplo Ollama o Forge) en el mismo equipo donde usas WILLY AI.",
-      "2. Arráncalo y comprueba que responde en su dirección, normalmente http://localhost:11434.",
-      "3. Abre Configuración en WILLY AI, escribe esa dirección y pulsa «Probar conexión».",
-      "4. Entra en Modelos, elige el modelo que quieras usar y pulsa «Usar».",
-      "5. Vuelve al chat y describe lo que quieres construir.",
+      "1. Para construir algo (una web, una aplicación, un programa), ve a SUPER WILLY y cuéntale qué quieres: te hará unas preguntas y lo guardará como proyecto.",
+      "2. Para preguntar, redactar, resumir o investigar (también dudas de programación), usa el Chat. Si en el Chat pides construir o cambiar un proyecto, te ofrece «Abrir en SUPER WILLY» y le pasa solo lo necesario.",
+      "3. En el Centro de Inteligencia eliges con qué IA trabaja WILLY: la de tu equipo (Ollama, gratis y sin internet) o una IA externa gratuita con tu clave (más rápida).",
+      "4. Todo lo que construyes aparece en Proyectos, con sus versiones. Al abrir un proyecto se abre en SUPER WILLY: a la izquierda su chat y a la derecha la vista previa, el código, los archivos, los cambios y las versiones.",
     ],
   },
   {
-    t: "Conectar tu IA local",
-    d: "Configura la dirección del servidor y elige el modelo.",
+    t: "El progreso de tus proyectos",
+    d: "De dónde sale el porcentaje y qué significa cada estado.",
     body: [
-      "WILLY AI habla con tu motor local mediante peticiones HTTP a la dirección que indiques en Configuración.",
-      "Si el motor está en otro equipo de tu red, usa su IP, por ejemplo http://192.168.1.50:11434.",
-      "Con «Modo sin conexión» activado, el espacio de trabajo no realiza ninguna petición fuera de tu red.",
-      "La carpeta de modelos indica dónde están descargados los pesos en tu disco.",
+      "Cada proyecto tiene un PLAN: hitos (Discovery, Diseño, Frontend, Backend, Pruebas, Entrega… según sea una web, una API o una aplicación) y, dentro, tareas con su peso. El porcentaje es el trabajo hecho frente al planificado: nunca se inventa.",
+      "El plan sale de la entrevista del proyecto (las funciones que eliges son sus tareas). WILLY dice qué tareas termina cada vez que entrega archivos (solo cuentan si se han guardado), y algunas se comprueban solas: la entrevista, que la vista previa se vea sin errores, el README y que haya archivos.",
+      "El 100 % solo llega con todo hecho, la vista previa sin errores, la documentación y nada pendiente de ti. Si añades algo nuevo al proyecto, el porcentaje baja: es lo correcto.",
+      "Los proyectos de antes salen como «Progreso no calculado»: pulsa «Analizar proyecto» y WILLY revisa sus archivos (sin cambiar nada) y hace su plan. Al pulsar la barra de progreso ves cada hito y «qué falta», y puedes marcar tareas o añadir las que falten.",
+      "SÚPER IA aparece arriba como proyecto del sistema: su progreso es lo que ya está hecho en esta versión de WILLY frente a todo lo previsto, con sus versiones y sus pruebas.",
     ],
   },
   {
-    t: "Agentes y flujos",
-    d: "Cómo colaboran Analist, Programmer, Tester y Debugger.",
+    t: "Cambiar algo tocándolo en la vista previa",
+    d: "Seleccionar elemento, revisar el diseño y comparar antes y después.",
     body: [
-      "Analist interpreta tu petición y define la arquitectura y los archivos a crear.",
-      "Programmer escribe el código; Tester ejecuta comprobaciones y Debugger corrige lo que falle.",
-      "Puedes activar o desactivar cada agente en la pantalla Agentes; los desactivados se saltan en el flujo.",
-      "Cada agente puede usar un modelo distinto, según la tarea.",
+      "En SUPER WILLY, con un proyecto abierto, pulsa «Seleccionar» en la barra de la vista previa y toca lo que quieras cambiar (un botón, una imagen, un texto, el menú, una tarjeta…). Mientras eliges, la página no reacciona a los clics. WILLY te pregunta «¿Qué quieres cambiar?»: escríbelo o pulsa un cambio rápido («Hazlo más pequeño», «Cambia el color», «Elimínalo»…).",
+      "WILLY sabe exactamente qué has tocado (y en qué archivo y línea está), así que cambia solo eso. Si abres «Detalles técnicos (avanzado)» ves esos datos; si no, no hace falta. Tras el cambio, el elemento sigue elegido por si quieres retocarlo otra vez.",
+      "«Revisar diseño» mira la pantalla que estás viendo en ordenador, tableta y móvil: lo que se sale de la pantalla, el texto que se corta, lo que se tapa, el poco contraste, la letra o los botones demasiado pequeños, las imágenes que no cargan o se deforman, el título principal y el espaciado. Si en tu equipo hay Edge o Chrome, hace además capturas de verdad; y si tienes una IA con visión, puede mirarlas y opinar.",
+      "Tú eliges qué arreglar: WILLY lo arregla sin cambiar tu diseño. Si hiciera falta un cambio grande (otra distribución, otros colores de marca…), te lo explica y te pregunta antes. «Ver» te señala en la vista previa dónde está cada problema.",
+      "«Comparar» enseña ANTES y DESPUÉS lado a lado (por defecto, cómo estaba antes del último cambio y cómo está ahora), al mismo tamaño y moviéndose a la vez. Puedes elegir dos versiones cualesquiera.",
+      "«Pantallas» abre el MAPA DE PANTALLAS: todas las pantallas del proyecto de un vistazo (las rutas «#/…» de una aplicación de una sola página y sus páginas), cada una en pequeño y diciendo si se ve bien, se queda en blanco o da error. «Abrir» te lleva a esa pantalla en la vista previa y «Reparar» le pide a WILLY que arregle la que falla. Si el proyecto usa rutas sin «#», solo se ve la primera pantalla: el mapa te ofrece pasarlo a rutas con «#».",
+    ],
+  },
+  {
+    t: "La IA de tu equipo",
+    d: "Ollama: arrancarla, ver si usa la tarjeta gráfica y descargar modelos.",
+    body: [
+      "WILLY usa Ollama, que se instala y se arranca solo con WILLY. Su estado está en Centro de Inteligencia → Tu equipo (Ollama).",
+      "Allí ves si responde, su versión, cuántos modelos tiene y si calcula con la tarjeta gráfica o solo con el procesador (y por qué).",
+      "Si no responde, pulsa «Arrancar la IA de mi equipo»; si va rara, «Reiniciar».",
+      "Los modelos gratuitos se descargan en Centro de Inteligencia → Modelos, donde también ves la carpeta en la que se guardan.",
+    ],
+  },
+  {
+    t: "Agentes",
+    d: "Qué son Analista, Programador, Revisor, Depurador y Diseñador UI.",
+    body: [
+      "Son papeles que SUPER WILLY tiene en cuenta cuando construye o cambia un proyecto: se le indican en cada petición del proyecto.",
+      "No son programas aparte ni usan un modelo distinto: contesta la IA de SUPER WILLY.",
+      "Puedes activar o desactivar cada uno en Centro de Inteligencia → Agentes.",
     ],
   },
   {
     t: "Vista previa en vivo",
-    d: "Cómo se renderiza tu proyecto mientras se genera.",
+    d: "Cómo se ve tu proyecto en SUPER WILLY mientras se construye.",
     body: [
-      "La vista previa muestra el resultado real en un marco aislado, con vistas de escritorio, tableta y móvil.",
-      "Cada sub-pestaña es un diseño completo independiente; puedes crear tantos como quieras con «+ Nuevo diseño».",
-      "El botón de recargar vuelve a renderizar el diseño activo sin perder la conversación.",
+      "Con un proyecto abierto en SUPER WILLY, la vista previa enseña el proyecto de verdad (sus archivos guardados) en un marco aislado; mientras WILLY escribe, se va actualizando con lo que lleva escrito.",
+      "Los botones Ordenador, Tableta y Móvil cambian de verdad el ancho de la pantalla (390 px en el móvil); «Ampliar» la pone casi a pantalla completa y «Volver a SUPER WILLY» la cierra.",
+      "Dice siempre su estado (cargando, lista, actualizando, error…). Si la página falla, lo dice con el error y un botón para que WILLY lo arregle.",
+      "Los proyectos de React (Vite) se COMPILAN en tu equipo al guardarlos, con las piezas que ya trae WILLY (sin npm ni internet), y la vista previa enseña su código de verdad. Si además tienen «vista-previa.html», en el selector de páginas eliges ver una u otro («… compilado en tu equipo»). Si no compila, dice por qué (el archivo y la línea, o la librería que falta) con «Reparar». Si le falta una librería conocida que el proyecto pide en su package.json (framer-motion, react-router-dom, chart.js…), WILLY LA INSTALA SOLO desde npm —sin npm, comprobando su huella y sin ejecutar nada de ella— y vuelve a compilar; las demás, con el botón «Instalar». Las instaladas se ven (y se quitan) en «Librerías instaladas».",
+      "Puedes arrastrar la separación entre el chat y la vista previa, o elegir «Foco en la vista previa», «Equilibrado» o «Foco en el chat»: se recuerda.",
+    ],
+  },
+  {
+    t: "Pruebas automáticas",
+    d: "WILLY prueba tu aplicación él solo, como lo haría una persona.",
+    body: [
+      "Cada proyecto puede tener sus PRUEBAS AUTOMÁTICAS (en «pruebas/»): como un usuario de prueba, WILLY abre tu aplicación sin que la veas, escribe, pulsa, elige y comprueba que todo responde bien. Van con el formato de Playwright, el de los programadores: si algún día el proyecto va a uno, las entiende.",
+      "El botón «Pruebas» del taller dice cómo van («5/5» en verde, «1 falla» en rojo). En su panel: cada prueba con lo que ha fallado explicado en palabras (y el detalle técnico), «Repetir», «Pasar las pruebas», «Arreglar lo que falla» y «Escribir las pruebas» (si el proyecto aún no tiene, WILLY las prepara).",
+      "Después de cada cambio de WILLY se pasan solas (se puede apagar en el panel). Si un cambio rompe alguna que iba bien, WILLY lo arregla solo (como mucho 2 intentos; si no, te lo explica y puedes volver a la versión que funcionaba).",
+      "Mientras se pasan puedes seguir usando WILLY y escribiendo: no se ven, no te quitan el teclado y no salen a internet. Y el 100 % de un proyecto exige que pasen todas.",
+    ],
+  },
+  {
+    t: "Transcribir audio o vídeo",
+    d: "Texto y subtítulos de lo que se dice en un audio o un vídeo, en tu equipo.",
+    body: [
+      "En Más → Transcribir (o Herramientas → Transcribir audio o vídeo) eliges o sueltas un audio o un vídeo (MP3, WAV, M4A, OGG, MP4, MOV o WEBM, hasta 2 GB) y su idioma, y WILLY lo pasa a texto con Whisper, sin sacarlo de tu ordenador.",
+      "La primera vez hay que pulsar «Preparar la transcripción»: se descarga el modelo una sola vez (1,6 GB). Usa el mismo motor de IA que la voz Chatterbox, así que antes tiene que estar instalada (Lectura → Voces más humanas).",
+      "Con la tarjeta gráfica va rápido; si no cabe (por ejemplo, porque ComfyUI está haciendo un vídeo), lo hace con el procesador, más despacio.",
+      "Al terminar puedes corregir el texto, copiarlo, descargarlo y bajar los subtítulos (.srt) para cualquier editor de vídeo.",
     ],
   },
   {
     t: "Exportar proyectos",
     d: "Descarga el código completo en un archivo comprimido.",
     body: [
-      "Desde el menú «Más opciones» de la barra superior puedes exportar el proyecto activo.",
-      "La exportación incluye la lista de archivos, el modelo usado y la configuración local del proyecto.",
-      "También puedes descargar una copia de seguridad de tu perfil desde la pantalla Cuenta.",
+      "En SUPER WILLY, con el proyecto abierto, «Exportar» (o «Publicar») descarga el proyecto en un ZIP.",
+      "El ZIP lleva todos los archivos del proyecto y un README con la fecha.",
+      "En Cuenta puedes descargar una copia de tu perfil y tus ajustes.",
     ],
   },
   {
-    t: "Privacidad total",
-    d: "Tus datos y tu código nunca salen de tu equipo.",
+    t: "Ajustes y diagnóstico",
+    d: "Reiniciar WILLY, vaciar la caché, ver el espacio y encontrar problemas.",
     body: [
-      "El perfil, los ajustes y las conversaciones se guardan en el almacenamiento del propio navegador.",
-      "No hay cuentas en la nube ni telemetría: si apagas el equipo, todo se queda contigo.",
-      "Para borrar tus datos, usa «Cerrar sesión» en la pantalla Cuenta.",
+      "Ajustes → Sistema: estado de WILLY, versión, reiniciar y detener (solo desde el ordenador), actualizaciones y vaciar la caché.",
+      "Ajustes → Almacenamiento: dónde están tus datos, cuánto ocupa cada cosa y borrar copias antiguas sin riesgo.",
+      "Ajustes → Diagnóstico: «Ejecutar diagnóstico» lo revisa todo y te dice qué hacer si algo falla. Los registros nunca enseñan claves.",
+      "Si WILLY no llega ni a abrirse, usa «Recuperar WILLY AI» desde el menú Inicio de Windows.",
+    ],
+  },
+  {
+    t: "Tus datos y tu privacidad",
+    d: "Qué se queda en tu equipo y qué sale.",
+    body: [
+      "Tus proyectos se guardan en tu equipo, en la carpeta de datos de WILLY (Ajustes → Almacenamiento te dice dónde y cuánto ocupan).",
+      "Tu perfil, tus ajustes y las conversaciones del Chat se guardan en el navegador de este equipo.",
+      "Con la IA de tu equipo (Ollama), lo que escribes no sale de tu ordenador. Si usas una IA externa, lo que le mandas va a ese servicio; puedes apagarlas en el Centro de Inteligencia.",
+      "Las claves de las IA externas se guardan solo en tu equipo: nunca se enseñan enteras ni aparecen en los registros.",
     ],
   },
 ];
 
+
 export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout, files }: {
-  view: View; ping: Ping; onNewProject: () => void; onOpenProject: (name: string) => void; onLogout: () => void; files?: GeneratedFile[];
+  view: View; ping: Ping; onNewProject: () => void; onOpenProject: (p: Project) => void; onLogout: () => void; files?: GeneratedFile[];
 }) {
-  const [settings, update] = useSettings();
-  const { projects, trashed, loading } = useProjects();
+  const [settings] = useSettings();
+  const { projects } = useProjects();
   const [query, setQuery] = useState("");
-  const [models, setModels] = useState(MODELS);
   const [doc, setDoc] = useState<(typeof DOCS)[number] | null>(null);
-  const [endpointDraft, setEndpointDraft] = useState(settings.endpoint);
-  const [pathDraft, setPathDraft] = useState(settings.modelsPath);
-  const [testing, setTesting] = useState(false);
 
-  // Disponibilidad real de los modelos, comprobada contra el motor local.
-  const [engineModels, setEngineModels] = useState<string[] | null>(null);
-  const [engineState, setEngineState] = useState<"checking" | "ok" | "fail">("checking");
-  const checkModels = (announce = false) => {
-    setEngineState("checking");
-    void aiService.models(settings.endpoint).then((r) => {
-      if (r.ok) {
-        setEngineModels(r.data.map((m) => m.name));
-        setEngineState("ok");
-        if (announce) ping(`${r.data.length} modelo(s) detectados en ${settings.endpoint}.`);
-      } else {
-        setEngineModels(null);
-        setEngineState("fail");
-        if (announce) ping(`⚠️ ${r.error} Revisa la dirección en Configuración.`);
-      }
-    });
-  };
-  useEffect(() => {
-    if (view === "modelos") checkModels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, settings.endpoint]);
-
-  // Catálogo de modelos gratuitos y descargas en curso.
-  const [catalogTab, setCatalogTab] = useState<"catalogo" | "instalados">("catalogo");
-  const [catalogTag, setCatalogTag] = useState<CatalogTag>("Todos");
-  const [pulls, setPulls] = useState<Record<string, PullProgress>>({});
-  const pullControllers = useRef<Record<string, AbortController>>({});
-
-  const startPull = async (m: CatalogModel) => {
-    if (pulls[m.name]) return;
-    const controller = new AbortController();
-    pullControllers.current[m.name] = controller;
-    setPulls((p) => ({ ...p, [m.name]: { status: "preparando", percent: null } }));
-    ping(`Descargando ${m.label} (${m.size})…`);
-    const result = await pullModel(
-      settings.endpoint,
-      m.name,
-      (progress) => setPulls((p) => ({ ...p, [m.name]: progress })),
-      controller.signal,
-    );
-    setPulls((p) => {
-      const next = { ...p };
-      delete next[m.name];
-      return next;
-    });
-    delete pullControllers.current[m.name];
-    if (!result.ok) return ping(`⚠️ ${result.error}`);
-    ping(`${m.label} ya está instalado en tu equipo.`);
-    checkModels();
-  };
-
-  const cancelPull = (name: string) => {
-    pullControllers.current[name]?.abort();
-    ping(`Descarga de ${name} cancelada.`);
-  };
-
-  // Descarga en cola todos los modelos del catálogo que falten.
-  const pullAll = async () => {
-    const pendientes = MODEL_CATALOG.filter(
-      (m) => !pulls[m.name] && !(engineState === "ok" && engineModels?.some((n) => n === m.name || n === `${m.name}:latest`)),
-    );
-    if (!pendientes.length) return ping("Todos los modelos del catálogo ya están instalados en tu equipo.");
-    ping(`Descargando todos los modelos (${pendientes.length} en cola)…`);
-    for (const m of pendientes) await startPull(m);
-    ping("Cola de descargas terminada. Todos los modelos están disponibles.");
-  };
-
-  const deleteModel = async (name: string) => {
-    const result = await removeModel(settings.endpoint, name);
-    if (!result.ok) return ping(`⚠️ ${result.error}`);
-    ping(`${name} borrado del disco.`);
-    checkModels();
-  };
-
-
-
-  // Estado real del entorno local
-  const [server, setServer] = useState<"parado" | "arrancando" | "en marcha">("parado");
-  const [log, setLog] = useState<string[]>([]);
-  const addLog = (line: string) => setLog((l) => [...l.slice(-30), `${new Date().toLocaleTimeString("es-ES")}  ${line}`]);
-
-  useEffect(() => { setEndpointDraft(settings.endpoint); setPathDraft(settings.modelsPath); }, [settings.endpoint, settings.modelsPath]);
-
-  const filtered = useMemo(
-    () => projects.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase())),
-    [projects, query],
-  );
+  // Los proyectos de ejemplo de antes no cuentan como tuyos (la pantalla Proyectos, rev23, está en projects-view.tsx).
+  const mine = useMemo(() => projects.filter((p) => !isExampleProject(p)), [projects]);
   const docs = useMemo(
     () => DOCS.filter((d) => (d.t + d.d).toLowerCase().includes(query.trim().toLowerCase())),
     [query],
   );
 
-  const doRename = (p: Project) => {
-    const name = window.prompt("Nuevo nombre del proyecto:", p.name);
-    if (!name || name.trim() === p.name) return;
-    void projectService.rename(p.id, name).then((r) => ping(r.ok ? `Proyecto renombrado a «${r.data.name}».` : `⚠️ ${r.error}`));
-  };
-  const doDuplicate = (p: Project) =>
-    void projectService.duplicate(p.id).then((r) => ping(r.ok ? `Copia creada: «${r.data.name}».` : `⚠️ ${r.error}`));
-  const doState = (p: Project, state: ProjectState) =>
-    void projectService.setState(p.id, state).then((r) => ping(r.ok ? `«${p.name}» ahora está ${state.toLowerCase()}.` : `⚠️ ${r.error}`));
-  const doSoftDelete = (p: Project) =>
-    void projectService.softDelete(p.id).then((r) => ping(r.ok ? `«${p.name}» se ha movido a la papelera.` : `⚠️ ${r.error}`));
-  const doRestore = (p: Project) =>
-    void projectService.restore(p.id).then((r) => ping(r.ok ? `«${p.name}» restaurado.` : `⚠️ ${r.error}`));
-  const doDestroy = (p: Project) => {
-    if (!window.confirm(`¿Eliminar definitivamente «${p.name}» y sus versiones? Esta acción no se puede deshacer.`)) return;
-    void projectService.destroy(p.id).then((r) => ping(r.ok ? `«${p.name}» eliminado definitivamente.` : `⚠️ ${r.error}`));
-  };
-
-  // Direcciones reales del equipo (nunca la dirección del editor)
-  const appUrl =
-    typeof window === "undefined"
-      ? "http://localhost:3000"
-      : /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
-        ? window.location.origin
-        : "http://localhost:3000";
-  const backendUrl = "http://localhost:4000";
-  const [engineOk, setEngineOk] = useState<boolean | null>(null);
-  const [backendOk, setBackendOk] = useState<boolean | null>(null);
-
-  const checkEnvironment = async (announce = false) => {
-    setServer("arrancando");
-    addLog(`Comprobando WILLY AI en ${appUrl}...`);
-    const engine = await pingEndpoint(settings.endpoint);
-    setEngineOk(engine);
-    addLog(engine ? `Motor de IA local activo en ${settings.endpoint}.` : `El motor de IA local no responde en ${settings.endpoint}.`);
-    let api = false;
-    try {
-      await fetch(`${backendUrl}/health`, { mode: "no-cors" });
-      api = true;
-    } catch {
-      api = false;
-    }
-    setBackendOk(api);
-    addLog(api ? `Servidor de datos activo en ${backendUrl}.` : `Sin servidor de datos en ${backendUrl} (opcional).`);
-    setServer("en marcha");
-    addLog(`WILLY AI disponible en ${appUrl}`);
-    if (announce) ping(engine ? "Entorno local comprobado y en marcha." : "WILLY está en marcha, pero el motor de IA local no responde.");
-  };
-
-  const startServer = () => {
-    if (server === "arrancando") return;
-    void checkEnvironment(true);
-  };
-
-  useEffect(() => {
-    if (view === "workspace" && server === "parado") void checkEnvironment(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
-
+  // SUPER WILLY ocupa toda la altura (rev21): con un proyecto abierto, su chat y su taller (vista previa grande) van lado a lado.
+  if (view === "superia") {
+    return (
+      <section className="flex min-h-0 flex-1 flex-col bg-background" aria-label={VIEW_TITLES[view]}>
+        <SuperIAView />
+      </section>
+    );
+  }
 
   return (
     <section className="min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-6" aria-label={VIEW_TITLES[view]}>
@@ -486,28 +258,19 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
           <>
             <Head
               title="Hola, Antonio José"
-              desc="Tu estudio de desarrollo con IA ejecutándose por completo en tu equipo."
+              desc="Tu estudio de desarrollo con IA, en tu equipo."
               action={<Button className="gap-2" onClick={onNewProject}><Plus className="size-4" />Nuevo proyecto</Button>}
             />
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[["Modelo activo", settings.model, Cpu], ["Proyectos", `${projects.length} en tu equipo`, FolderKanban], ["Conexión", settings.offline ? "Local, sin internet" : "Local, red permitida", Shield]].map(([t, v, I]) => {
-                const Icon = I as typeof Cpu;
-                return (
-                  <Card key={t as string}>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground"><Icon className="size-4 text-primary" />{t as string}</div>
-                    <p className="mt-1.5 truncate text-sm font-semibold">{v as string}</p>
-                  </Card>
-                );
-              })}
-            </div>
+            <LiveStatusCards model={settings.model} projects={mine.length} />
             <div className="mt-4 grid gap-3 lg:grid-cols-[1.4fr_1fr]">
               <Card>
                 <p className="mb-3 text-sm font-semibold">Continúa donde lo dejaste</p>
                 <div className="space-y-2">
-                  {projects.slice(0, 3).map((p) => {
+                  {mine.length === 0 && <p className="text-xs text-muted-foreground">Todavía no tienes proyectos: cuéntale a SUPER WILLY qué quieres crear.</p>}
+                  {mine.slice(0, 3).map((p) => {
                     const Icon = PROJECT_ICONS[p.icon] ?? FolderKanban;
                     return (
-                      <button key={p.id} onClick={() => onOpenProject(p.name)} className="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-left hover:bg-accent/60">
+                      <button key={p.id} onClick={() => onOpenProject(p)} className="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-left hover:bg-accent/60">
                         <Icon className="size-4 text-primary" />
                         <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{p.name}</span><span className="block truncate text-xs text-muted-foreground">{p.desc}</span></span>
                         <span className="text-xs text-muted-foreground">{p.state}</span>
@@ -516,334 +279,22 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
                   })}
                 </div>
               </Card>
-              <Card>
-                <p className="mb-3 text-sm font-semibold">Recursos de tu equipo</p>
-                <div className="space-y-3">
-                  {[["GPU", 62], ["Memoria", 48], ["CPU", 27]].map(([l, v]) => (
-                    <div key={l as string}>
-                      <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>{l as string}</span><span>{v as number}%</span></div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${v as number}%` }} /></div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
+              <LiveResources />
             </div>
+            <LiveTools ping={ping} />
           </>
         )}
 
-        {view === "proyectos" && (
-          <>
-            <Head
-              title="Proyectos"
-              desc="Todo lo que has creado, guardado en tu propio disco."
-              action={<Button className="gap-2" onClick={onNewProject}><Plus className="size-4" />Nuevo proyecto</Button>}
-            />
-            <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-card px-3">
-              <Search className="size-4 text-muted-foreground" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar proyecto..." className="h-10 w-full bg-transparent text-sm outline-none" aria-label="Buscar proyecto" />
-            </div>
-            {loading && <p className="text-sm text-muted-foreground">Cargando proyectos...</p>}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((p) => {
-                const Icon = PROJECT_ICONS[p.icon] ?? FolderKanban;
-                return (
-                  <Card key={p.id} className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <Icon className="size-5 shrink-0 text-primary" />
-                        <span className="truncate text-sm font-semibold">{p.name}</span>
-                      </span>
-                      <Menu label={`Acciones de ${p.name}`} trigger={({ toggle }) => (
-                        <button onClick={toggle} aria-label={`Acciones de ${p.name}`} className="rounded-md p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground"><MoreHorizontal className="size-4" /></button>
-                      )}>
-                        {(close) => (
-                          <>
-                            <MenuItem onClick={() => { close(); onOpenProject(p.name); }}>Abrir</MenuItem>
-                            <MenuItem onClick={() => { close(); doRename(p); }}>Renombrar</MenuItem>
-                            <MenuItem onClick={() => { close(); doDuplicate(p); }}>Duplicar</MenuItem>
-                            <MenuLabel>Estado</MenuLabel>
-                            {PROJECT_STATES.map((s) => (
-                              <MenuItem key={s} active={s === p.state} onClick={() => { close(); doState(p, s); }}>{s}</MenuItem>
-                            ))}
-                            <div className="my-1 h-px bg-border" />
-                            <MenuItem danger onClick={() => { close(); doSoftDelete(p); }}><Trash2 className="size-4" />Mover a la papelera</MenuItem>
-                          </>
-                        )}
-                      </Menu>
-                    </div>
-                    <p className="line-clamp-2 text-xs text-muted-foreground">{p.desc || "Sin descripción."}</p>
-                    <p className="text-[11px] text-muted-foreground">{p.files.length} archivos · {p.state}</p>
-                    <Button variant="secondary" size="sm" className="mt-1 w-full" onClick={() => onOpenProject(p.name)}>Abrir</Button>
-                  </Card>
-                );
-              })}
-            </div>
-            {!loading && filtered.length === 0 && <p className="text-sm text-muted-foreground">Ningún proyecto coincide con la búsqueda.</p>}
-            {trashed.length > 0 && (
-              <div className="mt-6">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Papelera</p>
-                <div className="space-y-2">
-                  {trashed.map((p) => (
-                    <div key={p.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
-                      <Trash2 className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
-                      <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => doRestore(p)}><RotateCcw className="size-3.5" />Restaurar</Button>
-                      <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => doDestroy(p)}><X className="size-3.5" />Eliminar</Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
+        {/* Rev23: Proyectos como centro de control (progreso real, fase, qué falta, filtros, SÚPER IA como proyecto del sistema). */}
+        {view === "proyectos" && <ProjectsView ping={ping} onNewProject={onNewProject} onOpenProject={onOpenProject} />}
 
         {view === "historial" && <HistoryView ping={ping} />}
 
-        {view === "workspace" && (
-          <>
-            <Head title="Workspace" desc="El entorno local donde se ejecuta tu proyecto." />
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                ["WILLY AI", `${appUrl} · ${server === "en marcha" ? "en marcha" : server}`],
-                ["Motor de IA local", `${settings.endpoint} · ${engineOk === null ? "comprobando…" : engineOk ? "responde" : "no responde"}`],
-                ["Servidor de datos", `${backendUrl} · ${backendOk === null ? "comprobando…" : backendOk ? "activo" : "no disponible"}`],
-                ["Carpeta de modelos", settings.modelsPath],
-              ].map(([t, v]) => (
-                <Card key={t}>
-                  <p className="text-xs text-muted-foreground">{t}</p>
-                  <p className="mt-1 break-all font-mono text-sm">{v}</p>
-                </Card>
-              ))}
-            </div>
-            <Card className="mt-3">
-              <p className="mb-3 text-sm font-semibold">Acciones del entorno</p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" className="gap-2" onClick={startServer} disabled={server === "arrancando"}>
-                  <Play className="size-4" />{server === "en marcha" ? "Comprobar de nuevo" : "Arrancar"}
-                </Button>
-                <Button size="sm" variant="secondary" className="gap-2" disabled={server !== "en marcha"} onClick={() => { addLog("Reiniciando comprobación..."); void checkEnvironment(true); }}>
-
-                  <RotateCw className="size-4" />Reiniciar
-                </Button>
-                <Button size="sm" variant="secondary" className="gap-2" disabled={server === "parado"} onClick={() => { setServer("parado"); addLog("Servidor detenido."); ping("Servidor detenido."); }}>
-                  <Square className="size-4" />Detener
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => { addLog("Instalando dependencias desde la caché local..."); ping("Dependencias instaladas."); }}>Instalar dependencias</Button>
-                <Button size="sm" variant="outline" className="gap-2" onClick={() => { setLog([]); ping("Caché y registro vaciados."); }}><Trash2 className="size-4" />Vaciar caché</Button>
-              </div>
-              <div className="mt-3 max-h-44 overflow-auto rounded-lg border border-border bg-background p-3 font-mono text-[11px] leading-5 text-muted-foreground">
-                {log.length === 0 ? <p>Sin actividad todavía. Pulsa «Arrancar» para iniciar el entorno.</p> : log.map((l, i) => <p key={i}>{l}</p>)}
-              </div>
-            </Card>
-          </>
-        )}
-
-        {view === "agentes" && (
-          <>
-            <Head title="Agentes" desc="Equipo de agentes que trabaja con tus modelos locales." />
-            <div className="space-y-2">
-              {AGENTS.map((a) => {
-                const on = settings.agents.includes(a.name);
-                return (
-                  <Card key={a.name} className="flex items-center gap-3">
-                    <Bot className="size-5 shrink-0 text-primary" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold">{a.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">{a.role}</p>
-                      <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{a.model}</p>
-                    </div>
-                    <Toggle
-                      on={on}
-                      label={`Activar ${a.name}`}
-                      onClick={() => {
-                        update({ agents: on ? settings.agents.filter((n) => n !== a.name) : [...settings.agents, a.name] });
-                        ping(`${a.name} ${on ? "desactivado" : "activado"}.`);
-                      }}
-                    />
-                  </Card>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {view === "modelos" && (
-          <>
-            <Head
-              title="Modelos"
-              desc={
-                engineState === "checking"
-                  ? "Comprobando los modelos instalados en tu motor local…"
-                  : engineState === "ok"
-                    ? `Conectado a ${settings.endpoint}. Todos los modelos son gratuitos y se descargan a tu equipo.`
-                    : `No se pudo conectar con ${settings.endpoint}. Revisa la dirección en Configuración.`
-              }
-              action={
-                <Button variant="secondary" className="gap-2" onClick={() => checkModels(true)}>
-                  <RefreshCw className={`size-4 ${engineState === "checking" ? "animate-spin" : ""}`} />Comprobar
-                </Button>
-              }
-            />
-
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex w-fit gap-1 rounded-lg border border-border bg-card p-1">
-                {([["catalogo", "Catálogo gratuito"], ["instalados", "En tu equipo"]] as const).map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setCatalogTab(id)}
-                    className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${catalogTab === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {catalogTab === "catalogo" && (
-                <Button size="sm" variant="secondary" className="gap-2" disabled={Object.keys(pulls).length > 0} onClick={() => void pullAll()}>
-                  <Download className="size-4" />Descargar todos
-                </Button>
-              )}
-            </div>
-
-            {catalogTab === "catalogo" && (
-              <>
-                <div className="flex flex-wrap gap-1.5">
-                  {CATALOG_TAGS.map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setCatalogTag(t)}
-                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${catalogTag === t ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid gap-2 md:grid-cols-2">
-                  {MODEL_CATALOG.filter((m) => catalogTag === "Todos" || m.tag === catalogTag).map((m) => {
-                    const instalado = engineState === "ok" && (engineModels?.some((n) => n === m.name || n === `${m.name}:latest`) ?? false);
-                    const progreso = pulls[m.name];
-                    return (
-                      <Card key={m.name} className="flex flex-col gap-3">
-                        <div className="flex items-start gap-3">
-                          <Cpu className="mt-0.5 size-5 shrink-0 text-primary" />
-                          <div className="min-w-0 flex-1">
-                            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                              {m.label}
-                              {m.best && <span className="rounded-full border border-primary/40 px-2 py-0.5 text-[10px] font-semibold text-primary">Recomendado</span>}
-                            </p>
-                            <p className="font-mono text-[11px] text-muted-foreground">{m.name}</p>
-                          </div>
-                          {instalado && (
-                            <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/40 px-2.5 py-1 text-[11px] font-semibold text-emerald-500">
-                              <span className="size-2 rounded-full bg-emerald-500" />Instalado
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">{m.desc}</p>
-                        <p className="text-[11px] text-muted-foreground">{m.tag} · Descarga {m.size} · Memoria recomendada {m.ram} · Gratis</p>
-
-                        {progreso ? (
-                          <div className="space-y-2">
-                            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full rounded-full bg-primary transition-all"
-                                style={{ width: `${progreso.percent ?? 5}%` }}
-                              />
-                            </div>
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-[11px] text-muted-foreground">
-                                {progreso.status}{progreso.percent !== null ? ` · ${progreso.percent}%` : ""}
-                              </p>
-                              <Button size="sm" variant="outline" onClick={() => cancelPull(m.name)}>Cancelar</Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {instalado ? (
-                              settings.model === m.name ? (
-                                <span className="flex items-center gap-1.5 text-xs font-semibold text-primary"><Check className="size-4" />En uso</span>
-                              ) : (
-                                <Button size="sm" variant="secondary" onClick={() => { update({ model: m.name }); ping(`Modelo activo: ${m.label}`); }}>Usar</Button>
-                              )
-                            ) : (
-                              <Button size="sm" className="gap-2" onClick={() => void startPull(m)}>
-                                <Download className="size-4" />Descargar
-                              </Button>
-                            )}
-                            {instalado && (
-                              <Button size="sm" variant="outline" onClick={() => void deleteModel(m.name)}>Borrar</Button>
-                            )}
-                          </div>
-                        )}
-                      </Card>
-                    );
-                  })}
-                </div>
-
-                {engineState !== "ok" && (
-                  <Card className="text-xs text-muted-foreground">
-                    Para descargar modelos, abre Ollama. WILLY se comunica con él de forma segura mediante su propio servidor local.
-                  </Card>
-                )}
-              </>
-            )}
-
-            {catalogTab === "instalados" && (
-              <div className="space-y-2">
-                {engineState === "fail" && (
-                  <Card className="text-sm text-muted-foreground">Sin motor local: no se puede leer lo que tienes instalado.</Card>
-                )}
-                {engineState === "ok" && !engineModels?.length && (
-                  <Card className="text-sm text-muted-foreground">Todavía no hay ningún modelo en tu equipo. Ve al catálogo y descarga el recomendado.</Card>
-                )}
-                {(engineModels ?? []).map((name) => {
-                  const info = MODEL_CATALOG.find((m) => m.name === name || `${m.name}:latest` === name);
-                  return (
-                    <Card key={name} className="flex flex-wrap items-center gap-3">
-                      <Cpu className="size-5 shrink-0 text-primary" />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-mono text-sm font-semibold">{name}</p>
-                        <p className="text-xs text-muted-foreground">{info ? `${info.label} · ${info.tag} · ${info.size}` : "Modelo propio de tu motor local"}</p>
-                      </div>
-                      {settings.model === name ? (
-                        <span className="flex items-center gap-1.5 text-xs font-semibold text-primary"><Check className="size-4" />En uso</span>
-                      ) : (
-                        <Button size="sm" variant="secondary" onClick={() => { update({ model: name }); ping(`Modelo activo: ${name}`); }}>Usar</Button>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => void deleteModel(name)}>Borrar</Button>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
 
         {view === "herramientas" && (
           <>
-            <Head title="Herramientas" desc="Capacidades que puedes dar a los agentes en tu equipo." />
-            <div className="grid gap-3 sm:grid-cols-2">
-              {TOOLS.map((t) => {
-                const on = settings.tools.includes(t.name);
-                return (
-                  <Card key={t.name} className="flex items-center gap-3">
-                    <t.icon className="size-5 shrink-0 text-primary" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold">{t.name}</p>
-                      <p className="text-xs text-muted-foreground">{t.desc}</p>
-                    </div>
-                    <Toggle
-                      on={on}
-                      label={`Activar ${t.name}`}
-                      onClick={() => {
-                        update({ tools: on ? settings.tools.filter((n) => n !== t.name) : [...settings.tools, t.name] });
-                        ping(`${t.name}: ${on ? "desactivada" : "activada"}.`);
-                      }}
-                    />
-                  </Card>
-                );
-              })}
-            </div>
+            <Head title="Herramientas" desc="Fuentes de datos que tu IA puede consultar cuando le preguntas en el Chat." />
+            <DataSourcesCard ping={ping} />
           </>
         )}
 
@@ -867,133 +318,34 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
           </>
         )}
 
-        {view === "configuracion" && (
-          <>
-            <Head title="Configuración" desc="Ajustes de tu motor de IA local y del espacio de trabajo." />
-            <Card className="mb-3 flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">Versión instalada</p>
-                <p className="text-xs text-muted-foreground">Úsala al pedir soporte o comprobar actualizaciones.</p>
-              </div>
-              <span className="rounded-full border border-border bg-background px-3 py-1 font-mono text-xs font-semibold">v{APP_VERSION}</span>
-            </Card>
-            <div className="mb-3"><UpdateView ping={ping} /></div>
-            <form
-              className="space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                update({ endpoint: endpointDraft.trim(), modelsPath: pathDraft.trim() });
-                ping("Configuración guardada en tu equipo.");
-              }}
-            >
-              <Card>
-                <label className="block text-xs font-semibold text-muted-foreground" htmlFor="endpoint">Dirección del motor local</label>
-                <input id="endpoint" value={endpointDraft} onChange={(e) => setEndpointDraft(e.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-3 font-mono text-sm outline-none focus:border-primary" />
-                <p className="mt-1.5 text-xs text-muted-foreground">Ejemplo: http://localhost:11434</p>
-              </Card>
-              <Card>
-                <label className="block text-xs font-semibold text-muted-foreground" htmlFor="ruta">Carpeta de modelos</label>
-                <input id="ruta" value={pathDraft} onChange={(e) => setPathDraft(e.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-3 font-mono text-sm outline-none focus:border-primary" />
-              </Card>
-              <Card className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">Modo sin conexión</p>
-                  <p className="text-xs text-muted-foreground">Bloquea cualquier salida a internet. Todo se queda en tu equipo.</p>
-                </div>
-                <Toggle on={settings.offline} label="Modo sin conexión" onClick={() => { update({ offline: !settings.offline }); ping(settings.offline ? "Modo sin conexión desactivado." : "Modo sin conexión activado."); }} />
-              </Card>
-              <BackendCard ping={ping} />
-              <Card className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">Notificaciones</p>
-                  <p className="text-xs text-muted-foreground">Avisos en la campana cuando WILLY termina una tarea.</p>
-                </div>
-                <Toggle on={settings.notify} label="Notificaciones" onClick={() => { update({ notify: !settings.notify }); ping(settings.notify ? "Notificaciones desactivadas." : "Notificaciones activadas."); }} />
-              </Card>
-              <Card className={`flex items-center gap-3 ${settings.notify ? "" : "pointer-events-none opacity-50"}`}>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">Avisar de cada paso</p>
-                  <p className="text-xs text-muted-foreground">Incluye los pasos intermedios, no solo el resultado final.</p>
-                </div>
-                <Toggle on={settings.notifySteps} label="Avisar de cada paso" onClick={() => { update({ notifySteps: !settings.notifySteps }); ping(settings.notifySteps ? "Solo recibirás los avisos importantes." : "Recibirás todos los pasos."); }} />
-              </Card>
-              <Card className={`flex items-center gap-3 ${settings.notify ? "" : "pointer-events-none opacity-50"}`}>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">Sonido del aviso</p>
-                  <p className="text-xs text-muted-foreground">Un pitido corto al completarse una tarea.</p>
-                </div>
-                <Toggle on={settings.notifySound} label="Sonido del aviso" onClick={() => { update({ notifySound: !settings.notifySound }); ping(settings.notifySound ? "Sonido desactivado." : "Sonido activado."); }} />
-              </Card>
-              <div className="flex flex-wrap gap-2">
-                <Button type="submit">Guardar cambios</Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={testing}
-                  onClick={async () => {
-                    setTesting(true);
-                    ping("Comprobando el motor local...");
-                    const ok = await pingEndpoint(endpointDraft.trim());
-                    setTesting(false);
-                    ping(ok ? `Respuesta recibida de ${endpointDraft.trim()}.` : `No responde ${endpointDraft.trim()}. Comprueba que tu IA local está arrancada.`);
-                  }}
-                >
-                  {testing ? "Comprobando..." : "Probar conexión"}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => { setEndpointDraft("http://localhost:11434"); setPathDraft("/home/antonio/.willy/models"); ping("Valores restablecidos. Pulsa Guardar para aplicarlos."); }}>Restablecer</Button>
-              </div>
-            </form>
-          </>
-        )}
 
-        {view === "github" && <GitHubView project={settings.project} files={files ?? []} ping={ping} />}
+        {view === "github" && <GitHubView project={projects.find((p) => p.id === settings.projectId)?.name ?? (settings.project || "proyecto")} files={files ?? []} ping={ping} />}
 
         {view === "instalacion" && <InstallView endpoint={settings.endpoint} model={settings.model} ping={ping} />}
 
-        {view === "superia" && <SuperIAView />}
+        {view === "ajustes" && <SettingsView ping={ping} />}
+        {view === "inteligencia" && <IntelligenceCenter ping={ping} />}
+
         {view === "autoconstruccion" && <SelfBuildView ping={ping} />}
         {view === "licencias" && <LicensesView />}
         {view === "lectura" && <ReaderView />}
         {view === "ocr" && <OcrView />}
+        {view === "transcribir" && <TranscribeView />}
         {view === "avatar" && <AvatarView />}
         {view === "traducir" && <TranslateView />}
         {view === "extras" && <ExtrasView />}
         {view === "libros" && <BookView />}
         {view === "demo" && <DemoView ping={ping} />}
 
-        {view === "cuenta" && <AccountView ping={ping} onLogout={onLogout} agentCount={settings.agents.length} modelCount={models.length} />}
+        {view === "cuenta" && <AccountView ping={ping} onLogout={onLogout} agentCount={settings.agents.length} />}
 
-        {view === "estado" && (
-          <>
-            <Head title="Estado del sistema" desc="Todo se ejecuta en tu equipo, sin servicios externos." />
-            <div className="space-y-2">
-              {[
-                ["Motor de IA local", `${settings.endpoint} · ${engineOk === null ? "sin comprobar" : engineOk ? "responde" : "no responde"}`],
-                ["Modelo en uso", settings.model],
-                ["WILLY AI", `${appUrl} · ${server === "en marcha" ? "operativo" : "sin comprobar"}`],
-                ["Servidor de datos", `${backendUrl} · ${backendOk ? "activo" : "no disponible"}`],
-
-              ].map(([t, v]) => (
-                <Card key={t} className="flex items-center gap-3">
-                  <Activity className="size-4 text-emerald-500" />
-                  <p className="flex-1 text-sm font-semibold">{t}</p>
-                  <p className="truncate text-xs text-muted-foreground">{v}</p>
-                </Card>
-              ))}
-            </div>
-          </>
-        )}
       </div>
     </section>
   );
 }
 
 function DocModal({ doc, onClose }: { doc: { t: string; d: string; body: string[] }; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeToClose(onClose);
 
   return (
     <div className="safe-modal fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -1016,8 +368,13 @@ function DocModal({ doc, onClose }: { doc: { t: string; d: string; body: string[
   );
 }
 
-function AccountView({ ping, onLogout, agentCount, modelCount }: { ping: Ping; onLogout: () => void; agentCount: number; modelCount: number }) {
+function AccountView({ ping, onLogout, agentCount }: { ping: Ping; onLogout: () => void; agentCount: number }) {
   const [profile, updateProfile] = useProfile();
+  const [settings] = useSettings();
+  const { models: localModels } = useLocalModels(settings.endpoint);
+  const modelCount = localModels.length;
+  const { projects } = useProjects();
+  const projectCount = projects.filter((p) => !isExampleProject(p)).length;
   const [nameDraft, setNameDraft] = useState(profile.name);
   const photoRef = useRef<HTMLInputElement>(null);
 
@@ -1071,11 +428,11 @@ function AccountView({ ping, onLogout, agentCount, modelCount }: { ping: Ping; o
         </div>
       </Card>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        {[["Proyectos", String(PROJECTS.length)], ["Modelos", String(modelCount)], ["Agentes activos", String(agentCount)]].map(([t, v]) => (
+        {[["Proyectos", String(projectCount)], ["Modelos en tu equipo", String(modelCount)], ["Agentes activos", String(agentCount)]].map(([t, v]) => (
           <Card key={t}><p className="text-xs text-muted-foreground">{t}</p><p className="mt-1 text-lg font-bold">{v}</p></Card>
         ))}
       </div>
-      <p className="mt-3 px-1 text-xs text-muted-foreground">Tu foto y tu nombre se guardan solo en este dispositivo: es una IA local, nada sale de tu equipo.</p>
+      <p className="mt-3 px-1 text-xs text-muted-foreground">Tu foto y tu nombre se guardan solo en este navegador de este equipo.</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button variant="secondary" onClick={() => { updateProfile({ name: nameDraft.trim() || profile.name }); ping("Perfil actualizado."); }}>Guardar perfil</Button>
         <Button
@@ -1098,65 +455,266 @@ function AccountView({ ping, onLogout, agentCount, modelCount }: { ping: Ping; o
   );
 }
 
-const TEMPLATES = [
-  { name: "Aplicación web", desc: "Panel con datos, tablas y gráficos", icon: LayoutGrid },
-  { name: "Página de aterrizaje", desc: "Web de presentación y captación", icon: Home },
-  { name: "API local", desc: "Servicio de datos en tu equipo", icon: Server },
-  { name: "Asistente de chat", desc: "Interfaz de conversación con tu modelo", icon: MessageSquare },
-];
+type NewProjectExtra = {
+  mode: ProjectMode;
+  brief: ProjectBrief;
+  model?: string;
+  /** true si el nombre lo puso WILLY (no el dueño). */
+  autoName?: boolean;
+  /** Replicar aplicación/programa: el encargo tal cual (referencia, objetivo, nivel, destinos y entregas). */
+  rebuild?: RebuildRequest;
+};
 
-export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string, prompt: string) => void }) {
-  const [name, setName] = useState("");
-  const [template, setTemplate] = useState("Aplicación web");
-  const [model, setModel] = useState("qwen2.5-coder:14b");
-  const [prompt, setPrompt] = useState("");
+/** Programas y archivos comprimidos: se adjuntan solo por su nombre (WILLY no ejecuta ni descompila programas ajenos). */
+const BINARY_FILE = /\.(zip|7z|rar|exe|msi|msix|dmg|pkg|apk|aab|ipa|appimage|deb|rpm|iso|dll|bin)$/i;
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+const PROJECT_MODE_TABS = [
+  ["standard", "Crear desde cero", Plus],
+  ["innovation", "Proyecto innovador · I+D", FlaskConical],
+  ["rebuild", "Replicar aplicación/programa", Copy],
+] as const;
+
+/**
+ * Nuevo proyecto: el dueño cuenta QUÉ quiere conseguir y WILLY decide cómo. Tres modos:
+ *  - «Crear desde cero»: idea → plan → construcción → pruebas.
+ *  - «Proyecto innovador · I+D»: problema → investigar qué existe → huecos → propuestas → abogado del diablo → prototipo.
+ *  - «Replicar aplicación/programa» (Product Rebuild): referencia → auditoría → informe y matriz → construcción por
+ *    módulos → comprobaciones de WILLY → entrega instalable solo cuando está FINAL_VERIFIED.
+ * Ya no hay que elegir modelo (lo decide WILLY; se puede forzar en «Opciones avanzadas») ni tipo de proyecto (se deduce).
+ */
+export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string, prompt: string, extra?: NewProjectExtra) => void }) {
+  const [mode, setMode] = usePersistentState<ProjectMode>("proyecto-nuevo:modo", "standard");
+  const [name, setName] = usePersistentState("proyecto-nuevo:nombre", "");
+  const [prompt, setPrompt] = usePersistentState("proyecto-nuevo:idea", "");
+  const [quick, setQuick] = useState("");
+  const [model, setModel] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [reading, setReading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { models: installedModels } = useLocalModels();
+  const innovation = mode === "innovation";
+  const rebuild = mode === "rebuild";
+  // Replicar: referencia, nivel, destinos y entregas (lo que pidió el dueño en su maqueta).
+  const [reference, setReference] = usePersistentState("proyecto-nuevo:referencia", "");
+  const [level, setLevel] = useState<RebuildLevel>(DEFAULT_REQUEST.level);
+  const [targets, setTargets] = useState<RebuildTarget[]>([...DEFAULT_REQUEST.targets]);
+  const [deliverables, setDeliverables] = useState<RebuildDeliverable[]>([...DEFAULT_REQUEST.deliverables]);
+  const toggle = <T,>(list: T[], item: T): T[] => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
+  const suggested = rebuild
+    ? (prompt.trim() || reference.trim() ? suggestRebuildName({ reference, goal: prompt }) : "")
+    : prompt.trim() ? suggestName(prompt) : "";
+  const canSubmit = rebuild
+    ? Boolean((prompt.trim() || reference.trim() || attachments.length) && targets.length && deliverables.length)
+    : Boolean(prompt.trim() || attachments.length);
+  const quickHint = QUICK_ACTIONS.find((a) => a.id === quick)?.hint;
+
+  useEscapeToClose(onClose);
+
+  const addFiles = async (list: FileList | null) => {
+    if (!list?.length) return;
+    setReading(true);
+    const added: Attachment[] = [];
+    for (const file of Array.from(list).slice(0, 6)) {
+      if (file.type.startsWith("image/")) { added.push({ name: file.name, kind: "imagen" }); continue; }
+      if (BINARY_FILE.test(file.name)) { added.push({ name: file.name, kind: "otro" }); continue; }
+      try {
+        const text = (await extractAnyText(file)).replace(/--- Página \d+ ---/g, "").trim();
+        added.push(text ? { name: file.name, kind: "documento", text: text.slice(0, 6000) } : { name: file.name, kind: "otro" });
+      } catch {
+        added.push({ name: file.name, kind: "otro" });
+      }
+    }
+    setAttachments((current) => [...current, ...added].slice(0, 8));
+    setReading(false);
+  };
+
+  const submit = () => {
+    const text = prompt.trim();
+    if (!canSubmit) return;
+    if (rebuild) {
+      const req: RebuildRequest = { reference: reference.trim(), goal: text, level, targets, deliverables, attachments };
+      const projectName = name.trim() || suggestRebuildName(req);
+      const summary = [
+        text,
+        reference.trim() ? `Referencia: ${reference.trim()}` : "",
+        `Destinos: ${targets.map((t) => REBUILD_TARGETS.find((x) => x.id === t)!.label).join(", ")}`,
+      ].filter(Boolean).join("\n");
+      const brief = buildBrief({ text: summary, name: projectName, mode: "rebuild", attachments, ...(model ? { preferredModel: model } : {}) });
+      onCreate(brief.name, rebuildPrompt(brief.name, req), { mode: "rebuild", brief, rebuild: req, autoName: !name.trim(), ...(model ? { model } : {}) });
+      setPrompt("");
+      setName("");
+      setReference("");
+      return;
+    }
+    const brief = buildBrief({ text, name, mode, ...(quick && !innovation ? { quickAction: quick } : {}), attachments, ...(model ? { preferredModel: model } : {}) });
+    onCreate(brief.name, briefToPrompt(brief), { mode, brief, autoName: !name.trim(), ...(model ? { model } : {}) });
+    setPrompt("");
+    setName("");
+  };
 
   return (
     <div className="safe-modal fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <form
-        onSubmit={(e) => { e.preventDefault(); onCreate(name.trim() || "Proyecto sin título", `${template} con ${model}. ${prompt.trim()}`); }}
-        className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl"
+        onSubmit={(e) => { e.preventDefault(); submit(); }}
+        className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl"
       >
-        <div className="mb-4">
+        <div className="mb-4 flex items-start justify-between gap-3">
           <h2 className="font-display text-lg font-bold">Nuevo proyecto</h2>
-          <p className="text-sm text-muted-foreground">Se creará en tu equipo y lo construirá tu IA local.</p>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="size-4" /></button>
         </div>
 
-        <label className="block text-xs font-semibold text-muted-foreground" htmlFor="np-name">Nombre del proyecto</label>
-        <input id="np-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Mi aplicación" className="mb-4 mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
-
-        <p className="text-xs font-semibold text-muted-foreground">Tipo de proyecto</p>
-        <div className="mb-4 mt-1.5 grid gap-2 sm:grid-cols-2">
-          {TEMPLATES.map((t) => (
+        <div role="tablist" aria-label="Tipo de proyecto" className="mb-5 grid grid-cols-1 gap-1 rounded-xl border border-border bg-background p-1 sm:grid-cols-3">
+          {PROJECT_MODE_TABS.map(([id, label, Icon]) => (
             <button
+              key={id}
               type="button"
-              key={t.name}
-              onClick={() => setTemplate(t.name)}
-              className={`flex items-start gap-2.5 rounded-lg border p-3 text-left ${template === t.name ? "border-primary bg-accent/50" : "border-border hover:bg-accent/30"}`}
+              role="tab"
+              aria-selected={mode === id}
+              onClick={() => setMode(id)}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${mode === id ? "bg-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
             >
-              <t.icon className="mt-0.5 size-4 shrink-0 text-primary" />
-              <span><span className="block text-sm font-semibold">{t.name}</span><span className="block text-xs text-muted-foreground">{t.desc}</span></span>
+              <Icon className="size-4" />{label}
             </button>
           ))}
         </div>
 
-        <label className="block text-xs font-semibold text-muted-foreground" htmlFor="np-model">Modelo local</label>
-        <select id="np-model" value={model} onChange={(e) => setModel(e.target.value)} className="mb-4 mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary">
-          {MODELS.map((m) => <option key={m.name} value={m.name}>{m.name} · {m.size}</option>)}
-        </select>
+        <div className="mb-3 text-center">
+          <p className="font-display text-xl font-bold">{innovation ? "¿Qué problema quieres resolver?" : rebuild ? "¿Qué aplicación o programa quieres replicar?" : "¿Qué quieres crear?"}</p>
+          <p className="mx-auto mt-1 max-w-lg text-sm text-muted-foreground">
+            {innovation
+              ? "Investiga lo que ya existe, encuentra oportunidades reales y mejora la idea antes y durante su construcción. Basta con contar el problema: no hace falta traer la solución."
+              : rebuild
+                ? "WILLY analiza la referencia y construye una versión PROPIA que funcione igual o mejor: con su propio nombre, diseño y código (nunca copia código, logotipos ni textos protegidos). No se entrega hasta superar todas sus comprobaciones."
+                : "Describe tu idea, pega una URL, adjunta una imagen o documento, importa un proyecto existente o simplemente cuéntale a WILLY qué quieres conseguir."}
+          </p>
+        </div>
 
-        <label className="block text-xs font-semibold text-muted-foreground" htmlFor="np-prompt">¿Qué quieres construir?</label>
-        <textarea id="np-prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} placeholder="Describe tu idea con detalle..." className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-primary" />
+        {rebuild && (
+          <div className="mb-3">
+            <label className="block text-xs font-semibold text-muted-foreground" htmlFor="np-reference">Referencia</label>
+            <input
+              id="np-reference"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="Dirección web o nombre del programa · o adjunta abajo ZIP, instalador, capturas o documentación"
+              className="mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+            />
+          </div>
+        )}
+
+        <label className={rebuild ? "mb-1.5 block text-xs font-semibold text-muted-foreground" : "sr-only"} htmlFor="np-prompt">{innovation ? "Problema o idea" : rebuild ? "¿Qué quieres conseguir?" : "Qué quieres crear"}</label>
+        <textarea
+          id="np-prompt"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={rebuild ? 3 : 5}
+          autoFocus
+          placeholder={innovation ? "Describe la idea o incluso solo el problema…" : rebuild ? "Por ejemplo: «Una VPN propia para mi empresa, con kill switch y que no filtre DNS»" : quickHint ?? "Describe tu idea… (por ejemplo: «Quiero una aplicación para gestionar las citas de una clínica»)"}
+          className="w-full resize-y rounded-xl border border-border bg-background p-3 text-sm leading-6 outline-none focus:border-primary"
+        />
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" variant="secondary" className="gap-1.5" onClick={() => fileRef.current?.click()} disabled={reading}><Paperclip className="size-4" />{reading ? "Leyendo…" : "Adjuntar"}</Button>
+          <ClarifyButton context="proyecto" compact variant="secondary" label="Que la IA lo entienda exactamente" value={prompt} onApply={setPrompt} />
+          <input ref={fileRef} type="file" multiple accept={`image/*,.pdf,.txt,.md,.csv,.json,.docx,.odt,.pptx,.xlsx,.html,.htm,.rtf,.zip${rebuild ? ",.7z,.rar,.exe,.msi,.msix,.dmg,.pkg,.apk,.aab,.appimage,.deb,.rpm" : ""}`} className="hidden" onChange={(e) => { const files = e.target.files; void addFiles(files).then(() => { e.target.value = ""; }); }} />
+        </div>
+        {attachments.length > 0 && (
+          <ul className="mt-2 flex flex-wrap gap-2 text-xs" aria-label="Adjuntos">
+            {attachments.map((a, i) => (
+              <li key={`${a.name}-${i}`} className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1">
+                {a.name}{a.kind === "documento" ? " · texto leído" : a.kind === "imagen" ? " · imagen" : BINARY_FILE.test(a.name) ? " · solo el nombre" : ""}
+                <button type="button" aria-label={`Quitar ${a.name}`} onClick={() => setAttachments((list) => list.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive"><X className="size-3" /></button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {rebuild ? (
+          <div className="mt-4 grid gap-3 text-sm">
+            <fieldset>
+              <legend className="text-xs font-semibold text-muted-foreground">Nivel</legend>
+              <div className="mt-1.5 flex flex-wrap gap-4">
+                {([["completo", "Producto completo"], ["mvp", "MVP"]] as const).map(([id, label]) => (
+                  <label key={id} className="flex items-center gap-2">
+                    <input type="radio" name="np-level" value={id} checked={level === id} onChange={() => setLevel(id)} />{label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend className="text-xs font-semibold text-muted-foreground">Destino</legend>
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
+                {REBUILD_TARGETS.map((t) => (
+                  <label key={t.id} className="flex items-center gap-2">
+                    <input type="checkbox" checked={targets.includes(t.id)} onChange={() => setTargets((list) => toggle(list, t.id))} />{t.label}
+                  </label>
+                ))}
+              </div>
+              {targets.map(targetFeasibility).filter((f) => f.status !== "posible").map((f) => (
+                <p key={f.target} className={`mt-1 text-xs ${f.status === "bloqueado" ? "text-destructive" : "text-amber-600 dark:text-amber-400"}`} data-feasibility={f.status}>{f.label}: {f.why}</p>
+              ))}
+              {!targets.length && <p className="mt-1 text-xs text-destructive">Elige al menos un destino.</p>}
+            </fieldset>
+            <fieldset>
+              <legend className="text-xs font-semibold text-muted-foreground">Entrega</legend>
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
+                {REBUILD_DELIVERABLES.map((d) => (
+                  <label key={d.id} className="flex items-center gap-2">
+                    <input type="checkbox" checked={deliverables.includes(d.id)} onChange={() => setDeliverables((list) => toggle(list, d.id))} />{d.label}
+                  </label>
+                ))}
+              </div>
+              {!deliverables.length && <p className="mt-1 text-xs text-destructive">Elige al menos una entrega.</p>}
+            </fieldset>
+          </div>
+        ) : innovation ? (
+          <ul className="mt-4 grid gap-1.5 text-sm sm:grid-cols-2" aria-label="Qué hará WILLY">
+            {["Investigar qué existe", "Buscar oportunidades", "Cuestionar la idea", "Mejorarla antes de construir"].map((item) => (
+              <li key={item} className="flex items-center gap-2 text-muted-foreground"><Check className="size-4 text-primary" />{item}</li>
+            ))}
+          </ul>
+        ) : (
+          <div className="mt-4">
+            <p className="text-xs font-semibold text-muted-foreground">Atajos (opcionales)</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {QUICK_ACTIONS.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  aria-pressed={quick === a.id}
+                  title={a.hint}
+                  onClick={() => setQuick((current) => (current === a.id ? "" : a.id))}
+                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${quick === a.id ? "border-primary bg-accent/60 text-foreground" : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground" htmlFor="np-name">Nombre (opcional)</label>
+            <input id="np-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={suggested ? `Se llamará «${suggested}»` : "Se pone solo a partir de tu idea"} className="mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+          </div>
+          <details className="rounded-lg border border-border bg-background px-3 py-2 text-xs sm:max-w-60">
+            <summary className="cursor-pointer font-semibold text-muted-foreground">Opciones avanzadas</summary>
+            <label className="mt-2 block font-semibold text-muted-foreground" htmlFor="np-model">Modelo</label>
+            <select id="np-model" value={model} onChange={(e) => setModel(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-xs outline-none focus:border-primary">
+              <option value="">Automático (WILLY elige)</option>
+              {installedModels.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </details>
+        </div>
 
         <div className="mt-5 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" className="gap-2"><Plus className="size-4" />Crear proyecto</Button>
+          <Button type="submit" className="gap-2" disabled={!canSubmit}>
+            {innovation ? "Investigar y crear" : rebuild ? "Analizar y construir" : "Crear"}<ArrowRight className="size-4" />
+          </Button>
         </div>
       </form>
     </div>

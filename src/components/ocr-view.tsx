@@ -1,17 +1,16 @@
 // OCR: saca el texto de fotos, escaneos y PDFs escaneados. Todo en el equipo.
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Copy, Download, Loader2, Play, ScanText, Square, Upload, Volume2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, Play, ScanText, Square, Upload, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PanelCard as Card } from "@/components/panel-card";
+import { CopyTextButton, DownloadTextButton } from "@/components/text-actions";
+import { usePersistentState } from "@/lib/persistent-state";
 import { pushNotice } from "@/lib/notifications";
 import { recognizeDocument, type OcrProgress } from "@/lib/ocr";
-import { speakText, type SpeechHandle } from "@/lib/tts-voice";
-
-type CardProps = { children: ReactNode; className?: string; onDragOver?: (e: React.DragEvent) => void; onDragLeave?: () => void; onDrop?: (e: React.DragEvent) => void };
-
-function Card({ children, className = "", ...drag }: CardProps) {
-  return <div className={`rounded-xl border border-border bg-card p-4 ${className}`} {...drag}>{children}</div>;
-}
+import type { SpeechHandle } from "@/lib/tts-voice";
+import { speakBest } from "@/lib/natural-voice";
+import { VoiceSelect } from "@/components/voice-select";
 
 const LANGS = [
   { id: "spa", name: "Español" },
@@ -24,8 +23,8 @@ const LANGS = [
 ];
 
 export function OcrView() {
-  const [text, setText] = useState("");
-  const [name, setName] = useState("");
+  const [text, setText] = usePersistentState("ocr:texto", "");
+  const [name, setName] = usePersistentState("ocr:archivo", "");
   const [lang, setLang] = useState("spa");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<OcrProgress | null>(null);
@@ -65,8 +64,10 @@ export function OcrView() {
       return;
     }
     setSpeaking(true);
-    speech.current = speakText(text, {
-      voice: window.localStorage.getItem("willy-voz") ?? "Kore",
+    const naturalVoice = window.localStorage.getItem("willy-voz-natural") ?? "";
+    speech.current = speakBest(text, {
+      ...(naturalVoice ? { naturalVoice } : {}),
+      onPreparing: (m) => pushNotice(m, "info"),
       onEnd: () => setSpeaking(false),
       onError: (m) => { setSpeaking(false); pushNotice(`⚠️ ${m}`, "warn"); },
     });
@@ -152,29 +153,9 @@ export function OcrView() {
             {speaking ? <Square className="size-4" /> : <Volume2 className="size-4" />}
             {speaking ? "Parar" : "Escucharlo"}
           </Button>
-          <Button
-            variant="secondary"
-            className="gap-2"
-            disabled={!text.trim()}
-            onClick={() => { void navigator.clipboard.writeText(text); pushNotice("Texto copiado.", "success"); }}
-          >
-            <Copy className="size-4" />Copiar
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2"
-            disabled={!text.trim()}
-            onClick={() => {
-              const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `${(name || "reconocido").replace(/\.[^.]+$/, "")}.txt`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            <Download className="size-4" />Descargar
-          </Button>
+          <VoiceSelect className="self-center" />
+          <CopyTextButton text={text} />
+          <DownloadTextButton text={text} fileBaseName={name} fallbackName="reconocido" />
           <Button
             variant="ghost"
             className="gap-2"

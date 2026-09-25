@@ -1,37 +1,32 @@
-// Lectura en voz alta: sueltas un PDF (o cualquier texto) y lo escuchas con
-// voces españolas naturales, de hombre o de mujer.
+// Lectura en voz alta: sueltas un PDF (o cualquier texto) y lo escuchas con una voz natural
+// de España, humana de verdad, con pausas y ritmo ajustables (nunca la voz robótica de Windows).
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Copy, Download, FileText, Loader2, Pause, Play, Upload, Volume2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { FileText, Loader2, Pause, Play, Upload, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PanelCard as Card } from "@/components/panel-card";
+import { CopyTextButton, DownloadTextButton } from "@/components/text-actions";
+import { usePersistentState } from "@/lib/persistent-state";
 import { pushNotice } from "@/lib/notifications";
 import { extractAnyText } from "@/lib/pdf-text";
-import { SPANISH_VOICES, chunkForSpeech, speakText, voiceById, type SpeechHandle } from "@/lib/tts-voice";
-
-type CardProps = { children: ReactNode; className?: string; onDragOver?: (e: React.DragEvent) => void; onDragLeave?: () => void; onDrop?: (e: React.DragEvent) => void };
-
-function Card({ children, className = "", ...drag }: CardProps) {
-  return <div className={`rounded-xl border border-border bg-card p-4 ${className}`} {...drag}>{children}</div>;
-}
+import { chunkForSpeech, type SpeechHandle } from "@/lib/tts-voice";
+import { speakBest } from "@/lib/natural-voice";
+import { NaturalVoicesCard } from "@/components/natural-voices-card";
+import { useSharedVoice } from "@/components/voice-select";
 
 export function ReaderView() {
-  const [text, setText] = useState("");
-  const [fileName, setFileName] = useState("");
+  const [text, setText] = usePersistentState("lector:texto", "");
+  const [fileName, setFileName] = usePersistentState("lector:archivo", "");
   const [loading, setLoading] = useState(false);
-  const [voice, setVoice] = useState(() => window.localStorage.getItem("willy-voz") ?? "Kore");
-  const [speed, setSpeed] = useState(1);
   const [speaking, setSpeaking] = useState(false);
   const [chunk, setChunk] = useState({ index: 0, total: 0 });
   const [drag, setDrag] = useState(false);
+  // La voz elegida vale para todas las pestañas (y cambia en vivo en las que ya están abiertas).
+  const { voice: naturalVoice, setVoice: setNaturalVoice } = useSharedVoice();
   const handle = useRef<SpeechHandle | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => handle.current?.stop(), []);
-
-  const pickVoice = (id: string) => {
-    setVoice(id);
-    window.localStorage.setItem("willy-voz", id);
-  };
 
   const load = async (file: File) => {
     setLoading(true);
@@ -60,9 +55,9 @@ export function ReaderView() {
     if (!text.trim()) return;
     stop();
     setSpeaking(true);
-    handle.current = speakText(text, {
-      voice,
-      speed,
+    handle.current = speakBest(text, {
+      ...(naturalVoice ? { naturalVoice } : {}),
+      onPreparing: (message) => pushNotice(message, "info"),
       onChunk: (index, total) => setChunk({ index: index + 1, total }),
       onEnd: () => {
         setSpeaking(false);
@@ -76,19 +71,8 @@ export function ReaderView() {
     });
   };
 
-  const preview = (id: string) => {
-    stop();
-    pickVoice(id);
-    speakText(
-      `Hola, soy ${voiceById(id).name}. Así sonará la lectura de tu documento, con una voz natural en español.`,
-      { voice: id, onError: (m) => pushNotice(`⚠️ ${m}`, "warn") },
-    );
-  };
-
   const words = (text.match(/\S+/g) ?? []).length;
-  const minutes = Math.max(1, Math.round(words / 150 / speed));
-  const women = SPANISH_VOICES.filter((v) => v.gender === "mujer");
-  const men = SPANISH_VOICES.filter((v) => v.gender === "hombre");
+  const minutes = Math.max(1, Math.round(words / 150));
 
   return (
     <div className="space-y-4">
@@ -106,7 +90,7 @@ export function ReaderView() {
         <Upload className="mx-auto size-6 text-primary" />
         <p className="mt-2 text-sm font-semibold">Suelta aquí tu PDF o pulsa para elegirlo</p>
         <p className="text-xs text-muted-foreground">
-          PDF, texto, notas… El documento se lee en tu propio equipo, no se sube a ningún sitio.
+          PDF, Word, LibreOffice, PowerPoint, Excel, EPUB, HTML, RTF, subtítulos, texto… El documento se lee en tu propio equipo, no se sube a ningún sitio.
         </p>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           <Button variant="secondary" className="gap-2" onClick={() => fileRef.current?.click()} disabled={loading}>
@@ -118,7 +102,7 @@ export function ReaderView() {
         <input
           ref={fileRef}
           type="file"
-          accept=".pdf,.txt,.md,.csv,.json"
+          accept=".pdf,.txt,.md,.csv,.json,.docx,.odt,.pptx,.xlsx,.epub,.html,.htm,.rtf,.srt,.vtt"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -128,50 +112,11 @@ export function ReaderView() {
         />
       </Card>
 
-      <Card className="space-y-3">
-        <p className="text-sm font-semibold"><Volume2 className="mr-2 inline size-4 text-primary" />Elige la voz</p>
-        <div className="grid gap-4 md:grid-cols-2">
-          {[{ title: "Voces de mujer", list: women }, { title: "Voces de hombre", list: men }].map((group) => (
-            <div key={group.title} className="space-y-2">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">{group.title}</p>
-              {group.list.map((v) => (
-                <div
-                  key={v.id}
-                  className={`flex items-center justify-between gap-2 rounded-lg border p-2.5 transition ${
-                    voice === v.id ? "border-primary bg-accent/40" : "border-border"
-                  }`}
-                >
-                  <button type="button" className="min-w-0 flex-1 text-left" onClick={() => pickVoice(v.id)}>
-                    <p className="truncate text-sm font-semibold">{v.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{v.desc}</p>
-                  </button>
-                  <Button variant="ghost" size="sm" className="shrink-0 gap-1" onClick={() => preview(v.id)}>
-                    <Play className="size-3.5" />Probar
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-xs text-muted-foreground" htmlFor="velocidad">Velocidad</label>
-          <input
-            id="velocidad"
-            type="range"
-            min={0.7}
-            max={1.4}
-            step={0.05}
-            value={speed}
-            onChange={(e) => setSpeed(Number(e.target.value))}
-            className="h-1 w-40 accent-primary"
-          />
-          <span className="text-xs font-semibold">{speed.toFixed(2)}×</span>
-        </div>
-      </Card>
+      <NaturalVoicesCard text={text} fileName={fileName} voice={naturalVoice} onVoice={setNaturalVoice} />
 
       <Card className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold">Texto que se va a leer</p>
+          <p className="text-sm font-semibold"><Volume2 className="mr-2 inline size-4 text-primary" />Texto que se va a leer</p>
           <span className="text-xs text-muted-foreground">
             {words.toLocaleString("es-ES")} palabras · unos {minutes} min · {chunkForSpeech(text).length} tramos
           </span>
@@ -192,29 +137,8 @@ export function ReaderView() {
               <Play className="size-4" />Leer en voz alta
             </Button>
           )}
-          <Button
-            variant="secondary"
-            className="gap-2"
-            disabled={!text.trim()}
-            onClick={() => { void navigator.clipboard.writeText(text); pushNotice("Texto copiado.", "success"); }}
-          >
-            <Copy className="size-4" />Copiar
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2"
-            disabled={!text.trim()}
-            onClick={() => {
-              const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `${(fileName || "documento").replace(/\.[^.]+$/, "")}.txt`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            <Download className="size-4" />Descargar texto
-          </Button>
+          <CopyTextButton text={text} />
+          <DownloadTextButton text={text} fileBaseName={fileName} label="Descargar texto" />
         </div>
         {speaking && chunk.total > 0 && (
           <div className="space-y-1">
@@ -225,7 +149,7 @@ export function ReaderView() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Leyendo el tramo {chunk.index} de {chunk.total} con la voz de {voiceById(voice).name}.
+              Leyendo el tramo {chunk.index} de {chunk.total}.
             </p>
           </div>
         )}

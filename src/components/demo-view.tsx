@@ -4,15 +4,11 @@
 import { useMemo, useState } from "react";
 import { CalendarRange, Download, ExternalLink, Presentation } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PanelCard as Card } from "@/components/panel-card";
 import { downloadFile } from "@/lib/workspace-store";
 import { buildDemoHtml, buildReport, type DemoReport } from "@/services/demo-service";
-import { useProjects } from "@/services/project-service";
-
-type Ping = (m: string) => void;
-
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-xl border border-border bg-card p-4 ${className}`}>{children}</div>;
-}
+import { useProjectsDetail } from "@/services/project-service";
+import type { Ping } from "@/types/domain";
 
 function Head({ title, desc, action }: { title: string; desc: string; action?: React.ReactNode }) {
   return (
@@ -27,13 +23,13 @@ function Head({ title, desc, action }: { title: string; desc: string; action?: R
 }
 
 export function DemoView({ ping }: { ping: Ping }) {
-  const { projects } = useProjects();
+  const { projects, versions } = useProjectsDetail();
   const [report, setReport] = useState<DemoReport | null>(null);
 
-  const preview = useMemo(() => buildReport(projects), [projects]);
+  const preview = useMemo(() => buildReport(projects, versions), [projects, versions]);
 
   const generate = () => {
-    const r = buildReport(projects);
+    const r = buildReport(projects, versions);
     setReport(r);
     ping(
       `Demo generada: ${r.totals.projects} proyectos, ${r.totals.versions} versiones y ${r.totals.files} archivos. Ya puedes abrirla o descargarla.`,

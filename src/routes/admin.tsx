@@ -16,7 +16,7 @@ import { downloadFile } from "@/lib/workspace-store";
 import { aiService } from "@/services/ai-service";
 import { useFlags, setFlag, readFlags, DEFAULT_FLAGS } from "@/services/flags";
 import { DEFAULT_SETTINGS, useSettings } from "@/lib/workspace-store";
-import { useProjects } from "@/services/project-service";
+import { useProjectsDetail } from "@/services/project-service";
 import type { Flags } from "@/services/flags";
 
 const FLAG_LABEL: Record<keyof Flags, string> = {
@@ -29,7 +29,7 @@ function AdminPanel() {
   const { session } = useSession();
   const flags = useFlags();
   const [settings] = useSettings();
-  const { projects } = useProjects();
+  const { projects, versions } = useProjectsDetail();
   const [health, setHealth] = useState<{ state: "checking" | "ok" | "fail"; detail: string }>({
     state: "checking",
     detail: "Comprobando…",
@@ -46,7 +46,7 @@ function AdminPanel() {
     };
   }, [settings.endpoint]);
 
-  const report = buildReport(projects);
+  const report = buildReport(projects, versions);
   const t = report.totals;
 
   const exportAudit = () => {
@@ -95,7 +95,7 @@ function AdminPanel() {
             {health.state === "fail" && <span className="size-2 rounded-full bg-red-500" />}
             <span className="text-muted-foreground">{health.detail}</span>
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">Modelo activo: {settings.model} · Modo sin conexión: {settings.offline ? "activado" : "desactivado"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Modelo activo: {settings.model}</p>
         </Card>
 
         <Card>

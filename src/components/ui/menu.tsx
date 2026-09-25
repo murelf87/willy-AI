@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-/** Menú desplegable accesible: se cierra al pulsar fuera o con Escape. */
-export function Menu({ trigger, children, align = "start", label, up = false }: {
+/** Menú desplegable accesible: se cierra al pulsar fuera o con Escape. Con `wide`, un panel ancho (para listas con casillas y campos). */
+export function Menu({ trigger, children, align = "start", label, up = false, wide = false }: {
   trigger: (props: { open: boolean; toggle: () => void }) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: "start" | "end";
   label: string;
   up?: boolean;
+  wide?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -27,9 +28,14 @@ export function Menu({ trigger, children, align = "start", label, up = false }: 
       {trigger({ open, toggle: () => setOpen((v) => !v) })}
       {open && (
         <div
-          role="menu"
+          role={wide ? "dialog" : "menu"}
           aria-label={label}
-          className={`absolute z-50 max-h-[70vh] w-64 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-2xl ${up ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} ${align === "end" ? "right-0" : "left-0"}`}
+          className={`z-50 max-h-[70vh] overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-2xl ${
+            wide
+              // En pantallas estrechas el panel ancho ocupa el ancho de la pantalla (fijo bajo la barra); en las demás cuelga del botón.
+              ? `fixed inset-x-3 top-16 w-auto sm:absolute sm:inset-x-auto sm:top-[calc(100%+6px)] sm:w-[22rem] ${align === "end" ? "sm:right-0" : "sm:left-0"}`
+              : `absolute w-64 ${up ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} ${align === "end" ? "right-0" : "left-0"}`
+          }`}
         >
           {children(() => setOpen(false))}
         </div>

@@ -3,7 +3,7 @@
 // descargar o enviar por correo sin instalar nada.
 
 import { readList } from "./storage";
-import type { Project, ProjectVersion } from "@/types/domain";
+import { fileCountOf, isExampleProject, type Project, type ProjectVersion } from "@/types/domain";
 
 const VERSIONS_KEY = "willy-versions";
 
@@ -25,11 +25,10 @@ const SCREENS: { name: string; desc: string }[] = [
   { name: "Panel de trabajo", desc: "Chat con la IA local, vista previa en vivo y editor de código." },
   { name: "Proyectos", desc: "Crear, abrir, renombrar, duplicar, archivar y papelera." },
   { name: "Historial de versiones", desc: "Cada generación queda guardada y se puede restaurar." },
-  { name: "Workspace", desc: "Servidor local, dependencias, caché y registro de actividad." },
-  { name: "Agentes y Herramientas", desc: "Capacidades activables para la IA local." },
-  { name: "Modelos", desc: "Modelos disponibles comprobados contra el motor local." },
+  { name: "Centro de Inteligencia", desc: "IA del equipo (Ollama) con su estado real, IA externas gratuitas, modelos y agentes." },
+  { name: "Herramientas", desc: "Fuentes de datos que la IA puede consultar." },
   { name: "Documentación", desc: "Guías de uso dentro del propio producto." },
-  { name: "Configuración", desc: "Motor local, modelos, modo sin conexión y notificaciones." },
+  { name: "Ajustes", desc: "Estado del programa, reinicio, almacenamiento, copias, diagnóstico y registros." },
   { name: "GitHub", desc: "Conectar cuenta, crear repositorio y subir el código generado." },
   { name: "Acceso directo", desc: "Instalación como aplicación en Windows, iOS y Android." },
   { name: "Panel del propietario", desc: "Área privada con métricas, funciones y diagnóstico." },
@@ -56,9 +55,11 @@ function countLines(text: string) {
 }
 
 /** Calcula el avance real a partir de los proyectos y de sus versiones guardadas. */
-export function buildReport(projects: Project[]): DemoReport {
-  const versions = readList<ProjectVersion>(VERSIONS_KEY, []);
-  const live = projects.filter((p) => !p.deletedAt);
+export function buildReport(projects: Project[], versionList?: ProjectVersion[]): DemoReport {
+  // Desde la rev19 las versiones vienen de tu equipo (useProjectsDetail); sin ellas, las del navegador (de antes).
+  const versions = versionList ?? readList<ProjectVersion>(VERSIONS_KEY, []);
+  // Los proyectos de ejemplo de antes no son trabajo tuyo: no cuentan en el informe.
+  const live = projects.filter((p) => !p.deletedAt && !isExampleProject(p));
 
   const days = new Map<string, DayPoint>();
   const months = new Map<string, MonthPoint>();
@@ -78,9 +79,9 @@ export function buildReport(projects: Project[]): DemoReport {
   };
 
   for (const p of live) touch(p.createdAt, 0, 0, 1);
-  for (const v of versions) touch(v.at, 1, v.files.length, 0);
+  for (const v of versions) touch(v.at, 1, v.fileCount ?? v.files.length, 0);
 
-  const files = live.reduce((n, p) => n + p.files.length, 0);
+  const files = live.reduce((n, p) => n + fileCountOf(p), 0);
   const lines = live.reduce((n, p) => n + p.files.reduce((k, f) => k + countLines(f.content), 0), 0);
 
   return {
@@ -181,7 +182,7 @@ footer{margin-top:48px;padding-top:20px;border-top:1px solid #1e2436;color:#93a0
 <div class="card"><table><thead><tr><th>Proyecto</th><th>Descripción</th><th>Estado</th><th>Archivos</th></tr></thead><tbody>${
     report.projects.length
       ? report.projects
-          .map((p) => `<tr><td><strong>${esc(p.name)}</strong></td><td>${esc(p.desc || "—")}</td><td><span class="tag">${esc(p.state)}</span></td><td>${p.files.length}</td></tr>`)
+          .map((p) => `<tr><td><strong>${esc(p.name)}</strong></td><td>${esc(p.desc || "—")}</td><td><span class="tag">${esc(p.state)}</span></td><td>${fileCountOf(p)}</td></tr>`)
           .join("")
       : `<tr><td colspan="4" class="empty">Sin proyectos todavía.</td></tr>`
   }</tbody></table></div>

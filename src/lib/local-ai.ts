@@ -1,5 +1,7 @@
 // Cliente del motor de IA local del usuario (compatible con la API de OpenAI:
-// Ollama, Forge, LM Studio, llama.cpp server...). Todo se ejecuta en su equipo.
+// Ollama, LM Studio, llama.cpp server...). Todo se ejecuta en su equipo.
+
+import { fitContext } from "@/lib/chat-context";
 
 export type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
@@ -12,12 +14,19 @@ export function localAiUrl(operation?: "chat"): string {
   return operation ? `/api/local-ai?operation=${operation}` : "/api/local-ai";
 }
 
+/** Modelos que NO saben conversar (embeddings, reordenadores, visión pura). */
+const NO_CHAT = /(embed|embedding|bge-|gte-|e5-|minilm|rerank|nomic-|all-minilm|mxbai-embed|snowflake-arctic-embed|paraphrase|clip|whisper|moondream-embed)/i;
+
+/** true si el modelo puede mantener una conversación. */
+export function isChatModel(name: string): boolean {
+  return !NO_CHAT.test(name);
+}
+
 /**
- * Devuelve un modelo que el motor local tenga realmente instalado.
- * Si el modelo preferido no está descargado todavía, usa el primero disponible,
- * así el chat responde aunque las descargas grandes sigan en marcha.
+ * Lee del motor local los modelos realmente instalados.
+ * Por defecto devuelve solo los que sirven para chatear.
  */
-export async function resolveLocalModel(endpoint: string, preferred: string): Promise<string> {
+export async function listLocalModels(endpoint = "", opts: { chatOnly?: boolean } = {}): Promise<string[]> {
   const base = normalizeEndpoint(endpoint);
   const names: string[] = [];
   try {
@@ -29,7 +38,7 @@ export async function resolveLocalModel(endpoint: string, preferred: string): Pr
   } catch {
     /* motor sin API de Ollama: se prueba con la de OpenAI */
   }
-  if (!names.length) {
+  if (!names.length && base) {
     try {
       const res = await fetch(`${base}/v1/models`);
       if (res.ok) {
@@ -40,13 +49,32 @@ export async function resolveLocalModel(endpoint: string, preferred: string): Pr
       /* el motor no está arrancado */
     }
   }
-  if (!names.length) {
+  const unique = Array.from(new Set(names));
+  return opts.chatOnly === false ? unique : unique.filter(isChatModel);
+}
+
+/**
+ * Devuelve un modelo de conversación que el motor local tenga realmente instalado.
+ * Nunca elige modelos de embeddings: no saben chatear y devolverían error 400.
+ */
+export async function resolveLocalModel(endpoint: string, preferred: string): Promise<string> {
+  const all = await listLocalModels(endpoint, { chatOnly: false });
+  if (!all.length) {
     throw new Error("El motor local no está arrancado o todavía no tiene ningún modelo descargado.");
   }
-  const exact = names.find((n) => n === preferred);
-  if (exact) return exact;
-  const partial = names.find((n) => n.split(":")[0] === preferred.split(":")[0]);
-  return partial ?? names[0]!;
+  const chat = all.filter(isChatModel);
+  if (!chat.length) {
+    throw new Error(
+      "Los modelos instalados solo sirven para búsquedas, no para conversar. Descarga llama3.2:3b en Centro de Inteligencia → Modelos.",
+    );
+  }
+  if (isChatModel(preferred)) {
+    const exact = chat.find((n) => n === preferred);
+    if (exact) return exact;
+    const partial = chat.find((n) => n.split(":")[0] === preferred.split(":")[0]);
+    if (partial) return partial;
+  }
+  return chat[0]!;
 }
 
 /**
@@ -60,19 +88,34 @@ export async function chatLocalStream(opts: {
   messages: ChatMsg[];
   onDelta?: (delta: string) => void;
   temperature?: number;
+  maxOutputTokens?: number;
+  /** Memoria de contexto (tokens) que debe reservar Ollama; sin esto usa la suya por defecto, a menudo muy pequeña. */
+  numCtx?: number;
   signal?: AbortSignal;
 }): Promise<string> {
-  const res = await fetch(localAiUrl("chat"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: opts.model,
-      messages: opts.messages,
-      stream: true,
-      temperature: opts.temperature ?? 0.4,
-    }),
-    ...(opts.signal ? { signal: opts.signal } : {}),
-  });
+  // Sin memoria pedida, Ollama usa la suya por defecto (2.048–4.096 tokens) y recorta la petición en silencio: el modelo pierde
+  // su identidad, el historial o la pregunta. Aquí se calcula la que hace falta según el tamaño real de la conversación.
+  const fit = opts.numCtx ? null : fitContext(opts.model, opts.messages, opts.maxOutputTokens ?? 2048);
+  const send = (withContext: boolean) =>
+    fetch(localAiUrl("chat"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: opts.model,
+        messages: withContext && fit ? fit.messages : opts.messages,
+        stream: true,
+        temperature: opts.temperature ?? 0.4,
+        ...(opts.maxOutputTokens ? { max_tokens: opts.maxOutputTokens } : {}),
+        ...(opts.numCtx ? { num_ctx: opts.numCtx } : withContext && fit ? { num_ctx: fit.numCtx } : {}),
+      }),
+      ...(opts.signal ? { signal: opts.signal } : {}),
+    });
+  let res = await send(true);
+  // Si el motor rechaza la memoria calculada, se repite una vez como antes.
+  if (!res.ok && fit && !opts.signal?.aborted) {
+    void res.body?.cancel().catch(() => undefined);
+    res = await send(false);
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
@@ -80,10 +123,26 @@ export async function chatLocalStream(opts: {
   }
 
   const ctype = res.headers.get("content-type") ?? "";
-  if (!ctype.includes("event-stream")) {
+  const sse = ctype.includes("event-stream");
+  const ndjson = ctype.includes("ndjson");
+  if (!sse && !ndjson) {
     // Algunos motores ignoran stream:true y responden de una vez.
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const text = data.choices?.[0]?.message?.content ?? "";
+    const raw = await res.text();
+    let text = "";
+    try {
+      const data = JSON.parse(raw) as { choices?: { message?: { content?: string } }[]; message?: { content?: string }; response?: string };
+      text = data.choices?.[0]?.message?.content ?? data.message?.content ?? data.response ?? "";
+    } catch {
+      // Compatibilidad con motores que responden en JSON por líneas.
+      for (const line of raw.split("\n")) {
+        try {
+          const data = JSON.parse(line) as { message?: { content?: string }; response?: string };
+          text += data.message?.content ?? data.response ?? "";
+        } catch {
+          /* línea ajena al flujo */
+        }
+      }
+    }
     if (text) opts.onDelta?.(text);
     return text;
   }
@@ -101,18 +160,20 @@ export async function chatLocalStream(opts: {
     buffer = lines.pop() ?? "";
     for (const line of lines) {
       const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const payload = trimmed.slice(5).trim();
+      if (sse && !trimmed.startsWith("data:")) continue;
+      const payload = sse ? trimmed.slice(5).trim() : trimmed;
       if (!payload || payload === "[DONE]") continue;
+      let json: { choices?: { delta?: { content?: string } }[]; message?: { content?: string }; response?: string; error?: string };
       try {
-        const json = JSON.parse(payload) as { choices?: { delta?: { content?: string } }[] };
-        const delta = json.choices?.[0]?.delta?.content;
-        if (delta) {
-          full += delta;
-          opts.onDelta?.(delta);
-        }
+        json = JSON.parse(payload) as typeof json;
       } catch {
-        /* fragmento incompleto: se ignora */
+        continue; /* fragmento incompleto: se ignora */
+      }
+      if (typeof json.error === "string" && json.error) throw new Error(`El motor local devolvió un error: ${json.error.slice(0, 200)}`);
+      const delta = json.choices?.[0]?.delta?.content ?? json.message?.content ?? json.response;
+      if (delta) {
+        full += delta;
+        opts.onDelta?.(delta);
       }
     }
   }

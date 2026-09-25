@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { blockForeignSite } from "@/lib/same-origin";
+import { handleSystemAction, systemStats } from "@/lib/system-ops";
 
 // Arranque y reparación del motor de IA del propio equipo (Ollama).
 // Solo funciona en el programa instalado, donde WILLY AI corre sobre Node en Windows.
@@ -59,12 +61,36 @@ async function waitAlive(seconds: number): Promise<boolean> {
 export const Route = createFileRoute("/api/engine")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        // Lectura del equipo en directo para la pestaña Inicio (solo desde la propia interfaz de WILLY).
+        const query = new URL(request.url).searchParams;
+        if (query.get("stats")) {
+          const foreign = blockForeignSite(request);
+          if (foreign) return foreign;
+          try {
+            return Response.json(await systemStats({ more: !!query.get("more") }), { headers: { "Cache-Control": "no-store" } });
+          } catch {
+            return Response.json({ error: "No se pudo leer el equipo." }, { status: 500 });
+          }
+        }
         const alive = await engineAlive();
         const models = alive ? await installedModels() : [];
         return Response.json({ alive, models, ready: alive && models.length > 0 });
       },
-      POST: async () => {
+      POST: async ({ request }) => {
+        const blocked = blockForeignSite(request);
+        if (blocked) return blocked;
+        // Acciones del panel de Inicio (liberar memoria, limpiar copias, plan de energía). Sin cuerpo = reparar el motor, como siempre.
+        const raw = await request.text().catch(() => "");
+        if (raw.trim().startsWith("{")) {
+          let asked: { action?: unknown; model?: unknown };
+          try {
+            asked = JSON.parse(raw) as { action?: unknown; model?: unknown };
+          } catch {
+            return Response.json({ ok: false, error: "Petición no válida." }, { status: 400 });
+          }
+          if (typeof asked.action === "string") return Response.json(await handleSystemAction(asked.action, asked));
+        }
         // 1. ¿Ya responde? Entonces solo falta un modelo.
         let alive = await engineAlive();
 

@@ -2,11 +2,21 @@ import { useEffect, useState } from "react";
 
 export type Settings = {
   endpoint: string;
+  /** Ya no se usa (rev20): la carpeta de modelos real la da el servidor (Centro de Inteligencia → Tu equipo → Detalles). */
   modelsPath: string;
+  /** Ya no se usa (rev20): el «Modo sin conexión» no bloqueaba nada y se quitó. Se conserva por compatibilidad. */
   offline: boolean;
   model: string;
+  // Modelo local de SUPER WILLY (pestaña Súper IA), aparte del de la pestaña Chat («model»). Vacío = automático: el mejor
+  // instalado para cada tarea (ver superModelFor en lib/super-willy). Es el de respaldo: por defecto SUPER WILLY usa
+  // primero la mejor IA externa gratuita.
+  superIaModel: string;
+  // Proyecto abierto en el taller: su identificador (desde la rev19; con el nombre, al renombrarlo se perdía) y su nombre
+  // (para enseñarlo). Si el identificador no está, se busca por el nombre, como antes.
+  projectId: string;
   project: string;
   agents: string[];
+  /** Ya no se usa (rev20): los interruptores de «herramientas» solo cambiaban un texto y prometían cosas que no existen. */
   tools: string[];
   notify: boolean;
   notifySteps: boolean;
@@ -18,7 +28,9 @@ export const DEFAULT_SETTINGS: Settings = {
   modelsPath: "C:\\Users\\Public\\.ollama\\models",
   offline: true,
   model: "llama3.2:3b",
-  project: "SaaS Clientes",
+  superIaModel: "",
+  projectId: "",
+  project: "",
   agents: ["Analist", "Programmer", "Tester", "Debugger"],
   tools: ["Terminal local", "Sistema de archivos", "Servidor de desarrollo"],
   notify: true,

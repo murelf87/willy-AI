@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { blockForeignSite } from "@/lib/same-origin";
 
 // Genera, en el propio ordenador del dueño, un instalador .exe nuevo con la
 // versión siguiente. No usa nada externo: usa los archivos ya instalados y el
@@ -87,7 +88,9 @@ export const Route = createFileRoute("/api/build-installer")({
       },
 
       // Construye el instalador de la versión siguiente.
-      POST: async () => {
+      POST: async ({ request }) => {
+        const blocked = blockForeignSite(request);
+        if (blocked) return blocked;
         const { fs, fsp, path } = await node();
         const root = await findRoot();
         if (!root) {
