@@ -10,10 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccesoRouteImport } from './routes/acceso'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as DescargarRouteImport } from './routes/descargar'
 import { Route as MovilRouteImport } from './routes/movil'
+import { Route as ApiAccesoRouteImport } from './routes/api/acceso'
 import { Route as ApiActualizacionRouteImport } from './routes/api/actualizacion'
 import { Route as ApiAvatarRouteImport } from './routes/api/avatar'
 import { Route as ApiBuildInstallerRouteImport } from './routes/api/build-installer'
@@ -35,6 +37,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccesoRoute = AccesoRouteImport.update({
+  id: '/acceso',
+  path: '/acceso',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -53,6 +60,11 @@ const DescargarRoute = DescargarRouteImport.update({
 const MovilRoute = MovilRouteImport.update({
   id: '/movil',
   path: '/movil',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAccesoRoute = ApiAccesoRouteImport.update({
+  id: '/api/acceso',
+  path: '/api/acceso',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiActualizacionRoute = ApiActualizacionRouteImport.update({
@@ -133,10 +145,12 @@ const ApiYoutubeRoute = ApiYoutubeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/acceso': typeof AccesoRoute
   '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/descargar': typeof DescargarRoute
   '/movil': typeof MovilRoute
+  '/api/acceso': typeof ApiAccesoRoute
   '/api/actualizacion': typeof ApiActualizacionRoute
   '/api/avatar': typeof ApiAvatarRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
@@ -155,10 +169,12 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/acceso': typeof AccesoRoute
   '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/descargar': typeof DescargarRoute
   '/movil': typeof MovilRoute
+  '/api/acceso': typeof ApiAccesoRoute
   '/api/actualizacion': typeof ApiActualizacionRoute
   '/api/avatar': typeof ApiAvatarRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
@@ -178,10 +194,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/acceso': typeof AccesoRoute
   '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/descargar': typeof DescargarRoute
   '/movil': typeof MovilRoute
+  '/api/acceso': typeof ApiAccesoRoute
   '/api/actualizacion': typeof ApiActualizacionRoute
   '/api/avatar': typeof ApiAvatarRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
@@ -202,10 +220,12 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/acceso'
     | '/admin'
     | '/app'
     | '/descargar'
     | '/movil'
+    | '/api/acceso'
     | '/api/actualizacion'
     | '/api/avatar'
     | '/api/build-installer'
@@ -224,10 +244,12 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/acceso'
     | '/admin'
     | '/app'
     | '/descargar'
     | '/movil'
+    | '/api/acceso'
     | '/api/actualizacion'
     | '/api/avatar'
     | '/api/build-installer'
@@ -246,10 +268,12 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/acceso'
     | '/admin'
     | '/app'
     | '/descargar'
     | '/movil'
+    | '/api/acceso'
     | '/api/actualizacion'
     | '/api/avatar'
     | '/api/build-installer'
@@ -269,10 +293,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccesoRoute: typeof AccesoRoute
   AdminRoute: typeof AdminRoute
   AppRoute: typeof AppRoute
   DescargarRoute: typeof DescargarRoute
   MovilRoute: typeof MovilRoute
+  ApiAccesoRoute: typeof ApiAccesoRoute
   ApiActualizacionRoute: typeof ApiActualizacionRoute
   ApiAvatarRoute: typeof ApiAvatarRoute
   ApiBuildInstallerRoute: typeof ApiBuildInstallerRoute
@@ -297,6 +323,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/acceso': {
+      id: '/acceso'
+      path: '/acceso'
+      fullPath: '/acceso'
+      preLoaderRoute: typeof AccesoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -325,6 +358,13 @@ declare module '@tanstack/react-router' {
       path: '/movil'
       fullPath: '/movil'
       preLoaderRoute: typeof MovilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/acceso': {
+      id: '/api/acceso'
+      path: '/api/acceso'
+      fullPath: '/api/acceso'
+      preLoaderRoute: typeof ApiAccesoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/actualizacion': {
@@ -437,10 +477,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccesoRoute: AccesoRoute,
   AdminRoute: AdminRoute,
   AppRoute: AppRoute,
   DescargarRoute: DescargarRoute,
   MovilRoute: MovilRoute,
+  ApiAccesoRoute: ApiAccesoRoute,
   ApiActualizacionRoute: ApiActualizacionRoute,
   ApiAvatarRoute: ApiAvatarRoute,
   ApiBuildInstallerRoute: ApiBuildInstallerRoute,

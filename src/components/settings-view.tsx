@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import {
-  Copy, Database, FolderOpen, HardDrive, Loader2, Power, RefreshCw, RotateCw, ScrollText, Server, Smartphone,
+  Copy, Database, FolderOpen, HardDrive, Loader2, Lock, Power, RefreshCw, RotateCw, ScrollText, Server, Smartphone,
   Stethoscope, Trash2, Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PanelCard as Card } from "@/components/panel-card";
 import { UpdateView } from "@/components/update-view";
 import { StatePackCard } from "@/components/state-pack-card";
@@ -111,7 +112,80 @@ function GeneralTab({ ping }: { ping: Ping }) {
         </div>
       </Card>
       <IphoneCard ping={ping} />
+      <AccesoCard ping={ping} />
     </div>
+  );
+}
+
+type AccesoEstado = { activo: boolean; configurado: boolean; sesion: boolean; local: boolean };
+
+/** Contraseña para usar WILLY desde fuera de este ordenador (móvil por Wi-Fi, servidor en Internet). Aquí nunca se pide. */
+function AccesoCard({ ping }: { ping: Ping }) {
+  const [estado, setEstado] = useState<AccesoEstado | null>(null);
+  const [pass, setPass] = useState("");
+  const [repite, setRepite] = useState("");
+  const [saving, setSaving] = useState(false);
+  const load = async () => {
+    try {
+      const res = await fetch("/api/acceso", { cache: "no-store" });
+      setEstado((await res.json()) as AccesoEstado);
+    } catch {
+      setEstado(null);
+    }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const configurar = async (activo: boolean, contrasena?: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/acceso", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "configurar", activo, ...(contrasena ? { contrasena } : {}) }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) return ping(`⚠️ ${data.error || "No se pudo guardar el acceso."}`);
+      setPass("");
+      setRepite("");
+      await load();
+      ping(contrasena ? (activo ? "Contraseña guardada. Desde fuera de este ordenador ya se pide." : "Contraseña guardada (el acceso sigue desactivado).") : activo ? "Acceso con contraseña activado." : "Acceso con contraseña desactivado.");
+    } catch {
+      ping("⚠️ El servidor de WILLY no respondió.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const guardar = () => {
+    if (pass.length < 8) return ping("⚠️ La contraseña debe tener al menos 8 caracteres.");
+    if (pass !== repite) return ping("⚠️ Las dos contraseñas no coinciden.");
+    void configurar(estado?.configurado ? estado.activo : true, pass);
+  };
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-center gap-3">
+        <Lock className="size-5 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">Acceso desde fuera (contraseña)</p>
+          <p className="text-xs text-muted-foreground">Pide una contraseña cuando WILLY AI se usa desde el móvil (Wi-Fi) o desde tu servidor. En este ordenador nunca se pide.</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm">Pedir contraseña fuera de este ordenador</p>
+          <p className="text-xs text-muted-foreground">{estado === null ? "Comprobando…" : !estado.configurado ? "Guarda primero una contraseña." : estado.activo ? "Activado: sin la contraseña no se entra desde fuera." : "Desactivado: desde fuera se entra sin contraseña."}</p>
+        </div>
+        <Toggle on={!!estado?.activo} label="Pedir contraseña fuera de este ordenador" disabled={saving || !estado?.configurado} onClick={() => void configurar(!estado?.activo)} />
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Input type="password" autoComplete="new-password" placeholder="Contraseña nueva (mínimo 8 caracteres)" value={pass} onChange={(e) => setPass(e.target.value)} disabled={saving} />
+        <Input type="password" autoComplete="new-password" placeholder="Repite la contraseña" value={repite} onChange={(e) => setRepite(e.target.value)} disabled={saving} />
+      </div>
+      <Button size="sm" className="gap-2" disabled={saving || !pass} onClick={guardar}>
+        {saving ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}Guardar contraseña
+      </Button>
+    </Card>
   );
 }
 
