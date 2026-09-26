@@ -220,7 +220,7 @@ export function TestsPanel({ tests, running, auto, onAuto, onRepair, onWrite, on
           <Button size="sm" className="h-7 gap-1.5 px-2 text-xs" disabled={running} onClick={() => onRepair(failing)}><Wand2 className="size-3.5" />Arreglar lo que falla</Button>
         )}
         {!busy && (
-          <Button size="sm" variant={has ? "ghost" : "default"} className="h-7 gap-1.5 px-2 text-xs" disabled={running} onClick={() => onWrite(tests.runnable.map((f) => f.path))}>
+          <Button size="sm" variant={has ? "ghost" : "primary"} className="h-7 gap-1.5 px-2 text-xs" disabled={running} onClick={() => onWrite(tests.runnable.map((f) => f.path))}>
             <Wand2 className="size-3.5" />{has ? "Añadir pruebas" : "Escribir las pruebas"}
           </Button>
         )}

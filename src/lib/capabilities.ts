@@ -2,6 +2,8 @@
 // y, si no está instalado, lo ofrece para instalar con un clic (o, si ya está, para usarlo).
 // Solo propone; nunca descarga nada sin que se pulse el botón.
 
+import { cachedFitInfo, preferFitting } from "@/lib/local-fit";
+
 export type NeedId = "codigo" | "vision" | "razonamiento";
 
 export type CatalogEntry = { name: string; label: string; tag: string; size: string; ram: string; desc: string };
@@ -94,7 +96,9 @@ const CODER = /coder|codestral|codegemma|starcoder|deepseek-coder/i;
  */
 export function fastCoderFirst(models: string[]): string[] {
   const coders = models.filter((name) => CODER.test(name)).sort((a, b) => sizeOf(a) - sizeOf(b) || a.localeCompare(b));
-  return [...coders, ...models.filter((name) => !CODER.test(name))];
+  // (25/09/2026) Y por delante de todo, los que caben enteros en la gráfica (lib/local-fit.ts): en 6 GB, qwen2.5-coder:7b va a
+  // medias con el procesador y cada intento de la Autoconstrucción tardaba 20 minutos.
+  return preferFitting([...coders, ...models.filter((name) => !CODER.test(name))], cachedFitInfo());
 }
 
 export function detectSuggestions(

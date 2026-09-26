@@ -20,6 +20,7 @@ import { ReaderView } from "@/components/reader-view";
 import { OcrView } from "@/components/ocr-view";
 import { TranscribeView } from "@/components/transcribe-view";
 import { AvatarView } from "@/components/avatar-view";
+import { AvatarCharacterView } from "@/components/avatar-character-view";
 import { TranslateView } from "@/components/translate-view";
 import { ExtrasView } from "@/components/extras-view";
 import { BookView } from "@/components/book-view";
@@ -43,7 +44,7 @@ export type View =
   | "chat" | "inicio" | "superia" | "inteligencia" | "autoconstruccion" | "proyectos" | "historial"
   | "herramientas" | "documentacion" | "ajustes" | "cuenta"
   | "github" | "instalacion" | "demo" | "licencias"
-  | "lectura" | "ocr" | "avatar" | "traducir" | "extras" | "libros" | "transcribir";
+  | "lectura" | "ocr" | "avatar" | "personaje" | "traducir" | "extras" | "libros" | "transcribir";
 
 export const VIEW_TITLES: Record<View, string> = {
   chat: "Chats",
@@ -59,6 +60,7 @@ export const VIEW_TITLES: Record<View, string> = {
   ocr: "OCR de documentos",
   transcribir: "Transcribir audio o vídeo",
   avatar: "Mi yo en IA",
+  personaje: "Crea tu avatar IA",
   traducir: "Traducir enlace",
   extras: "Nuevas funciones",
   libros: "Libros",
@@ -123,6 +125,16 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
     ],
   },
   {
+    t: "Chats",
+    d: "Tus conversaciones: buscar, favoritas, etiquetas e ideas para empezar.",
+    body: [
+      "A la izquierda están tus conversaciones, con un buscador y los filtros Todos, Recientes (las que se han usado en las últimas 48 horas) y Favoritos; a la derecha, la conversación abierta.",
+      "En el menú de cada conversación puedes marcarla como favorita, renombrarla, ponerle una etiqueta (Ideas, General o Trabajo) o borrarla. La estrella de arriba de la conversación también la marca como favorita.",
+      "Con el cuadro de mensaje vacío aparecen ideas para empezar (organizar una idea, resumir un texto, explicar un error, escribir un correo profesional): escriben el principio de la petición y tú la terminas; no envían nada.",
+      "Abrir una conversación no le cambia la fecha: solo sube en Recientes cuando escribes en ella.",
+    ],
+  },
+  {
     t: "El progreso de tus proyectos",
     d: "De dónde sale el porcentaje y qué significa cada estado.",
     body: [
@@ -153,6 +165,17 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
       "Allí ves si responde, su versión, cuántos modelos tiene y si calcula con la tarjeta gráfica o solo con el procesador (y por qué).",
       "Si no responde, pulsa «Arrancar la IA de mi equipo»; si va rara, «Reiniciar».",
       "Los modelos gratuitos se descargan en Centro de Inteligencia → Modelos, donde también ves la carpeta en la que se guardan.",
+    ],
+  },
+  {
+    t: "Centro de Inteligencia",
+    d: "Con qué IA trabaja WILLY, cómo la elige y cuánto usa cada una.",
+    body: [
+      "Tiene 6 pestañas: Resumen, Modelos, Proveedores, Agentes, Routing y Uso y costes. Todo lo que enseña es real: tus modelos instalados, tus claves y lo que se ha usado de verdad.",
+      "Resumen: de un vistazo, el modo de SUPER WILLY, los proveedores activos, los modelos de tu equipo, la salud (con «Ejecutar diagnóstico» y «Ver logs»), el enrutado, las preferencias globales, las capacidades por tarea, los agentes y los modelos que han respondido últimamente en el Chat y en SUPER WILLY.",
+      "Modelos: la IA de tu equipo (Ollama) junto al catálogo de modelos gratuitos para descargar o quitar. Proveedores: las IA externas gratuitas con tu clave; «Probar» hace una petición real, que cuenta para el tope diario.",
+      "Routing: qué IA contesta en el Chat, en el modo automático, en SUPER WILLY y en la Autoconstrucción, y una tabla por tipo de tarea con su relevo en tu equipo. Si una IA externa falla, entra la siguiente y, al final, la de tu equipo. En el automático, lo sensible (DNI, IBAN, claves…) y los adjuntos se quedan en tu equipo.",
+      "Uso y costes: las peticiones de hoy de cada proveedor frente al tope diario de seguridad. El coste es siempre 0 €: WILLY solo usa niveles gratuitos y nunca gasta dinero por su cuenta.",
     ],
   },
   {
@@ -202,6 +225,16 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
       "En SUPER WILLY, con el proyecto abierto, «Exportar» (o «Publicar») descarga el proyecto en un ZIP.",
       "El ZIP lleva todos los archivos del proyecto y un README con la fecha.",
       "En Cuenta puedes descargar una copia de tu perfil y tus ajustes.",
+    ],
+  },
+  {
+    t: "Autoconstrucción",
+    d: "Cómo WILLY se mejora a sí mismo sin romper lo que funciona.",
+    body: [
+      "Pestañas: Visión (dónde está WILLY, su progreso y su salud), Roadmap (qué llegó en cada revisión y qué viene), Módulos, Tareas, Cambios (qué hizo en cada mejora, paso a paso), Versión (versiones y volver atrás) y Logs. «Nueva mejora» es para escribir qué quieres cambiar.",
+      "Cada mejora se prepara aparte, en una versión candidata: se compila, se comprueban los tipos (TypeScript) y el programa se arranca aparte. Solo si todo va bien se guarda una copia comprobada de lo que había, se instala y WILLY se reinicia.",
+      "Si algo falla por el camino, no se toca nada. Y si después de reiniciar el programa nuevo no responde, WILLY vuelve solo a la versión anterior.",
+      "En Versión puedes deshacer una mejora concreta: antes se guarda (y se comprueba) una copia de cómo está todo en ese momento.",
     ],
   },
   {
@@ -332,6 +365,7 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
         {view === "ocr" && <OcrView />}
         {view === "transcribir" && <TranscribeView />}
         {view === "avatar" && <AvatarView />}
+        {view === "personaje" && <AvatarCharacterView />}
         {view === "traducir" && <TranslateView />}
         {view === "extras" && <ExtrasView />}
         {view === "libros" && <BookView />}

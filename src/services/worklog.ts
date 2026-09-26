@@ -8,7 +8,7 @@ import type { DiscoveryState } from "@/lib/project-discovery";
  * `kind: "entrevista"` = preguntas y respuestas de la entrevista: se ven en el hilo, pero no se reenvían a la IA (sus
  * decisiones ya van resumidas en el contexto del proyecto).
  */
-export type WorkTurn = { role: "owner" | "ia"; text: string; model: string | null; at: number; kind?: "entrevista" };
+export type WorkTurn = { role: "owner" | "ia"; text: string; model: string | null; at: number; kind?: "entrevista" | "descartada" };
 
 export type WorkSession = {
   id: string;
@@ -92,7 +92,8 @@ export function historyOf(session: WorkSession | null, o: { turns?: number; last
   const last = o.last ?? 24_000;
   const other = o.other ?? 3_000;
   const total = o.total ?? 40_000;
-  const turns = (session?.turns ?? []).filter((t) => t.kind !== "entrevista" && t.text.trim());
+  // Ni la entrevista ni las respuestas descartadas (las que no sirvieron) se reenvían a la IA.
+  const turns = (session?.turns ?? []).filter((t) => !t.kind && t.text.trim());
   // Pares dueño → IA, en orden. Un mensaje del dueño sin respuesta (falló o se detuvo) no se reenvía.
   const pairs: Array<[WorkTurn, WorkTurn]> = [];
   for (let i = 0; i < turns.length; i++) {

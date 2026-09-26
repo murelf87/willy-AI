@@ -429,7 +429,7 @@ export async function bundleWithTypeScript(input: TsBundleInput): Promise<TsBund
     const f = files.get(p)!;
     const ext = extOf(p);
     if (/(?:^|&)raw\b/.test(query)) return { code: exportsValue(f.content), specs: [], css: null };
-    if (/(?:^|&)url\b/.test(query)) return { code: exportsValue(ext === "svg" ? dataUrl(MIME.svg!, Buffer.from(f.content, "utf8")) : p), specs: [], css: null };
+    if (/(?:^|&)url\b/.test(query)) return { code: exportsValue(ext === "svg" ? dataUrl(MIME["svg"]!, Buffer.from(f.content, "utf8")) : p), specs: [], css: null };
     if (ext === "css") {
       const inlined = inlineCssUrls([...files.values()], inlineLocalCssImports(files, p, f.content), p);
       const css = await inlineLibraryCssImports(await input.css(p, inlined));
@@ -446,7 +446,7 @@ export async function bundleWithTypeScript(input: TsBundleInput): Promise<TsBund
         return { code: "", specs: [], css: null };
       }
     }
-    if (MIME[ext]) return { code: exportsValue(ext === "svg" ? dataUrl(MIME.svg!, Buffer.from(f.content, "utf8")) : p), specs: [], css: null };
+    if (MIME[ext]) return { code: exportsValue(ext === "svg" ? dataUrl(MIME["svg"]!, Buffer.from(f.content, "utf8")) : p), specs: [], css: null };
     if (!CODE_EXT.has(ext)) return { code: exportsValue(f.content), specs: [], css: null };
     // .ts sin JSX; .tsx con JSX; y los .js/.jsx del proyecto también pueden llevar JSX (como con Vite).
     const fileName = /^(?:ts|mts|cts)$/.test(ext) ? "archivo.ts" : /^(?:js|mjs|cjs|jsx)$/.test(ext) ? "archivo.jsx" : "archivo.tsx";

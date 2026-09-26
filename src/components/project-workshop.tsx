@@ -78,6 +78,8 @@ export type VisualContext = {
   screens?: string | null;
   /** Rev28: cómo van sus pruebas automáticas (la última pasada con los archivos de ahora), en una frase. */
   tests?: string | null;
+  /** (25/09/2026) Recursos de la página que no cargan (imágenes que no existen en el proyecto…), aunque la página se vea. */
+  resources?: string[];
 };
 
 const DEVICES: Record<Device, { label: string; width: number | null; icon: typeof Monitor }> = {
@@ -284,7 +286,9 @@ export function ProjectWorkshop({ projectId, running, liveText, onAsk, focus, on
   // Rev25: un proyecto React/Vite se compila. Si no tiene otra página que enseñar (o eliges su entrada en el selector de
   // páginas), la vista previa es el proyecto COMPILADO en tu equipo.
   const target = useMemo(() => compileTarget(saved), [saved]);
-  const wantCompiled = Boolean(target) && (baseInfo.kind === "sin-vista" || (route.page !== null && route.page === target?.entry));
+  // 25/09/2026: por defecto se enseña el proyecto COMPILADO aunque también tenga «vista-previa.html» (esa copia suelta daba
+  // errores que la IA no sabía arreglar, como en «Mundo jamon»); la otra página se ve solo si la eliges en el selector.
+  const wantCompiled = Boolean(target) && (baseInfo.kind === "sin-vista" || route.page === null || route.page === target?.entry);
   // Rev27: después de instalar librerías se vuelve a compilar (y, si faltan, se instalan solas las que se puede).
   const [libsNonce, setLibsNonce] = useState(0);
   const [autoLibs, setAutoLibs] = usePersistentState<boolean>("superwilly:instalar-librerias", true);
@@ -534,6 +538,9 @@ export function ProjectWorkshop({ projectId, running, liveText, onAsk, focus, on
     ? repairRequest({ page: info.page, entries: entries.slice(-80), blank: frameState === "en-blanco", warnings })
     : compileOutcome ? compileRepairRequest(compileOutcome) : null;
   const shownError = compileOutcome ? issueText(compileOutcome.errors[0] ?? { file: "", line: 0, column: 0, text: missingText(compileOutcome.missing) }) : compileFailure?.error ?? pageError;
+  // Imágenes y otros recursos que no existen: la página se ve, pero es un fallo (SUPER WILLY los arregla solo una vez por proyecto).
+  const resourceErrors = info.kind === "pagina" ? [...new Set(entries.slice(-80).filter((e) => e.source === "recurso" && e.level === "error").map((e) => e.text))].slice(0, 12) : [];
+  const resourcesKey = resourceErrors.join("|");
 
   // Rev26: el mapa de pantallas (del código, de los enlaces de la página y de las rutas por las que ya has pasado).
   const routing = useMemo(() => routingOf(saved), [saved]);
@@ -583,9 +590,9 @@ export function ProjectWorkshop({ projectId, running, liveText, onAsk, focus, on
 
   const selected = picked ? elementContext(picked, hits) : null;
   useEffect(() => {
-    onVisualContext?.({ device, width, page: info.page, state: previewState, error: shownError, tab: current, route: hash, outline: info.kind === "pagina" ? outline : null, versions: versions.length, lastVersion: versions[0]?.label ?? null, errors: summary.errors, repair: broken ? repair : null, selected, screens: screensText || null, tests: testsLine });
+    onVisualContext?.({ device, width, page: info.page, state: previewState, error: shownError, tab: current, route: hash, outline: info.kind === "pagina" ? outline : null, versions: versions.length, lastVersion: versions[0]?.label ?? null, errors: summary.errors, repair: broken ? repair : null, selected, screens: screensText || null, tests: testsLine, resources: resourceErrors });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [device, width, info.page, previewState, shownError, current, hash, outline, versions, summary.errors, repair, selected, screensText, testsLine]);
+  }, [device, width, info.page, previewState, shownError, current, hash, outline, versions, summary.errors, repair, selected, screensText, testsLine, resourcesKey]);
 
   // ------------------------------------------------------------------------------------ rev24: acciones de edición visual
   // El modo «elegir» va con la página que se ve; se apaga con Escape, al recargar o cuando WILLY se pone a trabajar.

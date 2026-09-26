@@ -235,3 +235,273 @@ Lo anota WILLY AI solo, cada vez que aplica una mejora. Se incluye en el paquete
 - **Archivos:** `src/lib/ai-standard.ts`
 - **Copia de seguridad:** 2026-09-25T13-35-30-176-estandar-de-codigo-de-willy-vista-previa
 - **Evidencias:** 5 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 15:59:45
+- **Petición:** SUPER WILLY: la etiqueta de estado de la cabecera enseña el estado real del proyecto («En desarrollo», «Esperando tu decisión»…), el mismo que en Proyectos, como en la maqueta
+- **Archivos:** `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T13-58-50-408-super-willy-la-etiqueta-de-estado-de-la-
+- **Evidencias:** 5 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 16:08:29
+- **Petición:** Centro de Inteligencia → Resumen como en la maqueta: enrutado, proveedores con «Probar», preferencias, capacidades por tarea, modelos en uso reciente y «Ejecutar diagnóstico»/«Ver logs» (todo con datos reales)
+- **Archivos:** `src/components/intelligence-center.tsx`
+- **Copia de seguridad:** 2026-09-25T14-07-39-957-centro-de-inteligencia-resumen-como-en-l
+- **Evidencias:** 9 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 16:11:49
+- **Petición:** Chats: abrir una conversación ya no la sube a «Recientes» ni cambia su fecha; y «Modelos en uso reciente» usa la hora real de cada respuesta
+- **Archivos:** `src/lib/chat-history.ts`, `src/components/intelligence-center.tsx`
+- **Copia de seguridad:** 2026-09-25T14-11-10-020-chats-abrir-una-conversacion-ya-no-la-su
+- **Evidencias:** 3 comprobadas · 0 fallos · 3 informativas
+
+## 25/9/2026, 16:15:16
+- **Petición:** Chats: ideas para empezar encima del cuadro de mensaje, como en la maqueta (organizar una idea, resumir un texto, explicar un error, escribir un correo profesional)
+- **Archivos:** `src/components/chat-panel.tsx`
+- **Copia de seguridad:** 2026-09-25T14-14-34-130-chats-ideas-para-empezar-encima-del-cuad
+- **Evidencias:** 9 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 16:25:05
+- **Petición:** Traductor: la lista de modelos ya no ofrece modelos de búsqueda (nomic-embed-text), que no saben traducir
+- **Archivos:** `src/components/translate-view.tsx`
+- **Copia de seguridad:** 2026-09-25T14-24-26-920-traductor-la-lista-de-modelos-ya-no-ofre
+- **Evidencias:** 3 comprobadas · 0 fallos · 4 informativas
+
+## 25/9/2026, 16:30:52
+- **Petición:** Arreglo de los 5 errores de tipos que venían de antes: dos botones que salían sin estilo (Pruebas y tarjetas de Proyectos) y dos comprobaciones de TypeScript
+- **Archivos:** `src/lib/capability-registry.ts`, `src/components/project-tests.tsx`, `src/components/projects-view.tsx`, `src/lib/project-compile-ts.ts`
+- **Copia de seguridad:** 2026-09-25T14-30-06-978-arreglo-de-los-5-errores-de-tipos-que-ve
+- **Evidencias:** 3 comprobadas · 0 fallos · 7 informativas
+
+## 25/9/2026, 16:42:36
+- **Petición:** Documentación: páginas nuevas de Chats, Centro de Inteligencia y Autoconstrucción (tal como funcionan hoy)
+- **Archivos:** `src/components/app-sections.tsx`
+- **Copia de seguridad:** 2026-09-25T14-41-42-007-documentacion-paginas-nuevas-de-chats-ce
+- **Evidencias:** 7 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 16:44:36
+- **Petición:** Chats: botón «Copiar respuesta» junto a «Leer en voz alta» en cada respuesta de WILLY, como en la maqueta
+- **Archivos:** `src/components/chat-panel.tsx`
+- **Copia de seguridad:** 2026-09-25T14-43-57-494-chats-boton-copiar-respuesta-junto-a-lee
+- **Evidencias:** 7 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 16:51:30
+- **Petición:** Textos al día: IA Influencer dice lo que ya funciona (busto que habla), Doblar vídeos cita Transcribir y la guía de Mi yo en IA ya no habla de Piper con solo voces naturales
+- **Archivos:** `src/front/tools-registry.ts`, `src/components/avatar-studio.tsx`
+- **Copia de seguridad:** 2026-09-25T14-50-43-230-textos-al-dia-ia-influencer-dice-lo-que-
+- **Evidencias:** 7 comprobadas · 0 fallos · 3 informativas
+
+## 25/9/2026, 16:55:04
+- **Petición:** IA de tu equipo: el diagnóstico dice la causa real cuando a Ollama le falta su pieza para la gráfica (ggml-cuda.dll) en vez de culpar al controlador de NVIDIA
+- **Archivos:** `src/lib/system-info.ts`, `src/lib/system-ops.ts`, `src/lib/maintenance-server.ts`
+- **Copia de seguridad:** 2026-09-25T14-54-21-162-ia-de-tu-equipo-el-diagnostico-dice-la-c
+- **Evidencias:** 7 comprobadas · 0 fallos · 4 informativas
+
+## 25/9/2026, 16:58:55
+- **Petición:** Roadmap de SÚPER IA al día: 3 tareas del diseño del dueño hechas hoy (cabecera de Súper IA, Resumen del Centro de Inteligencia, ideas y copiar en Chats)
+- **Archivos:** `src/lib/system-project.ts`
+- **Copia de seguridad:** 2026-09-25T14-58-18-474-roadmap-de-super-ia-al-dia-3-tareas-del-
+- **Evidencias:** 5 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 18:42:32
+- **Petición:** Mi yo en IA → Crear vídeo: antes de animar con ComfyUI se saca de la gráfica el modelo de Ollama (ahora Ollama usa la gráfica y con 6 GB no caben los dos)
+- **Archivos:** `src/lib/avatar-server.ts`
+- **Copia de seguridad:** 2026-09-25T16-40-49-884-mi-yo-en-ia-crear-video-antes-de-animar-
+- **Evidencias:** 5 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 19:28:59
+- **Petición:** IA externas: una petición demasiado grande para un motor gratuito (Groq 413) ya no lo deja 5 minutos en espera; WILLY aprende su límite y pasa directamente a otro
+- **Archivos:** `src/lib/engines-server.ts`, `src/lib/chat-cloud.ts`
+- **Copia de seguridad:** 2026-09-25T17-28-02-529-ia-externas-una-peticion-demasiado-grand
+- **Evidencias:** 5 comprobadas · 0 fallos · 3 informativas
+
+## 25/9/2026, 19:34:35
+- **Petición:** SUPER WILLY: si una IA devuelve un «Reparar» sin cambios, sin archivos o roto, pasa sola a la siguiente IA; y para programar, Codestral (Mistral) antes que los modelos gratuitos de OpenRouter
+- **Archivos:** `src/lib/answer-check.ts`, `src/lib/routing-table.ts`, `src/lib/chat-cloud.ts`, `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T17-33-51-271-super-willy-si-una-ia-devuelve-un-repara
+- **Evidencias:** 5 comprobadas · 0 fallos · 5 informativas
+
+## 25/9/2026, 19:38:06
+- **Petición:** SUPER WILLY: en los proyectos React ya no se duplica la web en «vista-previa.html» (la vista previa es la compilada), rutas en código y nada de imágenes de relleno de internet
+- **Archivos:** `src/lib/ai-standard.ts`, `src/lib/project-compile.ts`, `src/components/project-workshop.tsx`, `src/lib/preview-runtime.ts`
+- **Copia de seguridad:** 2026-09-25T17-37-16-086-super-willy-en-los-proyectos-react-ya-no
+- **Evidencias:** 7 comprobadas · 0 fallos · 5 informativas
+
+## 25/9/2026, 19:39:56
+- **Petición:** SUPER WILLY: construir un proyecto vuelve a poder empezar por las direcciones visuales (sin archivos); el filtro de respuestas que no sirven vale ahora para todo el trabajo sobre un proyecto
+- **Archivos:** `src/lib/answer-check.ts`, `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T17-39-12-523-super-willy-construir-un-proyecto-vuelve
+- **Evidencias:** 3 comprobadas · 0 fallos · 5 informativas
+
+## 25/9/2026, 19:46:35
+- **Petición:** SUPER WILLY: lo que la IA da por hecho en el plan se comprueba en los archivos (una página que no está sigue pendiente y se avisa)
+- **Archivos:** `src/lib/plan-evidence.ts`, `src/lib/project-plan-sync.ts`
+- **Copia de seguridad:** 2026-09-25T17-45-49-996-super-willy-lo-que-la-ia-da-por-hecho-en
+- **Evidencias:** 5 comprobadas · 0 fallos · 3 informativas
+
+## 25/9/2026, 19:55:00
+- **Petición:** SUPER WILLY: en la entrevista, lo que escribes entre paréntesis ya no se parte en funciones rotas y lo que NO quieres («sin…») va a las notas
+- **Archivos:** `src/lib/project-discovery.ts`
+- **Copia de seguridad:** 2026-09-25T17-54-11-783-super-willy-en-la-entrevista-lo-que-escr
+- **Evidencias:** 5 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 19:56:29
+- **Petición:** SUPER WILLY: en la entrevista puedes quitar una función que añadiste tú (o que propuso la IA) con su botón «Quitar»
+- **Archivos:** `src/lib/project-discovery.ts`, `src/components/project-discovery-panel.tsx`
+- **Copia de seguridad:** 2026-09-25T17-55-39-933-super-willy-en-la-entrevista-puedes-quit
+- **Evidencias:** 5 comprobadas · 0 fallos · 3 informativas
+
+## 25/9/2026, 20:09:54
+- **Petición:** IA externas: si un modelo está saturado (Gemini 3.8 Flash daba «high demand» desde hace dos días), WILLY prueba otro modelo del mismo proveedor en vez de dejarlo fuera
+- **Archivos:** `src/lib/engines-server.ts`
+- **Copia de seguridad:** 2026-09-25T18-08-52-475-ia-externas-si-un-modelo-esta-saturado-g
+- **Evidencias:** 5 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 20:29:50
+- **Petición:** IA externas: registro de cada llamada (motor, modelo, tamaño, tiempo, resultado) en datos-privados/motores-registro.jsonl, para ver por qué falla un relevo
+- **Archivos:** `src/lib/engines-server.ts`
+- **Copia de seguridad:** 2026-09-25T18-28-43-527-ia-externas-registro-de-cada-llamada-mot
+- **Evidencias:** 5 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 20:34:04
+- **Petición:** Vista previa: una página que enseña un error en vez de su contenido («Outlet is not defined», «Something went wrong») ya cuenta como rota y salta la reparación automática; en el chat del proyecto, lo enviado sale del cuadro
+- **Archivos:** `src/lib/preview-runtime.ts`, `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T18-33-10-683-vista-previa-una-pagina-que-ensena-un-er
+- **Evidencias:** 5 comprobadas · 0 fallos · 3 informativas
+
+## 25/9/2026, 20:37:46
+- **Petición:** SUPER WILLY: las páginas que enumeras en tu idea son tareas del plan comprobables en los archivos; si tras construir falta alguna, WILLY la pide él solo una vez y, si sigue faltando, te lo dice
+- **Archivos:** `src/lib/plan-evidence.ts`, `src/lib/project-discovery.ts`, `src/lib/project-progress.ts`, `src/lib/project-plan-sync.ts`, `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T18-35-21-504-super-willy-las-paginas-que-enumeras-en-
+- **Evidencias:** 5 comprobadas · 0 fallos · 6 informativas
+
+## 25/9/2026, 20:45:13
+- **Petición:** SUPER WILLY: «Construir ya sin preguntas» crea siempre el proyecto (con «crea la web de mi…» no lo creaba y los archivos se perdían)
+- **Archivos:** `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T18-44-19-320-super-willy-construir-ya-sin-preguntas-c
+- **Evidencias:** 5 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 20:53:28
+- **Petición:** SUPER WILLY: una entrega que se corta por el tamaño máximo de la IA ya no se guarda a medias y WILLY le pide que siga solo (hasta 3 veces); la IA sabe entregar primero lo que arranca el proyecto y decir «FALTAN: …»
+- **Archivos:** `src/lib/answer-check.ts`, `src/lib/super-willy-projects.ts`, `src/lib/ai-standard.ts`, `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T18-52-27-811-super-willy-una-entrega-que-se-corta-por
+- **Evidencias:** 5 comprobadas · 0 fallos · 5 informativas
+
+## 25/9/2026, 21:11:33
+- **Petición:** SUPER WILLY: al continuar una entrega cortada se envía menos contexto (Gemini rechazaba con 503 las peticiones grandes); sobre un proyecto, una petición sin palabra clave cuenta como web o código (no «General»); el nombre del proyecto ya no acaba en «en» o «a»
+- **Archivos:** `src/components/superia-view.tsx`, `src/lib/project-discovery.ts`
+- **Copia de seguridad:** 2026-09-25T19-10-49-171-super-willy-al-continuar-una-entrega-cor
+- **Evidencias:** 3 comprobadas · 0 fallos · 5 informativas
+
+## 25/9/2026, 21:14:04
+- **Petición:** SUPER WILLY: las imágenes que no existen en el proyecto (la página se ve con huecos y la consola con errores) se arreglan solas una vez por proyecto; la comprobación de páginas también salta tras una reparación
+- **Archivos:** `src/components/project-workshop.tsx`, `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T19-13-13-780-super-willy-las-imagenes-que-no-existen-
+- **Evidencias:** 5 comprobadas · 0 fallos · 3 informativas
+
+## 25/9/2026, 21:16:27
+- **Petición:** IA externas: si un modelo no contesta a tiempo (NVIDIA · deepseek tardó más de 280 s), la próxima petición va a otro modelo del mismo proveedor
+- **Archivos:** `src/lib/engines-server.ts`
+- **Copia de seguridad:** 2026-09-25T19-15-36-030-ia-externas-si-un-modelo-no-contesta-a-t
+- **Evidencias:** 3 comprobadas · 0 fallos · 4 informativas
+
+## 25/9/2026, 21:25:36
+- **Petición:** IA externas: si un motor rechaza por saturación una petición grande (Gemini con 26.000 tokens), se prueba una vez la misma petición compacta (menos archivos e historial) antes de pasar a otro motor
+- **Archivos:** `src/lib/engines-server.ts`, `src/lib/engines-client.ts`, `src/lib/chat-cloud.ts`, `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T19-23-24-623-ia-externas-si-un-motor-rechaza-por-satu
+- **Evidencias:** 5 comprobadas · 0 fallos · 5 informativas
+
+## 25/9/2026, 21:34:19
+- **Petición:** SUPER WILLY: «en la portada…» hace que la IA vea HomePage.tsx (pistas de archivo por página nombrada) y un cambio pequeño se pide con alcance explícito (sin páginas ni funciones nuevas que nadie pidió); lo que pides entre comillas tiene que estar en los archivos o la respuesta no vale
+- **Archivos:** `src/lib/plan-evidence.ts`, `src/lib/answer-check.ts`, `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T19-32-35-524-super-willy-en-la-portada-hace-que-la-ia
+- **Evidencias:** 5 comprobadas · 0 fallos · 4 informativas
+
+## 25/9/2026, 21:35:21
+- **Petición:** Vista previa: una página que solo enseña «Not Found» o cuyo router usa el historial del navegador (pushState en about:srcdoc) cuenta como rota, con la pista exacta para repararla (rutas con createHashHistory)
+- **Archivos:** `src/lib/preview-runtime.ts`
+- **Copia de seguridad:** 2026-09-25T19-34-37-446-vista-previa-una-pagina-que-solo-ensena-
+- **Evidencias:** 5 comprobadas · 0 fallos · 2 informativas
+
+## 25/9/2026, 21:41:36
+- **Petición:** SUPER WILLY: la vista previa se vigila (y se repara sola) tras CADA cambio de WILLY, aunque ya estuviera rota; el texto pedido entre comillas tiene que estar en un archivo de la aplicación que cambie (no en un demo suelto); lo entrecomillado no cuenta al buscar la página nombrada
+- **Archivos:** `src/lib/plan-evidence.ts`, `src/lib/answer-check.ts`, `src/lib/preview-runtime.ts`
+- **Copia de seguridad:** 2026-09-25T19-40-47-063-super-willy-la-vista-previa-se-vigila-y-
+- **Evidencias:** 5 comprobadas · 0 fallos · 4 informativas
+
+## 25/9/2026, 22:08:52
+- **Petición:** SUPER WILLY: una respuesta descartada (no sirvió) queda a la vista en la conversación del proyecto con el motivo y cómo empezaba (sin reenviarse a la IA); los relevos «no sirve, paso sola a…» se quedan como chips
+- **Archivos:** `src/services/worklog.ts`, `src/lib/chat-cloud.ts`, `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T20-05-20-968-super-willy-una-respuesta-descartada-no-
+- **Evidencias:** 5 comprobadas · 0 fallos · 4 informativas
+
+## 25/9/2026, 22:12:47
+- **Petición:** SUPER WILLY: cuando responde tu equipo, primero el mejor modelo de los que caben enteros en la gráfica (qwen2.5-coder:7b va a medias con el procesador en 6 GB y tardó más de 20 minutos en un cambio de un texto)
+- **Archivos:** `src/lib/local-fit.ts`, `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T20-10-04-356-super-willy-cuando-responde-tu-equipo-pr
+- **Evidencias:** 5 comprobadas · 0 fallos · 3 informativas
+
+## 25/9/2026, 22:18:31
+- **Petición:** En la pantalla Súper IA, cambia el texto "modelo(s) en tu equipo" por "modelos en tu equipo".
+- **Archivos:** `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-25T20-15-56-388-en-la-pantalla-super-ia-cambia-el-texto-
+- **Evidencias:** 7 comprobadas · 0 fallos · 2 informativas
+
+## 26/9/2026, 14:32:44
+- **Petición:** En la pantalla Súper IA, si solo hay un modelo en tu equipo el texto del contador debe ir en singular (1 modelo en tu equipo) y con varios seguir en plural.
+- **Archivos:** `src/components/superia-view.tsx`
+- **Copia de seguridad:** 2026-09-26T12-30-50-348-en-la-pantalla-super-ia-si-solo-hay-un-m
+- **Evidencias:** 3 comprobadas · 0 fallos · 2 informativas
+
+## 26/9/2026, 15:49:13
+- **Petición:** Autoconstrucción: la rueda de motores ya no se salta ninguno (con Gemini caído, el 2.º intento saltaba Mistral y el 4.º caía en el modelo local lento) y los modelos locales que caben en la gráfica van primero. IA externas: un modelo que el proveedor no tiene (404) o que contesta vacío no se vuelve a elegir; OpenRouter prefiere modelos gratuitos que programan
+- **Archivos:** `src/lib/local-fit.ts`, `src/lib/engine-plan.ts`, `src/lib/capabilities.ts`, `src/lib/engines-server.ts`
+- **Copia de seguridad:** 2026-09-26T13-46-58-582-autoconstruccion-la-rueda-de-motores-ya-
+- **Evidencias:** 5 comprobadas · 0 fallos · 5 informativas
+
+## 26/9/2026, 16:02:08
+- **Petición:** Traductor: ya no muestra el «Lo siento, pero no puedo…» del modelo como si fuera la traducción
+- **Archivos:** `src/services/orchestrator.ts`, `src/lib/translate-flow.ts`
+- **Copia de seguridad:** 2026-09-26T14-00-24-930-traductor-ya-no-muestra-el-lo-siento-per
+- **Evidencias:** 7 comprobadas · 0 fallos · 3 informativas
+
+## 26/9/2026, 18:30:17
+- **Petición:** traductor-ia-externa-primero-video-sync
+- **Archivos:** `src/components/translate-view.tsx`
+- **Copia de seguridad:** 2026-09-26T16-28-59-399-traductor-ia-externa-primero-video-sync
+- **Evidencias:** 7 comprobadas · 0 fallos · 2 informativas
+
+## 26/9/2026, 19:32:29
+- **Petición:** voz-sincronizada-empieza-a-la-vez-que-el-video
+- **Archivos:** `src/lib/narration-sync.ts`, `src/components/translate-view.tsx`
+- **Copia de seguridad:** 2026-09-26T17-30-20-191-voz-sincronizada-empieza-a-la-vez-que-el
+- **Evidencias:** 7 comprobadas · 0 fallos · 3 informativas
+
+## 26/9/2026, 20:19:40
+- **Petición:** En src/lib/patch-apply.ts existe la función que empieza exactamente así (cópialo tal cual): "export function validateContent(path: string, content: string, previous: string | null, wholeFile: boolean): string | null {". Dos líneas más abajo,
+- **Archivos:** `src/lib/patch-apply.ts`
+- **Copia de seguridad:** 2026-09-26T18-18-26-666-en-src-lib-patch-apply-ts-existe-la-func
+- **Evidencias:** 3 comprobadas · 0 fallos · 2 informativas
+
+## 26/9/2026, 20:23:02
+- **Petición:** Adjunto el archivo real actual src/lib/patch-apply.ts. Dentro de la función validateContent hay esta condición exacta, dos líneas después de abrir la función: if (/^<{7}\s*(?:SEARCH|HEAD)\b|^>{7}\s*REPLACE\b/m.test(content)) { seguida de return `${path}: contiene marcadores SEARCH/REPLACE sin resolver.`; y el cierre de llave. Sustituye ÚNICAMENTE esas líneas por estas tres líneas nuevas seguidas del mismo return y cierre de llave que ya había: const hasOpen = /^<{7}\s*(?:SEARCH|HEAD)\b/m.test(content); luego const hasSep = /^=======\s*$/m.test(content); luego const hasClose = /^>{7}\s*REPLACE\b/m.test(content); y cambia el "if" para que compruebe "hasOpen && hasSep && hasClose" en vez de la expresión regular anterior. El objetivo: hoy rechaza el archivo si aparece SOLO uno de los dos marcadores (apertura o cierre), aunque no sea un conflicto de fusión real sin resolver; con el cambio, solo debe rechazarlo cuando aparecen los tres marcadores completos de un conflicto real. ADVERTENCIA IMPORTANTE: no toques ninguna otra línea de esa función ni del resto del archivo. En concreto, dentro de esa misma función hay ahora varios "return JSON.stringify({ code: ..., message: ... })": esos NO los toques, sáltatelos, no forman parte de esta tarea. No los conviertas en otra cosa ni los quites. Cambia solo la condición y el bloque que se describen arriba, nada más en todo el archivo. Compílalo, pasa TypeScript y los tests, y despliega solo si todo pasa sin errores.
+- **Archivos:** `src/lib/patch-apply.ts`
+- **Copia de seguridad:** 2026-09-26T18-22-14-206-adjunto-el-archivo-real-actual-src-lib-p
+- **Evidencias:** 3 comprobadas · 0 fallos · 2 informativas
+
+## 26/9/2026, 20:27:23
+- **Petición:** Adjunto el archivo real actual src/lib/patch-apply.ts. Dentro de la función validateContent hay ahora esta comprobación (ya arreglada una vez, pero le falta un caso): const hasOpen = /^<{7}\s*(?:SEARCH|HEAD)\b/m.test(content); const hasSep = /^=======\s*$/m.test(content); const hasClose = /^>{7}\s*REPLACE\b/m.test(content); if (hasOpen && hasSep && hasClose) { return `${path}: contiene marcadores SEARCH/REPLACE sin resolver.`; }. Problema real que queda: hay archivos, como src/lib/self-build-runner.ts y src/lib/project-work.ts, cuyo código YA CONTIENE, dentro de una cadena de texto (una plantilla de ejemplo para enseñarle el formato a una IA), un bloque completo con las tres marcas juntas y en orden: una línea "<<<<<<< SEARCH", más abajo una línea "=======" y más abajo una línea ">>>>>>> REPLACE". Eso NO es un conflicto sin resolver, es texto de ejemplo que ya estaba antes en el archivo y debe seguir pudiéndose editar con normalidad. Por eso, aunque ya arreglamos el caso de un solo marcador suelto, sigue sin poder tocarse ese archivo. Quiero que, igual que se hace un poco más abajo en esta misma función con la constante PLACEHOLDER (se cuenta cuántas veces aparece en "content" con "content.match(PLACEHOLDER)?.length ?? 0" y se compara con cuántas veces aparecía ya antes en "previous" con "previous.match(PLACEHOLDER)?.length ?? 0", y solo se avisa si el número ha subido), hagas lo mismo aquí: en vez de comprobar solo si hasOpen && hasSep && hasClose son verdad en "content", cu
+- **Archivos:** `src/lib/patch-apply.ts`
+- **Copia de seguridad:** 2026-09-26T18-26-27-929-adjunto-el-archivo-real-actual-src-lib-p
+- **Evidencias:** 3 comprobadas · 0 fallos · 2 informativas
+
+## 26/9/2026, 20:30:27
+- **Petición:** Adjunto el archivo real actual src/lib/self-build-runner.ts (antes esto era imposible de tocar: el validador lo rechazaba siempre por un ejemplo de texto que contiene). Cerca del principio del archivo hay esta línea exacta: const MAX_ATTEMPTS = 4;. Cámbiala ÚNICAMENTE a: const MAX_ATTEMPTS = 6;. Es la única línea que debe cambiar en todo el archivo, nada más. Sirve para que, cuando varios motores de IA fallan seguidos intentando una mejora, WILLY tenga dos intentos más antes de rendirse. Compílalo, pasa TypeScript y los tests, y despliega solo si todo pasa sin errores.
+- **Archivos:** `src/lib/self-build-runner.ts`
+- **Copia de seguridad:** 2026-09-26T18-29-22-490-adjunto-el-archivo-real-actual-src-lib-s
+- **Evidencias:** 3 comprobadas · 0 fallos · 2 informativas
+
+## 26/9/2026, 20:42:13
+- **Petición:** Adjunto el archivo real actual src/lib/code-focus.ts. Modifica SOLO la función focusContext: cuando boostPaths incluya una ruta de un archivo nombrado por el dueño (adjuntado o citado en la petición) y ese archivo entero mida 30000 caracteres o menos, entrégalo ENTERO en el contexto en vez de fragmentos elegidos por palabras clave, para que el modelo vea siempre el texto exacto que tiene que copiar en SEARCH aunque la petición no tenga palabras raras que lo localicen bien. Máximo 2 archivos completos así. Si el archivo nombrado pesa más de 30000 caracteres, o no hay ninguno nombrado, el comportamiento debe seguir exactamente igual que hoy (fragmentos por palabras clave). No cambies termsOf, STOP, FILLER, UI_INTENT, priorOf, el resto del cuerpo de focusContext (hits, windows, el caso 'sin pistas raras', el bloque de importaciones final) ni los tipos exportados. No toques ningún otro archivo (ni self-build.ts, ni self-build-runner.ts).  PARTE EXACTA QUE HAY QUE CAMBIAR (cópiala tal cual en SEARCH, es el texto real del archivo adjunto):  export function focusContext(input: {   files: SourceFile[];   request: string;   /** Textos que describen lo que se ve (capturas): aportan rótulos literales, con menos peso que la petición. */   extra?: string;   /** Archivos nombrados por el dueño (los que ha subido) y rutas que ya se sabe que importan. */   boostPaths?: string[];   budget?: number;   radius?: number; }): FocusResult {   const budget = input.budget ?? 12000;   const radius = i
+- **Archivos:** `src/lib/code-focus.ts`
+- **Copia de seguridad:** 2026-09-26T18-41-22-435-adjunto-el-archivo-real-actual-src-lib-c
+- **Evidencias:** 3 comprobadas · 0 fallos · 2 informativas

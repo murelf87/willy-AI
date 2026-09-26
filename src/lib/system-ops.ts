@@ -248,11 +248,51 @@ async function readPower(d: Awaited<ReturnType<typeof withDefaults>>) {
   return result.ok ? parsePowerScheme(result.stdout) : null;
 }
 
+/**
+ * ¿A la instalación de Ollama le falta su pieza para la gráfica? Hay carpeta lib\ollama\cuda_vNN pero ningún ggml-cuda.dll
+ * dentro (instalación cortada). Solo en Windows; se mira como mucho una vez por minuto (son dos lecturas de carpeta).
+ */
+let cudaCheck: { at: number; missing: boolean } | null = null;
+async function readOllamaCudaMissing(platform: string): Promise<boolean> {
+  if (platform !== "win32") return false;
+  if (cudaCheck && Date.now() - cudaCheck.at < 60_000) return cudaCheck.missing;
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+  const local = process.env["LOCALAPPDATA"] ?? "";
+  const programs = process.env["ProgramFiles"] ?? "";
+  const roots = [local ? path.join(local, "Programs", "Ollama") : "", programs ? path.join(programs, "Ollama") : ""].filter(Boolean);
+  let missing = false;
+  for (const root of roots) {
+    const lib = path.join(root, "lib", "ollama");
+    let entries: string[];
+    try {
+      entries = await fs.readdir(lib);
+    } catch {
+      continue;
+    }
+    const cudaDirs = entries.filter((name) => /^cuda_v\d+$/i.test(name));
+    let found = false;
+    for (const dir of cudaDirs) {
+      try {
+        await fs.access(path.join(lib, dir, "ggml-cuda.dll"));
+        found = true;
+        break;
+      } catch {
+        /* en esta carpeta no está */
+      }
+    }
+    missing = cudaDirs.length > 0 && !found;
+    break;
+  }
+  cudaCheck = { at: Date.now(), missing };
+  return missing;
+}
+
 /** Lectura del equipo en directo. Con `more` añade procesos, plan de energía y copias (más lenta). */
 export async function systemStats(opts: { more?: boolean } = {}, deps: SystemDeps = {}): Promise<SystemSnapshot> {
   const d = await withDefaults(deps);
   const cpus = d.cpus();
-  const [cpu, gpu, engine, disk] = await Promise.all([readCpu(d), readGpu(d), readEngine(d), readDisk(d)]);
+  const [cpu, gpu, engine, disk, cudaMissing] = await Promise.all([readCpu(d), readGpu(d), readEngine(d), readDisk(d), readOllamaCudaMissing(d.platform).catch(() => false)]);
   const total = d.totalmem();
   const used = total - d.freemem();
   const snapshot: SystemSnapshot = {
@@ -263,6 +303,7 @@ export async function systemStats(opts: { more?: boolean } = {}, deps: SystemDep
     gpu,
     disk,
     engine,
+    ...(cudaMissing ? { ollamaCudaMissing: true } : {}),
   };
   if (opts.more) {
     const [tasks, power, backups] = await Promise.all([

@@ -114,6 +114,7 @@ export async function translateChunks(o: {
     if (o.signal?.aborted) break;
     let best = "";
     let ok = false;
+    let reason: string | null = null;
     for (let attempt = 0; attempt < attempts && !ok; attempt++) {
       let acc = "";
       try {
@@ -125,9 +126,13 @@ export async function translateChunks(o: {
         if (attempt === attempts - 1 && !best) throw error;
         continue;
       }
-      ok = checkTranslation(chunk, best, o.target, o.sourceCode ?? "") === null;
+      reason = checkTranslation(chunk, best, o.target, o.sourceCode ?? "");
+      ok = reason === null;
     }
-    if (!ok) { failed.push(index); best = best && best.length > chunk.length * 0.35 ? best : `[⚠ Fragmento sin traducir]\n${chunk}`; }
+    // Una negativa del modelo ("el modelo se negó") nunca se enseña al dueño como si fuera la
+    // traducción, aunque sea más larga que el 35 % del fragmento (25/09/2026: con fragmentos cortos
+    // -subtítulos de YouTube- un «Lo siento, pero no puedo…» pasaba ese umbral y se mostraba tal cual).
+    if (!ok) { failed.push(index); best = best && reason !== "el modelo se negó" && best.length > chunk.length * 0.35 ? best : `[⚠ Fragmento sin traducir]\n${chunk}`; }
     parts.push(best);
     o.onProgress?.(index, o.chunks.length, best, true);
   }

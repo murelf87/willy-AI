@@ -395,7 +395,7 @@ function ProjectCard({ row, now, onAction, onProgress, onAnalyze, menu }: {
       )}
       <div className="mt-auto flex items-center gap-2 pt-1">
         <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground" title={new Date(p.updatedAt).toLocaleString("es-ES")}>Actualizado: {relativeTime(p.updatedAt, now).replace(/^Hace/, "hace").replace(/^Ahora$/, "ahora").replace(/^Ayer$/, "ayer")} · {fileCountOf(p)} archivo(s)</span>
-        <Button size="sm" variant={needsAttention(status) ? "default" : "secondary"} className="h-8 gap-1.5" aria-label={`${action}: ${p.name}`} onClick={onAction}>
+        <Button size="sm" variant={needsAttention(status) ? "primary" : "secondary"} className="h-8 gap-1.5" aria-label={`${action}: ${p.name}`} onClick={onAction}>
           {action}<ArrowRight className="size-3.5" />
         </Button>
       </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AGENTS } from "@/lib/project-work";
-import { Activity, Bot, Check, Cloud, Cpu, Download, Gauge, LayoutDashboard, Loader2, MemoryStick, Play, RefreshCw, RotateCw, Sparkles } from "lucide-react";
+import { Activity, Bot, Check, Clock, Cloud, Cpu, Download, Gauge, LayoutDashboard, Loader2, MemoryStick, Play, RefreshCw, RotateCw, ScrollText, Settings2, Sparkles, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PanelCard as Card } from "@/components/panel-card";
 import { EngineCheck } from "@/components/engine-check";
@@ -11,8 +11,12 @@ import { BUILD_ORDER, CHAT_ORDER, KIND_CLOUD_ORDER, usableInOrder } from "@/lib/
 import { planChain, TASK_LABELS, type TaskKind } from "@/services/orchestrator";
 import { SectionHead, SectionTabs, StatusIcon, Toggle, type Tone } from "@/components/section-ui";
 import { useViewActive } from "@/lib/view-active";
-import { useSectionTab } from "@/lib/section-tabs";
-import { fetchOllama, systemAction, type OllamaReport } from "@/lib/maintenance-client";
+import { requestSectionTab, useSectionTab } from "@/lib/section-tabs";
+import { fetchOllama, runDiagnosis, systemAction, type OllamaReport } from "@/lib/maintenance-client";
+import { openView } from "@/lib/background-tasks";
+import { CHAT_EVENT, listThreads } from "@/lib/chat-history";
+import { relativeTime } from "@/lib/project-progress";
+import { listSessions } from "@/services/worklog";
 import { formatMB } from "@/lib/system-info";
 import { formatBytes } from "@/lib/profile";
 import { pingEndpoint, useSettings } from "@/lib/workspace-store";
@@ -146,6 +150,19 @@ function SummaryTab({ report, state, onGo, ping }: { report: OllamaReport | null
   const ready = engines.filter((e) => e.hasKey && e.enabled && e.available);
   const localOk = report?.alive ?? false;
   const salud: Tone = localOk && (!withKey.length || ready.length > 0 || engines.every((e) => !e.hasKey)) ? "ok" : localOk || ready.length ? "aviso" : "fallo";
+  const [diag, setDiag] = useState<{ overall: string; notes: string[]; at: number } | null>(null);
+  const [diagBusy, setDiagBusy] = useState(false);
+  // «Ejecutar diagnóstico» y «Ver logs» (maqueta): el mismo diagnóstico completo de Ajustes → Diagnóstico, sin salir de aquí.
+  const diagnose = async () => {
+    setDiagBusy(true);
+    const r = await runDiagnosis();
+    setDiagBusy(false);
+    if (!r.ok) { ping(`⚠️ ${r.error}`); return; }
+    const notes = r.report.checks.filter((c) => c.status === "fallo" || c.status === "aviso").map((c) => c.label);
+    setDiag({ overall: r.report.overall, notes, at: Date.now() });
+    ping(r.report.overall === "todo bien" ? "Diagnóstico terminado: todo bien." : `Diagnóstico terminado: ${r.report.overall}.`);
+  };
+  const openDiagnosis = () => { requestSectionTab("ajustes", "diagnostico"); openView("ajustes"); };
 
   return (
     <div className="space-y-3">
@@ -156,35 +173,240 @@ function SummaryTab({ report, state, onGo, ping }: { report: OllamaReport | null
         <StatCard icon={<Gauge className="size-4" />} label="Salud general" value={state === "cargando" ? "Comprobando…" : salud === "ok" ? "Todo operativo" : salud === "aviso" ? "Revisar" : "Con problemas"} tone={salud} />
       </div>
 
+      <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr]">
+        <RoutingSummaryCard report={report} onGo={onGo} />
+        <Card>
+          <p className="mb-2 flex items-center gap-2 text-sm font-semibold"><LayoutDashboard className="size-4 text-primary" />Salud y diagnóstico</p>
+          <Row label="IA de tu equipo (Ollama)" value={state === "cargando" ? "Comprobando…" : report?.alive ? `Operativo (Ollama ${report.version ?? ""})` : "No responde"} tone={report?.alive ? "ok" : state === "cargando" ? undefined : "fallo"} />
+          <Row label="Proveedores externos con clave" value={withKey.length ? `${ready.length} de ${withKey.length} disponibles ahora` : "Ninguno configurado"} tone={withKey.length && ready.length === 0 ? "aviso" : undefined} />
+          <Row label="Última comprobación" value={report ? new Date(report.checkedAt).toLocaleTimeString("es-ES") : "—"} />
+          <AvatarEnginesStatus />
+          {diag && (
+            <p className={`mt-2 text-xs font-semibold ${diag.notes.length ? "text-amber-600" : "text-emerald-600"}`}>
+              Diagnóstico de las {new Date(diag.at).toLocaleTimeString("es-ES")}: {diag.overall}{diag.notes.length ? ` · ${diag.notes.slice(0, 4).join(", ")}` : ""}
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" className="gap-1.5" disabled={diagBusy} onClick={() => void diagnose()}>
+              {diagBusy ? <Loader2 className="size-4 animate-spin" /> : <Stethoscope className="size-4" />}{diagBusy ? "Comprobando…" : "Ejecutar diagnóstico"}
+            </Button>
+            <Button size="sm" variant="secondary" className="gap-1.5" onClick={openDiagnosis}><ScrollText className="size-4" />Ver logs</Button>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr]">
+        <ProvidersSummaryCard report={report} onGo={onGo} ping={ping} />
+        <GlobalPrefsCard onGo={onGo} ping={ping} />
+      </div>
+
       <ModeCard />
 
-      <Card>
-        <p className="mb-2 flex items-center gap-2 text-sm font-semibold"><LayoutDashboard className="size-4 text-primary" />Salud y diagnóstico</p>
-        <Row label="IA de tu equipo (Ollama)" value={state === "cargando" ? "Comprobando…" : report?.alive ? `Operativo (Ollama ${report.version ?? ""})` : "No responde"} tone={report?.alive ? "ok" : state === "cargando" ? undefined : "fallo"} />
-        <Row label="Proveedores externos con clave" value={withKey.length ? `${ready.length} de ${withKey.length} disponibles ahora` : "Ninguno configurado"} tone={withKey.length && ready.length === 0 ? "aviso" : undefined} />
-        <Row label="Última comprobación" value={report ? new Date(report.checkedAt).toLocaleTimeString("es-ES") : "—"} />
-        <AvatarEnginesStatus />
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => onGo("modelos")}>Ver Modelos</Button>
-          <Button size="sm" variant="secondary" onClick={() => onGo("proveedores")}>Ver Proveedores</Button>
-          <Button size="sm" variant="secondary" onClick={() => onGo("uso")}>Ver Uso y costes</Button>
-        </div>
-      </Card>
-
-      <Card>
-        <p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Bot className="size-4 text-primary" />Agentes y especialistas</p>
-        <p className="mb-2 text-xs text-muted-foreground">Los papeles que SUPER WILLY tiene en cuenta al construir o cambiar un proyecto.</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {AGENTS.map((agent) => (
-            <div key={agent.name} className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs">
-              <Bot className="size-3.5 shrink-0 text-primary" />
-              <span className="min-w-0 truncate"><span className="font-semibold">{agentLabel(agent.name)}</span> · {agent.role}</span>
-            </div>
-          ))}
-        </div>
-        <Button size="sm" variant="secondary" className="mt-2" onClick={() => onGo("agentes")}>Gestionar agentes</Button>
-      </Card>
+      <div className="grid gap-3 lg:grid-cols-3">
+        <CapabilitiesSummaryCard report={report} onGo={onGo} />
+        <Card>
+          <p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Bot className="size-4 text-primary" />Agentes y especialistas</p>
+          <p className="mb-2 text-xs text-muted-foreground">Los papeles que SUPER WILLY tiene en cuenta al construir o cambiar un proyecto.</p>
+          <div className="grid gap-1.5">
+            {AGENTS.map((agent) => (
+              <div key={agent.name} className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs">
+                <Bot className="size-3.5 shrink-0 text-primary" />
+                <span className="min-w-0 truncate"><span className="font-semibold">{agentLabel(agent.name)}</span> · {agent.role}</span>
+              </div>
+            ))}
+          </div>
+          <Button size="sm" variant="secondary" className="mt-2" onClick={() => onGo("agentes")}>Gestionar agentes</Button>
+        </Card>
+        <RecentModelsCard onGo={onGo} />
+      </div>
     </div>
+  );
+}
+
+/** Enrutado inteligente, en corto (maqueta): qué IA contesta ahora en cada sitio; el detalle y los interruptores, en «Routing». */
+function RoutingSummaryCard({ report, onGo }: { report: OllamaReport | null; onGo: (tab: IntelligenceTab) => void }) {
+  const { contexts } = useRoutingNow(report);
+  return (
+    <Card>
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-sm font-semibold"><Activity className="size-4 text-primary" />Enrutado inteligente</p>
+          <p className="text-xs text-muted-foreground">WILLY decide qué IA contesta según el sitio, la tarea y lo que está disponible ahora mismo.</p>
+        </div>
+        <Button size="sm" className="gap-1.5" onClick={() => onGo("routing")}><Settings2 className="size-4" />Editar reglas</Button>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {contexts.map((c) => (
+          <div key={c.title} className="rounded-lg border border-border p-2.5">
+            <p className="text-xs font-semibold">{c.title}</p>
+            <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{c.short}</p>
+          </div>
+        ))}
+      </div>
+      <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs">
+        <li>Prioridad: las IA externas gratuitas (nunca nada de pago).</li>
+        <li>Relevo: tu equipo (Ollama) si ninguna externa puede.</li>
+        <li>Si un proveedor falla o se queda sin cuota, pasa solo al siguiente.</li>
+      </ol>
+    </Card>
+  );
+}
+
+/** Proveedores y APIs, en corto (maqueta): las IA con clave, su modelo, si están listas y «Probar» (la misma prueba de Proveedores). */
+function ProvidersSummaryCard({ report, onGo, ping }: { report: OllamaReport | null; onGo: (tab: IntelligenceTab) => void; ping: Ping }) {
+  const ai = useExternalAi();
+  const status = ai.status;
+  const shown = (status?.engines ?? []).filter((e) => e.hasKey);
+  const [busy, setBusy] = useState("");
+  // Una petición real con tu clave (cuenta para el tope diario de seguridad, como la prueba de Proveedores).
+  const test = async (id: string, name: string) => {
+    setBusy(id);
+    const r = await engineCommand("engines-test", { id });
+    if (r.status) ai.putStatus(r.status);
+    ping(r.ok ? `${name} responde${r.model ? ` (${r.model})` : ""}.` : `⚠️ ${name}: ${r.error ?? "no responde."}`);
+    setBusy("");
+  };
+  const localModels = report?.models.length ?? 0;
+  return (
+    <Card>
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-sm font-semibold"><Cloud className="size-4 text-primary" />Proveedores y APIs</p>
+          <p className="text-xs text-muted-foreground">Las IA con clave en este equipo, el modelo que usa cada una y si está lista ahora.</p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={() => onGo("proveedores")}>Añadir proveedor</Button>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {shown.map((e) => {
+          const ok = !!status?.master && e.enabled && e.available;
+          const label = ok ? "Disponible" : !status?.master ? "Apagada" : !e.enabled ? "Desactivada" : "En espera";
+          return (
+            <div key={e.id} className="rounded-lg border border-border p-2.5" title={ok ? "" : e.reason}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-sm font-semibold">{e.name}</p>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${ok ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-amber-500/15 text-amber-700 dark:text-amber-400"}`}>{label}</span>
+              </div>
+              <p className="mt-1 truncate text-[11px] text-muted-foreground" title={e.model}>{e.model || "modelo automático"}</p>
+              <div className="mt-2 flex gap-1.5">
+                <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" disabled={busy === e.id} onClick={() => void test(e.id, e.name)}>
+                  {busy === e.id ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}Probar
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onGo("proveedores")}>Configurar</Button>
+              </div>
+            </div>
+          );
+        })}
+        <div className="rounded-lg border border-border p-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-sm font-semibold">Ollama (tu equipo)</p>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${report?.alive ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-700 dark:text-amber-400"}`}>{report?.alive ? "Local" : "No responde"}</span>
+          </div>
+          <p className="mt-1 truncate text-[11px] text-muted-foreground">{report?.alive ? `${localModels} modelo${localModels === 1 ? "" : "s"} en tu equipo` : "Arráncala desde Modelos"}</p>
+          <div className="mt-2 flex gap-1.5">
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onGo("modelos")}>Configurar</Button>
+          </div>
+        </div>
+      </div>
+      {!status && <p className="mt-2 text-xs text-muted-foreground">Leyendo el estado de las IA externas…</p>}
+    </Card>
+  );
+}
+
+/** Capacidades por tarea, en corto (maqueta): la IA principal que contestaría ahora y el relevo de tu equipo. */
+function CapabilitiesSummaryCard({ report, onGo }: { report: OllamaReport | null; onGo: (tab: IntelligenceTab) => void }) {
+  const { status, now, pretty, localFor } = useRoutingNow(report);
+  const kinds: TaskKind[] = ["general", "codigo", "traduccion", "web", "vision"];
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm font-semibold"><Cpu className="size-4 text-primary" />Capacidades por tarea</p>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onGo("routing")}>Ver detalles</Button>
+      </div>
+      <ul className="space-y-1.5">
+        {kinds.map((kind) => {
+          const ids = status?.mode === "ahorro" ? [] : now(KIND_CLOUD_ORDER[kind] ?? KIND_CLOUD_ORDER["general"]!);
+          const first = ids[0];
+          const local = localFor(kind);
+          return (
+            <li key={kind} className="rounded-lg border border-border/70 px-2.5 py-1.5 text-xs">
+              <p className="font-semibold">{TASK_LABELS[kind]}</p>
+              <p className="truncate text-muted-foreground" title={`${first ? pretty(first) : "Tu equipo"}${local ? ` · relevo: ${local}` : ""}`}>Principal: {first ? pretty(first) : "tu equipo"}{local ? ` · Relevo: ${local}` : ""}</p>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+type RecentUse = { at: number; model: string; task: string; where: "Chat" | "SUPER WILLY" };
+
+/**
+ * Las últimas respuestas de verdad (maqueta: «Modelos en uso reciente»): el último mensaje de WILLY de cada chat (con la IA que
+ * lo dio) y las respuestas de SUPER WILLY en cada proyecto. Solo lo que ya guarda este equipo: nada inventado.
+ */
+function recentModelUse(limit: number): RecentUse[] {
+  const out: RecentUse[] = [];
+  for (const thread of listThreads()) {
+    const last = [...thread.messages].reverse().find((m) => m.who === "willy" && m.by);
+    if (last?.by) out.push({ at: chatMessageAt(thread.updatedAt, last.time), model: last.by, task: thread.title || "Conversación", where: "Chat" });
+  }
+  for (const session of listSessions()) {
+    const turns = (session.turns ?? []).filter((t) => t.role === "ia" && t.model && t.model !== "WILLY").slice(-3);
+    for (const turn of turns) out.push({ at: turn.at, model: turn.model ?? "", task: session.title || "Proyecto", where: "SUPER WILLY" });
+  }
+  return out.filter((u) => u.at > 0 && u.model).sort((a, b) => b.at - a.at).slice(0, limit);
+}
+
+/** La hora del mensaje («12:44», la que se ve en el chat) en el día en que se guardó la conversación por última vez. */
+function chatMessageAt(updatedAt: number, time: string): number {
+  const hm = /^(\d{1,2}):(\d{2})/.exec(time);
+  if (!hm) return updatedAt;
+  const d = new Date(updatedAt);
+  d.setHours(Number(hm[1] ?? 0), Number(hm[2] ?? 0), 0, 0);
+  const at = d.getTime();
+  return at > updatedAt ? at - 86_400_000 : at;
+}
+
+const modelName = (label: string): string => (label.includes(" · ") ? label.slice(label.lastIndexOf(" · ") + 3) : label);
+
+function RecentModelsCard({ onGo }: { onGo: (tab: IntelligenceTab) => void }) {
+  const active = useViewActive();
+  const [rows, setRows] = useState<RecentUse[] | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    const load = () => setRows(recentModelUse(6));
+    load();
+    window.addEventListener(CHAT_EVENT, load);
+    return () => window.removeEventListener(CHAT_EVENT, load);
+  }, [active]);
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm font-semibold"><Clock className="size-4 text-primary" />Modelos en uso reciente</p>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onGo("uso")}>Ver uso</Button>
+      </div>
+      {rows === null ? <p className="text-xs text-muted-foreground">Leyendo…</p> : !rows.length ? <p className="text-xs text-muted-foreground">Todavía no hay respuestas guardadas en este equipo.</p> : (
+        <table className="w-full table-fixed text-left text-xs">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground">
+              <th className="w-20 py-1.5 pr-2 font-semibold">Cuándo</th>
+              <th className="py-1.5 pr-2 font-semibold">Modelo</th>
+              <th className="py-1.5 font-semibold">Dónde</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={`${r.at}-${i}`} className="border-b border-border/60 last:border-0">
+                <td className="py-1.5 pr-2 text-muted-foreground">{relativeTime(new Date(r.at).toISOString())}</td>
+                <td className="truncate py-1.5 pr-2 font-semibold" title={r.model}>{modelName(r.model)}</td>
+                <td className="truncate py-1.5 text-muted-foreground" title={`${r.where}: ${r.task}`}>{r.where === "Chat" ? `Chat · ${r.task}` : r.task}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Card>
   );
 }
 
@@ -670,22 +892,15 @@ function AgentsTab({ ping }: { ping: Ping }) {
 
 // ───────────────────────────────────────────────────────────── Routing
 
-/** Tipos de petición que WILLY distingue (los mismos del orquestador y del «plug and play»), en el orden de la maqueta. */
-const ROUTE_KINDS: TaskKind[] = ["general", "codigo", "web", "traduccion", "escritura", "investigacion", "razonamiento", "datos", "vision"];
-
 /**
- * Routing: la tabla de enrutado que WILLY usa DE VERDAD (routing-table.ts), con lo que está disponible ahora mismo. Nada es
- * ilustrativo: los órdenes salen de la misma tabla que usan el chat, el «plug and play» y la Autoconstrucción, y «ahora mismo»
- * sale del estado real de cada IA externa (con clave, activada y con cuota). Los dos interruptores que existen de verdad
- * (usar IA externas y calidad/ahorro) se cambian aquí mismo con las mismas órdenes que Proveedores y el chat; lo que es una regla
- * fija de WILLY se enseña como tal, sin un interruptor falso.
+ * Lo que decide el enrutado AHORA MISMO (lo usan «Routing» y el «Resumen»): la misma tabla que usa el programa
+ * (routing-table.ts) con el estado real de cada IA externa, el modo de SUPER WILLY y los modelos de tu equipo.
  */
-function RoutingTab({ report, onGo, ping }: { report: OllamaReport | null; onGo: (tab: IntelligenceTab) => void; ping: Ping }) {
+function useRoutingNow(report: OllamaReport | null) {
   const ai = useExternalAi();
   const status = ai.status;
   const engines = status?.engines ?? [];
   const master = status?.master ?? false;
-  const [busy, setBusy] = useState("");
   const [mode, setMode] = useState<SuperMode>("externa");
   useEffect(() => {
     const sync = () => setMode(readSuperMode());
@@ -702,7 +917,22 @@ function RoutingTab({ report, onGo, ping }: { report: OllamaReport | null; onGo:
   const pretty = (id: string) => `${nameOf(id)}${modelOf(id) ? ` · ${modelOf(id)}` : ""}`;
   const chatNow = now(CHAT_ORDER);
   const buildNow = now(BUILD_ORDER);
+  const cloudOrLocal = (id: string | undefined) => (id ? pretty(id) : master ? "tu equipo (ninguna externa disponible)" : "tu equipo (IA externas apagadas)");
+  const contexts = [
+    { title: "Chat general", desc: "Por defecto contesta tu equipo. Si eliges «IA externa», prueba en este orden (las que marques van antes) y, si todas fallan, vuelve a tu equipo.", order: CHAT_ORDER, first: chatNow[0], short: `Tu equipo, o la externa que elijas. Externa ahora: ${cloudOrLocal(chatNow[0])}.` },
+    { title: "Automático («plug and play»)", desc: "Elige según el tipo de petición (tabla de abajo). Lo sensible (DNI, IBAN, claves…) y los adjuntos se quedan en tu equipo.", order: null, first: undefined, short: "Según el tipo de petición. Lo sensible y los adjuntos no salen de tu equipo." },
+    { title: "Súper IA", desc: `Modo de SUPER WILLY: ${superMode.icon} ${superMode.label}. ${superMode.desc}`, order: null, first: undefined, short: `${superMode.icon} ${superMode.label}` },
+    { title: "Autoconstrucción", desc: "Regla fija: siempre la IA externa gratuita de más calidad que esté disponible; tu equipo es el último recurso.", order: BUILD_ORDER, first: buildNow[0], short: `Ahora: ${cloudOrLocal(buildNow[0])}.` },
+  ];
+  return { status, master, nameOf, pretty, now, localFor, contexts };
+}
 
+/** Preferencias globales («Routing» y «Resumen»): los dos interruptores que existen de verdad y las reglas fijas, tal cual. */
+function GlobalPrefsCard({ onGo, ping }: { onGo: (tab: IntelligenceTab) => void; ping: Ping }) {
+  const ai = useExternalAi();
+  const status = ai.status;
+  const master = status?.master ?? false;
+  const [busy, setBusy] = useState("");
   const setMaster = async (on: boolean) => {
     setBusy("master");
     const r = await engineCommand("engines-master", { on });
@@ -718,12 +948,38 @@ function RoutingTab({ report, onGo, ping }: { report: OllamaReport | null; onGo:
     setBusy("");
   };
 
-  const contexts = [
-    { title: "Chat general", desc: "Por defecto contesta tu equipo. Si eliges «IA externa», prueba en este orden (las que marques van antes) y, si todas fallan, vuelve a tu equipo.", order: CHAT_ORDER, first: chatNow[0] },
-    { title: "Automático («plug and play»)", desc: "Elige según el tipo de petición (tabla de abajo). Lo sensible (DNI, IBAN, claves…) y los adjuntos se quedan en tu equipo.", order: null, first: undefined },
-    { title: "Súper IA", desc: `Modo de SUPER WILLY: ${superMode.icon} ${superMode.label}. ${superMode.desc}`, order: null, first: undefined },
-    { title: "Autoconstrucción", desc: "Regla fija: siempre la IA externa gratuita de más calidad que esté disponible; tu equipo es el último recurso.", order: BUILD_ORDER, first: buildNow[0] },
-  ];
+  return (
+    <Card>
+      <p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Gauge className="size-4 text-primary" />Preferencias globales</p>
+      <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2">
+        <div className="min-w-0"><p className="text-sm font-semibold">Usar IA externas gratuitas</p><p className="text-xs text-muted-foreground">Interruptor general de las IA en la nube (el mismo que en Proveedores).</p></div>
+        <Toggle on={master} label="Usar IA externas gratuitas" onClick={() => { if (!busy && status) void setMaster(!master); }} />
+      </div>
+      <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2">
+        <div className="min-w-0"><p className="text-sm font-semibold">Externas primero en el automático</p><p className="text-xs text-muted-foreground">Apagado = modo ahorro: primero tu equipo. La Autoconstrucción no cambia: allí la externa va siempre primero.</p></div>
+        <Toggle on={status?.mode !== "ahorro"} label="Externas primero en el automático" onClick={() => { if (!busy && status) void setAutoMode(status.mode === "ahorro" ? "calidad" : "ahorro"); }} />
+      </div>
+      <Row label="Relevo a tu equipo si falla una externa" value="Siempre (regla fija)" tone="ok" />
+      <Row label="Solo gratis" value="Siempre (regla fija)" tone="ok" />
+      <Row label="Preguntar antes de usar pago" value="No hace falta: WILLY nunca usa nada de pago" />
+      <Row label="Tope diario de seguridad" value={status ? `${status.dailyCap} peticiones por IA y día` : "—"} />
+      <Button size="sm" variant="secondary" className="mt-2" onClick={() => onGo("proveedores")}>Claves y proveedores</Button>
+    </Card>
+  );
+}
+
+/** Tipos de petición que WILLY distingue (los mismos del orquestador y del «plug and play»), en el orden de la maqueta. */
+const ROUTE_KINDS: TaskKind[] = ["general", "codigo", "web", "traduccion", "escritura", "investigacion", "razonamiento", "datos", "vision"];
+
+/**
+ * Routing: la tabla de enrutado que WILLY usa DE VERDAD (routing-table.ts), con lo que está disponible ahora mismo. Nada es
+ * ilustrativo: los órdenes salen de la misma tabla que usan el chat, el «plug and play» y la Autoconstrucción, y «ahora mismo»
+ * sale del estado real de cada IA externa (con clave, activada y con cuota). Los dos interruptores que existen de verdad
+ * (usar IA externas y calidad/ahorro) se cambian aquí mismo con las mismas órdenes que Proveedores y el chat; lo que es una regla
+ * fija de WILLY se enseña como tal, sin un interruptor falso.
+ */
+function RoutingTab({ report, onGo, ping }: { report: OllamaReport | null; onGo: (tab: IntelligenceTab) => void; ping: Ping }) {
+  const { status, master, nameOf, pretty, now, localFor, contexts } = useRoutingNow(report);
 
   return (
     <div className="space-y-3">
@@ -774,22 +1030,7 @@ function RoutingTab({ report, onGo, ping }: { report: OllamaReport | null; onGo:
       </Card>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Card>
-          <p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Gauge className="size-4 text-primary" />Preferencias globales</p>
-          <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2">
-            <div className="min-w-0"><p className="text-sm font-semibold">Usar IA externas gratuitas</p><p className="text-xs text-muted-foreground">Interruptor general de las IA en la nube (el mismo que en Proveedores).</p></div>
-            <Toggle on={master} label="Usar IA externas gratuitas" onClick={() => { if (!busy && status) void setMaster(!master); }} />
-          </div>
-          <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2">
-            <div className="min-w-0"><p className="text-sm font-semibold">Externas primero en el automático</p><p className="text-xs text-muted-foreground">Apagado = modo ahorro: primero tu equipo. La Autoconstrucción no cambia: allí la externa va siempre primero.</p></div>
-            <Toggle on={status?.mode !== "ahorro"} label="Externas primero en el automático" onClick={() => { if (!busy && status) void setAutoMode(status.mode === "ahorro" ? "calidad" : "ahorro"); }} />
-          </div>
-          <Row label="Relevo a tu equipo si falla una externa" value="Siempre (regla fija)" tone="ok" />
-          <Row label="Solo gratis" value="Siempre (regla fija)" tone="ok" />
-          <Row label="Preguntar antes de usar pago" value="No hace falta: WILLY nunca usa nada de pago" />
-          <Row label="Tope diario de seguridad" value={status ? `${status.dailyCap} peticiones por IA y día` : "—"} />
-          <Button size="sm" variant="secondary" className="mt-2" onClick={() => onGo("proveedores")}>Claves y proveedores</Button>
-        </Card>
+        <GlobalPrefsCard onGo={onGo} ping={ping} />
 
         <Card>
           <p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Check className="size-4 text-primary" />Reglas de enrutado</p>

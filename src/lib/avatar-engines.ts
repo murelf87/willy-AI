@@ -3,12 +3,13 @@
 // qué orden se prueban (si uno falla, se pasa al siguiente). Nada de esto inventa nombres de nodos: se comprueba con lo que ComfyUI
 // dice que tiene instalado.
 
-export type Role = "movimiento" | "labios" | "todo";
+export type Role = "movimiento" | "labios" | "todo" | "personaje";
 
 export const ROLES: Record<Role, { label: string; desc: string }> = {
   movimiento: { label: "Movimiento", desc: "Da vida a la foto: cabeza, parpadeo y expresiones a partir de un vídeo tuyo (p. ej. LivePortrait). Entra foto + vídeo; sale vídeo sin voz." },
   labios: { label: "Labios", desc: "Sincroniza la boca con el audio sobre un vídeo o una foto (p. ej. MuseTalk, LatentSync, Wav2Lip). Entra vídeo o foto + audio; sale vídeo hablando." },
   todo: { label: "Todo en uno", desc: "Un solo flujo que convierte foto + audio en un vídeo hablando (p. ej. SadTalker, Hallo, EchoMimic, Sonic)." },
+  personaje: { label: "Personaje (imagen)", desc: "Genera una imagen fija de tu personaje a partir de una descripción de escena (y, si el flujo lo admite, tu foto de referencia). Necesita un flujo de generación de imagen (p. ej. FLUX o SDXL con IPAdapter/InstantID/PuLID para mantener la misma cara). WILLY no trae ni descarga ese modelo: lo instalas tú en ComfyUI." },
 };
 
 export type Family = { id: string; label: string; match: RegExp; repo: string; note: string };
@@ -23,6 +24,10 @@ export const FAMILIES: Family[] = [
   { id: "sadtalker", label: "SadTalker", match: /sad[ _-]?talker/i, repo: "búscalo en ComfyUI-Manager («SadTalker»)", note: "Foto + audio → vídeo (todo en uno)." },
   { id: "hallo", label: "Hallo / EchoMimic / Sonic", match: /^(hallo|echomimic|sonic)/i, repo: "búscalo en ComfyUI-Manager", note: "Modelos pesados: con 6 GB de memoria gráfica pueden no caber." },
   { id: "vhs", label: "Video Helper Suite", match: /^VHS_/, repo: "Kosinkadink/ComfyUI-VideoHelperSuite", note: "Carga y guarda vídeos (casi todos los flujos la usan)." },
+  { id: "ipadapter", label: "IPAdapter (identidad)", match: /IPAdapter/i, repo: "cubiq/ComfyUI_IPAdapter_plus", note: "Mantiene la misma cara entre imágenes a partir de una foto de referencia." },
+  { id: "instantid", label: "InstantID (identidad)", match: /InstantID/i, repo: "cubiq/ComfyUI_InstantID", note: "Clona la identidad de una cara de referencia sin entrenar nada; necesita un checkpoint SDXL." },
+  { id: "pulid", label: "PuLID (identidad)", match: /PuLID/i, repo: "cubiq/PuLID_ComfyUI", note: "Otra forma de mantener la cara, pensada para FLUX y SDXL." },
+  { id: "reactor", label: "ReActor (cambio de cara)", match: /ReActor/i, repo: "Gourieff/ComfyUI-ReActor", note: "Cambia la cara de una imagen ya generada por la de tu foto; solo con tu cara o con permiso." },
 ];
 
 const HUMAN = (name: string): string => name.replace(/[_-]+/g, " ");
@@ -50,6 +55,8 @@ export type FlowInfo = {
   /** Avisos que no impiden usarlo (p. ej. dos nodos de imagen). */
   warnings: string[];
   hasVideoOutput: boolean;
+  /** Tiene un nodo que guarda una imagen fija (Save Image): lo que necesita el rol «personaje». */
+  hasImageOutput: boolean;
 };
 
 export type PipelineStage = { flowId: string };
@@ -94,6 +101,35 @@ export function planPipelines(flows: FlowInfo[], broken: Record<string, number> 
   }
   return { pipelines, skipped };
 }
+
+/**
+ * Flujos de «personaje» listos para usar: solo necesitan estar completos (sin nodos que falten) y guardar una imagen
+ * (Save Image). A diferencia del vídeo, aquí no se encadenan: se usa el que el dueño elija (o el primero listo).
+ */
+export function planCharacterFlows(flows: FlowInfo[], broken: Record<string, number> = {}, now = Date.now()): { ready: FlowInfo[]; skipped: Skipped[] } {
+  const skipped: Skipped[] = [];
+  const ready = flows.filter((flow) => {
+    if (flow.role !== "personaje") return false;
+    if (flow.missing.length) { skipped.push({ flow: flow.name, reason: `faltan nodos: ${flow.missing.slice(0, 3).join(", ")}${flow.missing.length > 3 ? "…" : ""}` }); return false; }
+    if (!flow.hasImageOutput) { skipped.push({ flow: flow.name, reason: "no tiene un nodo que guarde imagen (Save Image)" }); return false; }
+    if ((broken[flow.id] ?? 0) > now) { skipped.push({ flow: flow.name, reason: `falló hace poco; se reintenta en ${Math.max(1, Math.ceil(((broken[flow.id] ?? 0) - now) / 60000))} min` }); return false; }
+    return true;
+  });
+  return { ready, skipped };
+}
+
+/**
+ * Lo que de verdad hace hoy «Crea tu avatar IA», dicho sin adornos: una imagen fija de tu personaje, no un vídeo
+ * caminando por un sitio. Colocar al personaje moviéndose por una escena concreta (Fase 2) necesita generación de
+ * vídeo con control de escena, algo que no viene instalado y que en una gráfica de 6 GB está por probar.
+ */
+export const CHARACTER_TIPS: string[] = [
+  "Hoy genera una IMAGEN fija de tu personaje a partir de tu descripción (y tu foto, si el flujo la admite). No genera vídeo ni coloca al personaje caminando por un sitio: eso es una fase futura, todavía sin probar en este equipo.",
+  "Hace falta un flujo de ComfyUI (formato API) con un checkpoint de generación de imagen instalado (por ejemplo FLUX o SDXL) y un nodo Save Image. WILLY no incluye ni descarga ese modelo: se instala desde ComfyUI-Manager o copiando el checkpoint en la carpeta models/checkpoints de ComfyUI.",
+  "Para que salga siempre la misma cara, el flujo debería usar IPAdapter, InstantID o PuLID con tu foto de referencia (identidad consistente). Sin uno de esos nodos, cada imagen generada será una cara distinta.",
+  "«Que no parezca IA» depende del modelo y del flujo, no de WILLY: con más pasos, un buen checkpoint y restauración facial se nota menos, pero ninguna herramienta local lo garantiza al 100 %.",
+  "Con 6 GB de memoria gráfica, genera a 768–1024 px, cierra otros programas y libera Ollama antes de crear la imagen.",
+];
 
 /** Consejos para el resultado más natural (calidad real; no promete engañar a ningún detector). */
 export const NATURAL_TIPS: string[] = [

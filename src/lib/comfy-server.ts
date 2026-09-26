@@ -51,9 +51,15 @@ const IMAGE_CLASS = /^LoadImage(?!Output)/i;
 const AUDIO_CLASS = /^(LoadAudio|LoadAudioUpload|VHS_LoadAudioUpload)$/;
 const VIDEO_CLASS = /^(VHS_LoadVideo|LoadVideo)$/;
 const OUTPUT_CLASS = /VideoCombine|SaveVideo|SaveAnimated|SaveWEBM|SaveGIF|VHS_VideoCombine/i;
+// Nodo que guarda una imagen fija (para el flujo de «Crea tu avatar IA»: personaje, no vídeo).
+const IMAGE_OUTPUT_CLASS = /^(SaveImage|SaveImageWebsocket|PreviewImage)/i;
 export type Slot = "image" | "audio" | "video";
 const KEYS: Record<Slot, string[]> = { image: ["image"], audio: ["audio"], video: ["video", "file"] };
 const TAG: Record<Slot, RegExp> = { image: /AVATAR_IMAGEN/i, audio: /AVATAR_AUDIO/i, video: /AVATAR_VIDEO/i };
+// El texto de la escena/pose para «personaje»: manda el nodo titulado AVATAR_PROMPT; si no hay ninguno y solo existe UN
+// nodo de texto (CLIPTextEncode y similares), se usa ese (para no escribir en un «prompt negativo» por error).
+const PROMPT_TAG = /AVATAR_PROMPT/i;
+const PROMPT_CLASS = /CLIPTextEncode|(?:^|[^a-z])Prompt(?:[^a-z]|$)/i;
 
 /** Los nodos donde va cada entrada: los que llevan la etiqueta AVATAR_… en el título mandan; si no, los de cargar imagen/audio/vídeo. */
 export function slotNodes(graph: Graph): Record<Slot, string[]> {
@@ -67,12 +73,24 @@ export function slotNodes(graph: Graph): Record<Slot, string[]> {
   return out;
 }
 
-export function describeGraph(graph: Graph): { classes: string[]; slots: Record<Slot, string[]>; hasVideoOutput: boolean; warnings: string[] } {
+export function describeGraph(graph: Graph): { classes: string[]; slots: Record<Slot, string[]>; hasVideoOutput: boolean; hasImageOutput: boolean; warnings: string[] } {
   const classes = [...new Set(Object.values(graph).map((node) => node.class_type))];
   const slots = slotNodes(graph);
   const warnings: string[] = [];
   for (const slot of ["image", "audio", "video"] as Slot[]) if (slots[slot].length > 1) warnings.push(`Hay ${slots[slot].length} nodos de ${slot === "image" ? "imagen" : slot === "audio" ? "audio" : "vídeo"}: se rellenan todos. Si solo uno es el tuyo, ponle al título del nodo AVATAR_${slot === "image" ? "IMAGEN" : slot.toUpperCase()}.`);
-  return { classes, slots, hasVideoOutput: classes.some((name) => OUTPUT_CLASS.test(name)), warnings };
+  return { classes, slots, hasVideoOutput: classes.some((name) => OUTPUT_CLASS.test(name)), hasImageOutput: classes.some((name) => IMAGE_OUTPUT_CLASS.test(name)), warnings };
+}
+
+/** Escribe el texto de la escena en el nodo de texto del flujo (ver PROMPT_TAG arriba). Si hay varios y ninguno está
+ * etiquetado, no toca nada (mejor no acertar que escribir en el sitio equivocado). */
+export function bindPrompt(graph: Graph, text: string): { graph: Graph; bound: boolean } {
+  const copy = JSON.parse(JSON.stringify(graph)) as Graph;
+  const ids = Object.keys(copy).sort((a, b) => Number(a) - Number(b) || a.localeCompare(b));
+  const tagged = ids.filter((id) => PROMPT_TAG.test(copy[id]?._meta?.title ?? "") && "text" in (copy[id]?.inputs ?? {}));
+  const candidates = tagged.length ? tagged : ids.filter((id) => PROMPT_CLASS.test(copy[id]!.class_type) && typeof copy[id]!.inputs["text"] === "string");
+  if (candidates.length !== 1) return { graph: copy, bound: false };
+  copy[candidates[0]!]!.inputs["text"] = text;
+  return { graph: copy, bound: true };
 }
 
 /** Copia del flujo con la foto, el audio y el vídeo puestos (y semillas nuevas para que cada vídeo salga distinto). */
@@ -194,6 +212,18 @@ export function pickOutput(outputs: Record<string, Record<string, unknown>>): Ou
     if (Array.isArray(list)) for (const item of list) if (item && typeof item === "object" && typeof (item as OutFile).filename === "string") files.push({ filename: (item as OutFile).filename, subfolder: String((item as OutFile).subfolder ?? ""), type: String((item as OutFile).type ?? "output") });
   }
   return files.find((f) => VIDEO_EXT.test(f.filename) && f.type === "output") ?? files.find((f) => VIDEO_EXT.test(f.filename)) ?? files.find((f) => ANIM_EXT.test(f.filename)) ?? null;
+}
+
+const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
+
+/** La imagen fija que ha producido el flujo de «personaje» (prefiere la de tipo «output»; ignora vídeos/gifs). */
+export function pickImageOutput(outputs: Record<string, Record<string, unknown>>): OutFile | null {
+  const files: OutFile[] = [];
+  for (const entry of Object.values(outputs)) for (const key of ["images", "gifs"]) {
+    const list = entry[key];
+    if (Array.isArray(list)) for (const item of list) if (item && typeof item === "object" && typeof (item as OutFile).filename === "string") files.push({ filename: (item as OutFile).filename, subfolder: String((item as OutFile).subfolder ?? ""), type: String((item as OutFile).type ?? "output") });
+  }
+  return files.find((f) => IMAGE_EXT.test(f.filename) && f.type === "output") ?? files.find((f) => IMAGE_EXT.test(f.filename)) ?? null;
 }
 
 export async function downloadFile(base: string, file: OutFile, deps: Deps = {}, maxBytes = 400 * 2 ** 20): Promise<Uint8Array> {

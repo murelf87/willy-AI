@@ -4,13 +4,13 @@
 // mismo archivo. El código es el mismo de siempre: solo ha cambiado de sitio.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowUp, Bot, ChevronDown, Cpu, Download, MessageSquare, Paperclip, Plus, Search, Sparkles, Square, Upload, X, Mic,
-  Volume2, Cloud,
+  ArrowUp, Bot, ChevronDown, Code2, Cpu, Download, FileText, Mail, MessageSquare, Paperclip, Plus, Search, Sparkles, Square, Upload, X, Mic,
+  Volume2, Cloud, Check, Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
 import { formatBytes } from "@/lib/profile";
-import { downloadFile, type Settings as WorkspaceSettings } from "@/lib/workspace-store";
+import { copyText, downloadFile, type Settings as WorkspaceSettings } from "@/lib/workspace-store";
 import { chatLocalStream, listLocalModels, resolveLocalModel, type ChatMsg } from "@/lib/local-ai";
 import { useLocalModels } from "@/lib/use-local-models";
 import { AnswerBody } from "@/components/answer-body";
@@ -65,6 +65,14 @@ const CHAT_PROMPT = `Eres WILLY AI en la pestaña Chat: una conversación para p
 - Si pones código, en bloques con su lenguaje (\`\`\`ts, \`\`\`python…) y completo para lo que se pregunta.
 - Construir o cambiar un proyecto entero (una web, una app, un programa) se hace en SUPER WILLY, que tiene la vista previa, los archivos, las versiones y la conversación del proyecto: si te lo piden aquí, puedes orientar y dar ejemplos, y recuerda que en SUPER WILLY se construye y se guarda.`;
 
+/** Ideas para empezar (maqueta de Chats): el principio de cuatro peticiones habituales; se escriben en el cuadro, no se envían. */
+const STARTERS: Array<{ icon: typeof Plus; label: string; text: string }> = [
+  { icon: Sparkles, label: "Ayúdame a organizar una idea", text: "Ayúdame a organizar esta idea: " },
+  { icon: FileText, label: "Resume este texto", text: "Resume este texto en pocos puntos claros: " },
+  { icon: Code2, label: "Explícame un error", text: "Explícame este error y cómo arreglarlo: " },
+  { icon: Mail, label: "Escribe un correo profesional", text: "Escribe un correo profesional para " },
+];
+
 // El dueño puede pedir el instalable dentro del propio chat.
 const INSTALLER_ASK = /(instalador|instalable|setup\.exe|\.exe\b|nueva versi[oó]n|act?ualiz[aá](?:me|r|te)?)/i;
 
@@ -92,6 +100,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
   const externalAi = useExternalAi();
   const [messages, setMessages] = useState<MsgItem[]>([]);
   const [draft, setDraft] = usePersistentState("chat:borrador", "");
+  const draftRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<{ name: string; size: number; file: File }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -116,6 +125,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
   const setAutoVoice = (on: boolean) => { setAutoVoiceState(on); window.localStorage.setItem("willy-chat-voz-auto", on ? "si" : "no"); };
   useEffect(() => { setAutoVoiceState(window.localStorage.getItem("willy-chat-voz-auto") === "si"); }, []);
   const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const activeSpeech = useRef<SpeechHandle | null>(null);
   const autoSpoken = useRef<Set<number>>(new Set());
   useEffect(() => () => activeSpeech.current?.stop(), []);
@@ -567,14 +577,29 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
               by={m.by}
               actions={
                 m.who === "willy" && m.text.trim() && !m.generating ? (
-                  <button
-                    onClick={() => (speakingIdx === i ? stopSpeak() : speakMsg(i, m.text))}
-                    className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full ${speakingIdx === i ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                    aria-label={speakingIdx === i ? "Detener lectura en voz alta" : "Leer en voz alta"}
-                    title={speakingIdx === i ? "Detener" : "Leer en voz alta"}
-                  >
-                    {speakingIdx === i ? <Square className="size-3.5" /> : <Volume2 className="size-3.5" />}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => (speakingIdx === i ? stopSpeak() : speakMsg(i, m.text))}
+                      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full ${speakingIdx === i ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                      aria-label={speakingIdx === i ? "Detener lectura en voz alta" : "Leer en voz alta"}
+                      title={speakingIdx === i ? "Detener" : "Leer en voz alta"}
+                    >
+                      {speakingIdx === i ? <Square className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                    </button>
+                    {/* Copiar la respuesta tal cual (como en la maqueta del dueño): el mismo copyText de siempre. */}
+                    <button
+                      onClick={() => void copyText(m.text).then((ok) => {
+                        if (!ok) return;
+                        setCopiedIdx(i);
+                        window.setTimeout(() => setCopiedIdx((c) => (c === i ? null : c)), 2000);
+                      })}
+                      className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                      aria-label={copiedIdx === i ? "Respuesta copiada" : "Copiar respuesta"}
+                      title={copiedIdx === i ? "Copiada" : "Copiar respuesta"}
+                    >
+                      {copiedIdx === i ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
+                    </button>
+                  </>
                 ) : null
               }
             >
@@ -649,6 +674,13 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
 
       <div className="safe-modal shrink-0 border-t border-border bg-card p-2.5 sm:p-3">
         <div className="mx-auto max-w-3xl">
+          {!draft.trim() && (
+            <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="Ideas para empezar">
+              {STARTERS.map((s) => (
+                <Chip key={s.label} icon={s.icon} label={s.label} onClick={() => { setDraft(s.text); window.setTimeout(() => draftRef.current?.focus(), 0); }} />
+              ))}
+            </div>
+          )}
           <div
             className={`rounded-lg border bg-background ${dragging ? "border-primary ring-2 ring-primary/30" : "border-input"}`}
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -658,7 +690,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
             <AttachmentStrip items={attachments} onRemove={(index) => setAttachments((a) => a.filter((_, j) => j !== index))} />
             <div className="flex items-center gap-2 px-3 py-2">
             <input ref={fileRef} type="file" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} aria-hidden="true" />
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} onPaste={(e: { clipboardData: DataTransfer; preventDefault: () => void }) => { const pictures = imageFilesOf(e.clipboardData.files); if (!pictures.length) return; e.preventDefault(); setAttachments((a) => [...a, ...pictures.map((f, i) => ({ name: `captura-${a.length + i + 1}.png`, size: f.size, file: f }))]); ping("Captura añadida. Un modelo con visión la leerá al enviar."); }} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }} placeholder="Escribe un mensaje o arrastra archivos..." className="min-w-0 flex-1 bg-transparent text-sm outline-none" aria-label="Mensaje para WILLY AI" />
+            <input ref={draftRef} value={draft} onChange={(e) => setDraft(e.target.value)} onPaste={(e: { clipboardData: DataTransfer; preventDefault: () => void }) => { const pictures = imageFilesOf(e.clipboardData.files); if (!pictures.length) return; e.preventDefault(); setAttachments((a) => [...a, ...pictures.map((f, i) => ({ name: `captura-${a.length + i + 1}.png`, size: f.size, file: f }))]); ping("Captura añadida. Un modelo con visión la leerá al enviar."); }} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }} placeholder="Escribe un mensaje o arrastra archivos..." className="min-w-0 flex-1 bg-transparent text-sm outline-none" aria-label="Mensaje para WILLY AI" />
             <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => fileRef.current?.click()} aria-label="Adjuntar"><Paperclip className="size-4" /></Button>
             <Button
               variant={listening ? "secondary" : "ghost"}

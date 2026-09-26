@@ -204,6 +204,10 @@ if(SYNC)addEventListener("scroll",function(){if(Date.now()-SKIP<200)return;clear
  *   y se dice cuántos se han omitido.
  * - Un error de JavaScript sin atender es un fallo de verdad; una promesa rechazada (por ejemplo, una petición a internet que
  *   en la vista previa no puede salir) va a la consola como error, pero no se trata como página rota.
+ * - (25/09/2026) También es un fallo de verdad una página que ENSEÑA un error en vez de su contenido («Something went wrong»,
+ *   «X is not defined»…: lo que pintan los «error boundary» de React o de TanStack Router cuando una pantalla revienta al
+ *   arrancar) y un error que React atrapa al pintar («The above error occurred in…»). Antes esa página contaba como «Lista»
+ *   (pasó con «Sonrisa Clara»: «Outlet is not defined» y la vista previa decía «lista»), y la reparación automática no saltaba.
  * - «¿Se ve algo?» se mira cuando la página ha cargado; si parece vacía, se vuelve a mirar dos veces más (hay páginas que
  *   pintan un poco después) antes de decir que se queda en blanco. Con eso va un resumen de lo que hay en pantalla (título,
  *   encabezados, botones y enlaces), para que la IA entienda «este botón» o «el de arriba». Se vuelve a mirar al cambiar de
@@ -219,16 +223,19 @@ var S=function(v){try{if(typeof v==="string")return v;if(v&&v.message)return (v.
 (function(){var ok=true;try{window.localStorage.getItem("__willy")}catch(e){ok=false}if(ok)return;var told=false,mk=function(){var d={};return{getItem:function(k){k=String(k);return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null},setItem:function(k,v){if(!told){told=true;P({tipo:"consola",nivel:"info",texto:"(WILLY) En la vista previa, lo que la página guarda (localStorage) dura mientras está abierta: al recargarla empieza de cero."})}d[String(k)]=String(v)},removeItem:function(k){delete d[String(k)]},clear:function(){d={}},key:function(i){return Object.keys(d)[i]||null},get length(){return Object.keys(d).length}}};["localStorage","sessionStorage"].forEach(function(n){try{Object.defineProperty(window,n,{value:mk(),configurable:true,enumerable:true})}catch(e){}});try{var c="";Object.defineProperty(document,"cookie",{get:function(){return c},set:function(v){var q=String(v).split(";")[0],k=q.split("=")[0];c=c.split("; ").filter(function(x){return x&&x.split("=")[0]!==k}).concat(q).join("; ")},configurable:true})}catch(e){}})();
 ${hash ? `try{var H=${JSON.stringify(hash)};if(location.hash!==H){if(location.protocol==="about:")history.replaceState(history.state,"",location.href.split("#")[0]+H);else location.hash=H}}catch(e){}` : ""}
 var RL=function(max){var c=0,t0=0,d=0;return function(m){var t=Date.now();if(t-t0>1000){t0=t;c=0}if(++c<=max){P(m);return}if(!d)setTimeout(function(){P({tipo:"consola",nivel:"warn",texto:"(WILLY) La página escribe demasiado en la consola: se han omitido "+d+" mensajes."});d=0},1000);d++}},PC=RL(50),PE=RL(30);
-["log","info","warn","error","debug"].forEach(function(k){var o=console[k];console[k]=function(){try{PC({tipo:"consola",nivel:k==="debug"?"log":k,texto:Array.prototype.map.call(arguments,S).join(" ").slice(0,600)})}catch(e){}if(o)return o.apply(console,arguments)}});
+var RB=/The above error occurred in|Consider adding an error boundary|React will try to recreate this component tree/,RBP=0;
+["log","info","warn","error","debug"].forEach(function(k){var o=console[k];console[k]=function(){try{var tx=Array.prototype.map.call(arguments,S).join(" ").slice(0,600);PC({tipo:"consola",nivel:k==="debug"?"log":k,texto:tx});if(k==="error"&&!RBP&&RB.test(tx)){RBP=1;PE({tipo:"error",mensaje:"Una pantalla ha fallado al pintarse (React la ha sustituido por un error): "+tx.slice(0,300),linea:0,columna:0})}}catch(e){}if(o)return o.apply(console,arguments)}});
 addEventListener("error",function(e){var t=e&&e.target;if(t&&t!==window&&t.tagName){try{t.__willyRota=1}catch(x){}PE({tipo:"recurso",url:String(t.src||t.href||t.tagName).slice(0,300)});return}PE({tipo:"error",mensaje:String(e&&e.message||"Error").replace(/^Uncaught /,""),linea:e&&e.lineno||0,columna:e&&e.colno||0})},true);
-addEventListener("unhandledrejection",function(e){var r=e&&e.reason;P({tipo:"consola",nivel:"error",texto:("Promesa rechazada sin atender: "+S(r)).slice(0,600)})});
+var HP=0;
+addEventListener("unhandledrejection",function(e){var r=e&&e.reason,tx=S(r);P({tipo:"consola",nivel:"error",texto:("Promesa rechazada sin atender: "+tx).slice(0,600)});if(!HP&&/(?:replaceState|pushState)[^]*srcdoc/.test(tx)){HP=1;PE({tipo:"error",mensaje:"El router usa el historial del navegador (pushState/replaceState), que no funciona en la vista previa: las rutas tienen que ir con «#» (con @tanstack/react-router, history: createHashHistory()). Detalle: "+tx.slice(0,200),linea:0,columna:0})}});
 addEventListener("hashchange",function(){P({tipo:"ruta",hash:location.hash});clearTimeout(window.__willyQ);window.__willyQ=setTimeout(Q,400)});
 addEventListener("click",function(e){if(e.defaultPrevented)return;var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(!a)return;var h=a.getAttribute("href")||"";if(!h||/^(mailto|tel|javascript):/i.test(h))return;e.preventDefault();if(h.charAt(0)==="#"){try{if(h==="#")scrollTo(0,0);else location.hash=h}catch(x){}return}if(/^[a-z][a-z0-9+.-]*:/i.test(h)||h.indexOf("//")===0){P({tipo:"externo",url:h.slice(0,300)});return}P({tipo:"navegar",ruta:h})});
 addEventListener("submit",function(e){if(e.defaultPrevented)return;e.preventDefault();var f=e.target;P({tipo:"formulario",accion:String(f&&f.getAttribute&&f.getAttribute("action")||"")})});
 var L=function(q,n){return b2a(document.querySelectorAll(q)).map(function(x){return String(x.innerText||x.value||x.getAttribute("aria-label")||x.getAttribute("title")||"").replace(/\\s+/g," ").trim().slice(0,40)}).filter(Boolean).slice(0,n)},b2a=function(x){return Array.prototype.slice.call(x)};
 var EN=function(){var o=[],seen={};b2a(document.querySelectorAll('a[href^="#/"],a[href^="#!/"]')).forEach(function(a){var h=a.getAttribute("href")||"";if(!h||seen[h]||o.length>=40)return;seen[h]=1;o.push({h:h.slice(0,120),t:String(a.innerText||a.getAttribute("aria-label")||a.getAttribute("title")||"").replace(/\\s+/g," ").trim().slice(0,40)})});return o};
 var R=function(){var o=[],h=L("h1,h2",6),k=L("button,a[href],[role=button],input[type=submit]",12);if(document.title)o.push("título «"+document.title.slice(0,60)+"»");if(h.length)o.push("encabezados: "+h.join(" | "));if(k.length)o.push("botones y enlaces: "+k.join(" | "));return o.join("; ").slice(0,500)};
-var N=0,RD=0,Q=function(){var b=document.body,d=document.documentElement,t=b?(b.innerText||"").trim().length:0,l=b?b.querySelectorAll("*:not(script):not(style):not(willy-marca)").length:0,m=b?b.querySelectorAll("img,svg,canvas,video,iframe,picture").length:0;if(!t&&!m&&l<5&&N<2){N++;setTimeout(Q,1200);return}var r="",en=[];try{r=R()}catch(e){}try{en=EN()}catch(e){}P({tipo:"calidad",texto:t,elementos:l,medios:m,desborde:Math.max(0,d.scrollWidth-innerWidth),ancho:innerWidth,alto:d.scrollHeight,resumen:r,enlaces:en});if(REV&&!RD){RD=1;setTimeout(function(){try{P(D())}catch(e){P({tipo:"revision",ancho:innerWidth,alto:innerHeight,problemas:[]})}},300)}};
+var CR=/(Something went wrong|Unexpected Application Error|Application error: a client-side exception|Minified React error|ReferenceError: |TypeError: |[A-Za-z_$][\\w$]* is not defined|Cannot read propert(?:y|ies) of|is not a function\b)/,CRP=0;
+var N=0,RD=0,Q=function(){var b=document.body,d=document.documentElement,tx=b?(b.innerText||""):"",t=tx.trim().length,l=b?b.querySelectorAll("*:not(script):not(style):not(willy-marca)").length:0,m=b?b.querySelectorAll("img,svg,canvas,video,iframe,picture").length:0;if(!t&&!m&&l<5&&N<2){N++;setTimeout(Q,1200);return}var cm=CR.exec(tx.slice(0,6000));if(cm&&!CRP){CRP=1;P({tipo:"error",mensaje:"La página enseña un error en vez de su contenido: «"+tx.slice(Math.max(0,cm.index-60),cm.index+140).replace(/\\s+/g," ").trim()+"»",linea:0,columna:0})}else if(!CRP&&/^\\s*(?:Not Found|404|Page not found|Página no encontrada)\\s*$/i.test(tx)){CRP=1;P({tipo:"error",mensaje:"La página solo enseña «"+tx.trim().slice(0,40)+"»: la ruta con la que arranca no existe en el router (la de inicio tiene que ser «/» y las rutas ir con «#»).",linea:0,columna:0})}var r="",en=[];try{r=R()}catch(e){}try{en=EN()}catch(e){}P({tipo:"calidad",texto:t,elementos:l,medios:m,desborde:Math.max(0,d.scrollWidth-innerWidth),ancho:innerWidth,alto:d.scrollHeight,resumen:r,enlaces:en});if(REV&&!RD){RD=1;setTimeout(function(){try{P(D())}catch(e){P({tipo:"revision",ancho:innerWidth,alto:innerHeight,problemas:[]})}},300)}};
 ${VISUAL_TOOLS}
 if(document.readyState==="complete")setTimeout(Q,600);else addEventListener("load",function(){setTimeout(Q,600)});
 addEventListener("resize",function(){clearTimeout(window.__willyQ);window.__willyQ=setTimeout(Q,400)});
@@ -370,6 +377,15 @@ export function repairHints(texts: string[]): string[] {
       "- Cómo arreglarlo de verdad (no basta con devolver el mismo archivo): en un proyecto React/Vite, la vista previa ya compila index.html → src/main.tsx, así que una página HTML suelta no debe llevar JSX; si esa página tiene que funcionar sola, reescribe su script sin JSX (React.createElement) o cámbialo a <script type=\"text/babel\" data-type=\"module\"> cargando antes https://unpkg.com/@babel/standalone/babel.min.js.",
     );
   }
+  if (/(?:replaceState|pushState)[^\n]*srcdoc|historial del navegador/i.test(all)) {
+    hints.push("- Pista: el router navega con pushState/replaceState (historial del navegador), que no funciona dentro de la vista previa de WILLY (about:srcdoc). Con @tanstack/react-router crea el router con `history: createHashHistory()` (importado de @tanstack/react-router) y que la ruta de inicio sea «/»; sin librería, usa `location.hash` y enlaces `href=\"#/…\"`.");
+  }
+  if (/solo enseña «(?:Not Found|404|Page not found|Página no encontrada)»/i.test(all)) {
+    hints.push("- Pista: TanStack Router no encuentra la ruta inicial: la ruta de inicio debe ser path: \"/\" colgando de la raíz, el router debe usar createHashHistory() y conviene un notFoundComponent propio.");
+  }
+  if (/No se ha podido cargar:\s*\S*(?:placeholder|placehold|picsum|unsplash|\/images?\/|\.(?:jpe?g|png|webp|gif|avif)\b)/i.test(all)) {
+    hints.push("- Pista: una imagen que no carga. Si es de un servicio de relleno de internet (via.placeholder.com, placehold.co, picsum…) o de una ruta que no existe en el proyecto (como /images/foto.jpg), cámbiala por un SVG hecho por ti dentro del proyecto o por un degradado; no inventes rutas de imágenes.");
+  }
   return hints;
 }
 
@@ -394,11 +410,11 @@ export type RepairStep =
 
 export const isBrokenPreview = (state: PreviewStatus | null | undefined): boolean => state === "error" || state === "en-blanco" || state === "no-compila";
 
-/** ¿Hay que vigilar la vista previa después de guardar? Tras un intento de reparación, siempre; tras un cambio normal, solo si
- * antes funcionaba (si ya estaba rota, no la ha roto este cambio: se queda el aviso con «Reparar»). */
+/** ¿Hay que vigilar la vista previa después de guardar? Siempre que WILLY guarde algo. (25/09/2026: antes, si la vista previa ya
+ * estaba rota, el cambio siguiente no se vigilaba y la rotura, que también era de WILLY, se quedaba para siempre con «Reparar»
+ * a la espera del dueño. Ahora cada cambio trae como mucho MAX_REPAIRS intentos, esté como esté la vista previa antes.) */
 export function watchAfterSave(input: { projectId: string; brokenBefore: boolean; attempt?: number; now?: number }): RepairWatch | null {
   const attempt = input.attempt ?? 0;
-  if (!attempt && input.brokenBefore) return null;
   return { projectId: input.projectId, attempt, seenLoad: false, at: input.now ?? Date.now() };
 }
 

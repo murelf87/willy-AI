@@ -2,10 +2,11 @@
 // Un vídeo se crea en segundo plano: voz (Piper → Hugging Face) y luego animación con RELEVO entre flujos (movimiento → labios,
 // «todo en uno», solo labios): si uno falla se pasa al siguiente y se cuenta qué pasó.
 
-import { FAMILIES, familiesIn, hintForMissing, planPipelines, BREAK_MS, ROLES, type FlowInfo, type Pipeline, type Role } from "@/lib/avatar-engines";
-import { ComfyError, bindGraph, comfyBase, describeGraph, downloadFile, interrupt, missingClasses, pickOutput, probe, sniff, submit, unwrapGraph, uploadFile, waitForResult, MIME, type Deps as ComfyDeps, type Graph, type Kind, type Probe, type Slot } from "@/lib/comfy-server";
+import { CHARACTER_TIPS, FAMILIES, familiesIn, hintForMissing, planCharacterFlows, planPipelines, BREAK_MS, ROLES, type FlowInfo, type Pipeline, type Role } from "@/lib/avatar-engines";
+import { ComfyError, bindGraph, bindPrompt, comfyBase, describeGraph, downloadFile, interrupt, missingClasses, pickImageOutput, pickOutput, probe, sniff, submit, unwrapGraph, uploadFile, waitForResult, MIME, type Deps as ComfyDeps, type Graph, type Kind, type Probe, type Slot } from "@/lib/comfy-server";
 import { hfSpeak, listVoiceOptions, piperSpeak, piperStatus, type PiperCfg, type PiperDeps } from "@/lib/piper-server";
 import { installComfy, type ComfyInstallJob } from "@/lib/comfy-install";
+import { downloadModel, MODEL_FOLDERS, type ModelFolder, type ModelInstallJob } from "@/lib/model-install";
 
 export type Settings = { comfyUrl: string; piper: PiperCfg & { voicesDir: string }; hf: { enabled: boolean; model: string; token: string }; timeoutMin: number };
 // Ritmo y pausa por defecto: algo más lento y con más aire que la voz "de fábrica" de Piper (1.0 / 0.2 s),
@@ -117,7 +118,7 @@ async function describeFlow(dir: string, entry: FlowEntry, installed: Set<string
   if (!graph) return { info: null as FlowInfo | null, graph: null as Graph | null, checked: false, hints: [] as string[] };
   const d = describeGraph(graph);
   const missing = installed ? missingClasses(graph, installed) : [];
-  const info: FlowInfo = { id: entry.id, name: entry.name, role: entry.role, needs: { image: d.slots.image.length > 0, audio: d.slots.audio.length > 0, video: d.slots.video.length > 0 }, missing, warnings: d.warnings, hasVideoOutput: d.hasVideoOutput };
+  const info: FlowInfo = { id: entry.id, name: entry.name, role: entry.role, needs: { image: d.slots.image.length > 0, audio: d.slots.audio.length > 0, video: d.slots.video.length > 0 }, missing, warnings: d.warnings, hasVideoOutput: d.hasVideoOutput, hasImageOutput: d.hasImageOutput };
   return { info, graph, checked: !!installed, hints: missing.slice(0, 4).map(hintForMissing) };
 }
 
@@ -190,7 +191,7 @@ export async function speak(settings: Settings, raw: string, deps: AvatarDeps = 
 }
 
 // ------------------------------------------------------------------------------------------------ trabajos
-export type Job = { id: string; status: "voz" | "animando" | "listo" | "error" | "cancelado"; steps: string[]; attempts: Array<{ pipeline: string; ok: boolean; error: string }>; error: string; file: { path: string; name: string; mime: string; size: number } | null; startedAt: number; finishedAt: number; abort: AbortController };
+export type Job = { id: string; status: "voz" | "animando" | "generando" | "listo" | "error" | "cancelado"; steps: string[]; attempts: Array<{ pipeline: string; ok: boolean; error: string }>; error: string; file: { path: string; name: string; mime: string; size: number } | null; startedAt: number; finishedAt: number; abort: AbortController };
 const jobs = new Map<string, Job>();
 let active: Job | null = null;
 
@@ -198,6 +199,13 @@ let active: Job | null = null;
 let comfyInstallJob: ComfyInstallJob | null = null;
 function showComfyInstall(job: ComfyInstallJob | null) {
   return job ? { id: job.id, status: job.status, pct: job.pct, step: job.step, text: job.text, error: job.error, log: job.log.slice(-8) } : null;
+}
+
+// Descarga de un modelo de imagen suelto (checkpoint, LoRA, IPAdapter…) a petición del dueño: un único trabajo
+// a la vez, con progreso real en bytes. WILLY no trae ninguna URL grabada a fuego (ver model-install.ts).
+let modelInstallJob: ModelInstallJob | null = null;
+function showModelInstall(job: ModelInstallJob | null) {
+  return job ? { id: job.id, status: job.status, pct: job.pct, text: job.text, error: job.error, bytesDone: job.bytesDone, bytesTotal: job.bytesTotal, file: job.file ? job.file.split(/[\\/]/).pop() : "" } : null;
 }
 
 const publicJob = (job: Job) => ({ id: job.id, status: job.status, steps: job.steps.slice(-40), attempts: job.attempts, error: job.error, file: job.file ? { name: job.file.name, mime: job.file.mime, size: job.file.size } : null, seconds: Math.round(((job.finishedAt || Date.now()) - job.startedAt) / 1000) });
@@ -301,7 +309,12 @@ async function runJob(dir: string, job: Job, input: RenderInput, deps: AvatarDep
       say(`Voz lista (${voice.engine}${voice.attempts.length ? `; antes falló: ${voice.attempts.join(" · ")}` : ""}).`);
     } else if (input.audio) say("Uso tu audio original.");
     // Si la voz la ha hecho Chatterbox con la gráfica, se cierra ya: con 6 GB no caben a la vez él y los modelos de ComfyUI.
-    await (await import("@/lib/voces-chatterbox")).releaseGpu();
+    const gpuRoom = await import("@/lib/voces-chatterbox");
+    await gpuRoom.releaseGpu();
+    // Lo mismo con la IA de tu equipo: desde el 25/09/2026 Ollama calcula con la gráfica y un modelo cargado ocupa 2-5 GB.
+    // Se saca de la gráfica (vuelve a cargarse sola en la siguiente pregunta) para que quepan los flujos de ComfyUI.
+    const unloaded = await gpuRoom.unloadOllamaFromGpu().catch(() => [] as string[]);
+    if (unloaded.length) say(`Saco de la gráfica la IA de tu equipo (${unloaded.join(", ")}) para que quepa el vídeo; vuelve sola en la próxima pregunta.`);
     // 2) ComfyUI y flujos
     job.status = "animando";
     base = comfyBase(settings.comfyUrl);
@@ -390,6 +403,78 @@ async function runPipeline(base: string, pipeline: Pipeline, flows: Map<string, 
   throw new ComfyError("otro", "Camino sin pasos.");
 }
 
+// ------------------------------------------------------------------------------------------------ personaje (imagen)
+type CharacterInput = { prompt: string; photo: { bytes: Uint8Array; kind: Kind } | null; flowId: string };
+
+/**
+ * Genera UNA imagen fija de un flujo de rol «personaje»: sube la foto de referencia (si el flujo tiene entrada de
+ * imagen y se ha dado una), escribe la escena en el nodo de texto y espera el resultado. No encadena flujos (no hay
+ * «movimiento → labios» aquí: es una sola imagen).
+ */
+async function runCharacterJob(dir: string, job: Job, input: CharacterInput, deps: AvatarDeps): Promise<void> {
+  const say = (text: string) => { job.steps.push(text); };
+  const now = deps.now ?? Date.now;
+  const settings = await loadSettings(dir);
+  let base = "";
+  let flowIdUsed = input.flowId;
+  try {
+    job.status = "generando";
+    base = comfyBase(settings.comfyUrl);
+    const status: Probe = await probe(base, deps, false);
+    if (!status.running) throw new ComfyError("no-arranca", status.error);
+    const installed = new Set(status.classes);
+    const index = await loadIndex(dir);
+    const described = await Promise.all(index.map((entry) => describeFlow(dir, entry, installed)));
+    const flows = new Map(described.flatMap((d) => (d.info && d.graph ? [[d.info.id, { info: d.info, graph: d.graph }] as const] : [])));
+    const plan = planCharacterFlows([...flows.values()].map((f) => f.info), broken, now());
+    if (!plan.ready.length) {
+      throw new ComfyError("otro", `No hay ningún flujo de personaje listo. ${index.some((f) => f.role === "personaje") ? plan.skipped.map((s) => `«${s.flow}»: ${s.reason}`).join(" · ") : "Añade un flujo (formato API, rol «Personaje») en Crea tu avatar IA → Flujos."}`);
+    }
+    const chosen = plan.ready.find((f) => f.id === input.flowId) ?? plan.ready[0]!;
+    flowIdUsed = chosen.id;
+    const flow = flows.get(chosen.id)!;
+    say(`Usando el flujo «${flow.info.name}».`);
+    let graph = flow.graph;
+    if (input.photo && flow.info.needs.image) {
+      const tag = job.id.slice(0, 6);
+      const imageName = await uploadFile(base, input.photo.bytes, `willy_${tag}_ref.${input.photo.kind}`, deps);
+      graph = bindGraph(graph, { image: imageName }, { randomSeed: true }).graph;
+      say("Foto de referencia subida.");
+    } else {
+      graph = bindGraph(graph, {}, { randomSeed: true }).graph;
+    }
+    const bound = bindPrompt(graph, input.prompt);
+    graph = bound.graph;
+    say(bound.bound ? "Escena escrita en el flujo." : "No he encontrado dónde escribir la escena en este flujo (ponle AVATAR_PROMPT al título del nodo de texto): genero con el texto que ya traía el flujo.");
+    const promptId = await submit(base, graph, `willy-${job.id.slice(0, 6)}`, deps);
+    const outputs = await waitForResult(base, promptId, { timeoutMs: settings.timeoutMin * 60_000, ...(deps.pollMs ? { pollMs: deps.pollMs } : {}), signal: job.abort.signal, onTick: (text) => { job.steps.push(text); if (job.steps.length > 400) job.steps.splice(0, 200); } }, deps);
+    const file = pickImageOutput(outputs);
+    if (!file) throw new ComfyError("salida", "El flujo terminó pero no guardó ninguna imagen (falta un nodo Save Image).");
+    const bytes = await downloadFile(base, file, deps, 60 * 2 ** 20);
+    const ext = (/\.([a-z0-9]+)$/i.exec(file.filename)?.[1] ?? "png").toLowerCase();
+    const { fs, path } = await modules();
+    const folder = path.join(dir, "avatar-personajes");
+    await fs.mkdir(folder, { recursive: true });
+    const name = `personaje-IA-${stamp(new Date(now()))}.${ext}`;
+    await writePrivate(path.join(folder, name), bytes);
+    for (const old of (await fs.readdir(folder)).filter((n) => n.startsWith("personaje-IA-")).sort().reverse().slice(30)) await fs.rm(path.join(folder, old), { force: true }).catch(() => undefined);
+    job.file = { path: path.join(folder, name), name, mime: MIME[ext] ?? "image/png", size: bytes.byteLength };
+    job.status = "listo";
+    say(`Imagen lista (${Math.round(bytes.byteLength / 1024)} KB).`);
+  } catch (error) {
+    if (job.abort.signal.aborted) { job.status = "cancelado"; job.error = "Cancelado."; if (base) await interrupt(base, deps); }
+    else {
+      job.status = "error";
+      job.error = error instanceof Error ? error.message : String(error);
+      if (error instanceof ComfyError && flowIdUsed) broken[flowIdUsed] = now() + BREAK_MS;
+    }
+    say(job.error);
+  } finally {
+    job.finishedAt = now();
+    if (active === job) active = null;
+  }
+}
+
 // ------------------------------------------------------------------------------------------------ acciones
 const decode = (value: unknown, max: number, kinds: Kind[], what: string): { bytes: Uint8Array; kind: Kind } => {
   const text = typeof value === "string" ? value.replace(/^data:[^,]*,/, "") : "";
@@ -422,6 +507,7 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
     const described = await Promise.all(index.map((entry) => describeFlow(dir, entry, installed)));
     const infos = described.flatMap((d) => (d.info ? [d.info] : []));
     const plan = planPipelines(comfy.running ? infos : [], broken, now);
+    const personajePlan = planCharacterFlows(comfy.running ? infos : [], broken, now);
     const piper = await piperStatus(settings.piper);
     const ffmpeg = await findFfmpeg(dir, deps);
     const natural = await naturalVoice(dir);
@@ -435,8 +521,10 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
       timeoutMin: settings.timeoutMin,
       flows: described.flatMap((d) => (d.info ? [{ ...d.info, checked: d.checked, hints: d.hints, pausedMin: Math.max(0, Math.ceil(((broken[d.info.id] ?? 0) - now) / 60000)) }] : [])),
       plan: { pipelines: plan.pipelines.map((p) => p.label), skipped: plan.skipped },
+      personaje: { ready: personajePlan.ready.map((f) => f.id), skipped: personajePlan.skipped, tips: CHARACTER_TIPS },
       families: FAMILIES.map((f) => ({ id: f.id, label: f.label, repo: f.repo, note: f.note })),
       comfyInstall: showComfyInstall(comfyInstallJob),
+      modelInstall: showModelInstall(modelInstallJob),
     };
   }
 
@@ -481,6 +569,32 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
 
   if (action === "comfy-install-status") {
     return { ok: true, job: showComfyInstall(comfyInstallJob) };
+  }
+
+  if (action === "model-install") {
+    if (modelInstallJob && modelInstallJob.status === "activo") return { ok: true, job: showModelInstall(modelInstallJob) };
+    const url = str(body["url"], 2000);
+    const folder = str(body["folder"], 20) as ModelFolder;
+    const filename = str(body["filename"], 150);
+    if (!url) return { error: "Pega la dirección (https://) del archivo del modelo." };
+    if (!(MODEL_FOLDERS as readonly string[]).includes(folder)) return { error: "Carpeta de destino no válida." };
+    if (!filename) return { error: "Ponle un nombre de archivo (acabado en .safetensors, .ckpt, .pt, .pth, .bin o .onnx)." };
+    const job: ModelInstallJob = { id: crypto.randomBytes(6).toString("hex"), status: "activo", pct: 0, text: "Empezando la descarga…", error: "", bytesDone: 0, bytesTotal: 0, file: "", abort: new AbortController() };
+    modelInstallJob = job;
+    void downloadModel(dir, job, url, folder, filename, deps).then(
+      () => { job.status = "listo"; },
+      (error: unknown) => { job.status = job.abort.signal.aborted ? "cancelado" : "error"; job.error = error instanceof Error ? error.message : String(error); },
+    );
+    return { ok: true, job: showModelInstall(job) };
+  }
+
+  if (action === "model-install-status") {
+    return { ok: true, job: showModelInstall(modelInstallJob) };
+  }
+
+  if (action === "model-install-cancel") {
+    modelInstallJob?.abort.abort();
+    return { ok: true, job: showModelInstall(modelInstallJob) };
   }
 
   if (action === "settings") {
@@ -558,6 +672,25 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
       for (const [key, old] of jobs) if (jobs.size > 6 && old.finishedAt && key !== job.id) jobs.delete(key);
       active = job;
       void runJob(dir, job, { text, photo: photo.bytes, photoKind: photo.kind, audio: audio ? { bytes: audio.bytes, ext: audio.kind } : null, video: video ? { bytes: video.bytes, ext: video.kind } : null, voice }, deps);
+      return { ok: true, job: publicJob(job) };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  if (action === "personaje-generar") {
+    if (body["consent"] !== true) return { error: "Confirma que la cara es tuya, de alguien que te ha dado permiso, o de un personaje inventado." };
+    if (active && !active.finishedAt) return { error: "Ya hay un trabajo en marcha (vídeo o personaje). Espera a que termine o cancélalo." };
+    try {
+      const prompt = str(body["prompt"], 2000);
+      if (!prompt.trim()) return { error: "Describe la escena: quién es, qué lleva, dónde está, qué está haciendo." };
+      const photo = body["photo"] ? decode(body["photo"], 15 * 2 ** 20, ["png", "jpg", "webp"], "la foto de referencia") : null;
+      const flowId = str(body["flowId"], 20);
+      const job: Job = { id: crypto.randomBytes(8).toString("hex"), status: "generando", steps: [], attempts: [], error: "", file: null, startedAt: now, finishedAt: 0, abort: new AbortController() };
+      jobs.set(job.id, job);
+      for (const [key, old] of jobs) if (jobs.size > 6 && old.finishedAt && key !== job.id) jobs.delete(key);
+      active = job;
+      void runCharacterJob(dir, job, { prompt, photo: photo ? { bytes: photo.bytes, kind: photo.kind } : null, flowId }, deps);
       return { ok: true, job: publicJob(job) };
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) };

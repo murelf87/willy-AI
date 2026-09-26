@@ -58,6 +58,27 @@ export function focusContext(input: {
   const searchable = input.files.filter((file) => file.rel !== "src/lib/code-focus.ts");
   const lines = searchable.map((file) => ({ rel: file.rel, raw: file.content.split("\n"), n: file.content.split("\n").map(norm) }));
 
+  // Archivo nombrado por el dueño (adjuntado o citado por su ruta) y de tamaño razonable: se entrega ENTERO
+  // en vez de fragmentos elegidos por palabras clave, para que el modelo vea siempre el texto exacto a copiar.
+  const FULL_FILE_LIMIT = 30_000;
+  const fullFiles = (input.boostPaths ?? [])
+    .map((rel) => searchable.find((file) => file.rel === rel))
+    .filter((file): file is SourceFile => !!file && file.content.length <= FULL_FILE_LIMIT)
+    .slice(0, 2);
+  if (fullFiles.length) {
+    const blocks = fullFiles.map((file) => `--- ${file.rel} (archivo completo) ---\n${file.content}`);
+    const rest = searchable.filter((file) => !fullFiles.some((full) => full.rel === file.rel));
+    const restResult = rest.length
+      ? focusContext({ ...input, files: rest, boostPaths: (input.boostPaths ?? []).filter((rel) => !fullFiles.some((full) => full.rel === rel)) })
+      : { context: "", paths: [], windows: [], terms: [] };
+    return {
+      context: [...blocks, restResult.context].filter(Boolean).join("\n\n"),
+      paths: [...new Set([...fullFiles.map((file) => file.rel), ...restResult.paths])],
+      windows: restResult.windows,
+      terms: restResult.terms,
+    };
+  }
+
   const primary = termsOf(input.request);
   const replacement = /(?:cambi\w*|sustituy\w*|reemplaz\w*|pon\w*)\s+(?:[\wáéíóúñ]+\s+){0,4}?por\s+([^.,;\n]{2,60})/i.exec(input.request)?.[1];
   const replacementWords = new Set(termsOf(replacement ?? "").words);

@@ -108,6 +108,31 @@ const KIND_RULES: Array<[ProjectKind, RegExp]> = [
   ["web", /\b(web|webs|pagina|paginas|sitio|landing|blog|portfolio|portafolio)\b/],
 ];
 
+// 25/09/2026 · Las PÁGINAS que el dueño enumera en su idea («…: inicio, tratamientos, equipo, pedir cita con formulario y
+// contacto con mapa») son tareas del plan, cada una comprobable en los archivos (lib/plan-evidence.ts). En «Sonrisa Clara» la IA
+// se saltó «equipo» y el plan no lo sabía. Solo se leen listas explícitas (tras «:» o «páginas/secciones/apartados de»).
+const PAGE_LIST = /(?::|\b(?:paginas?|secciones|apartados|pantallas)\s+(?:de\s+|con\s+)?|\bcon\s+(?:las\s+)?(?:paginas|secciones|apartados|pantallas)\s+(?:de\s+)?)\s*([^:.;\n]{6,240})/;
+const PAGE_QUALIFIER = /^(?:mapa|horarios?|formularios?|fotos?|imagenes|videos?|telefonos?|whatsapp|email|correo|redes sociales|logos?|colores|textos?|enlaces?|botones?|iconos?|animaciones|validado|validada)$/;
+/** Trozos que son funciones o adornos, no páginas («que tenga un vídeo», «botón de compra»). */
+const PAGE_NOT = /^(?:que|tenga|tener|con|sin|donde|para)\b|\b(?:videos?|botones?|boton|formularios?|mapa|logo|animaci|colores?|fotos?|imagenes)\b/;
+const PAGE_LEAD = /^(?:(?:una?|unos|unas|el|la|los|las|de|del|su|sus|mi|mis|otra|otro)\s+)+/;
+export function requestedPages(idea: string): string[] {
+  const t = norm(idea).replace(/[«»"“”()]/g, " ").replace(/\s+/g, " ");
+  const m = PAGE_LIST.exec(t);
+  if (!m) return [];
+  const pieces = m[1]!
+    .split(/\s*(?:,|;|\by\b|\be\b|\+)\s*/)
+    .map((s) => s.replace(/\bcon\b.*$/, "").replace(/\bpara\b.*$/, "").replace(PAGE_LEAD, "").trim())
+    .filter((s) => s.length >= 3 && s.length <= 40 && s.split(" ").length <= 4 && !PAGE_QUALIFIER.test(s) && !PAGE_NOT.test(s));
+  if (pieces.length < 2) return [];
+  const out: string[] = [];
+  for (const p of pieces) {
+    const label = withAccents(p, idea.replace(/[«»"“”()]/g, " ").replace(/\s+/g, " "));
+    if (!out.some((x) => norm(x) === norm(label))) out.push(label);
+  }
+  return out.slice(0, 12);
+}
+
 export function kindOf(idea: string): ProjectKind {
   const t = norm(idea);
   for (const [kind, re] of KIND_RULES) if (re.test(t)) return kind;
@@ -786,15 +811,37 @@ function withAccents(piece: string, original: string): string {
  * texto tal cual lo escribió (para devolver las palabras con sus tildes aunque `text` ya venga normalizado).
  */
 export function extractAdditions(text: string, original: string = text): string[] {
+  return splitAdditions(text, original).add;
+}
+
+// 25/09/2026 · «quiero un formulario de cita validado (nombre, teléfono, tratamiento, día preferido) que se envíe por WhatsApp, sin
+// reservas con disponibilidad real» salía como CINCO funciones rotas («Formulario… (nombre», «Teléfono», «Tratamiento», «Día
+// preferido) que…» y «Sin reservas…»). Ahora lo que va entre paréntesis no se parte, y lo que empieza por «sin», «no quiero»,
+// «nada de»… es algo que NO quieres: va a las notas del brief (la IA lo lee al construir), no a las funciones.
+const LIST_SEPARATOR = /\s*(?:,|;|\by\b|\be\b|\bademas de\b|\+)\s*/;
+const WITHOUT_RE = /^(?:sin|no quiero|no hace falta|no necesito|nada de|que no tenga|excepto|salvo)\s+/;
+const guardParens = (s: string): string => s.replace(/\([^()]*\)/g, (g) => g.replace(/,/g, "\u0001").replace(/;/g, "\u0002").replace(/\by\b/g, "\u0003").replace(/\be\b/g, "\u0004").replace(/\+/g, "\u0005"));
+const unguard = (s: string): string => s.replace(/\u0001/g, ",").replace(/\u0002/g, ";").replace(/\u0003/g, "y").replace(/\u0004/g, "e").replace(/\u0005/g, "+");
+
+/** Lo que el dueño añade escribiendo, separado en funciones que quiere (`add`) y cosas que NO quiere (`without`). */
+export function splitAdditions(text: string, original: string = text): { add: string[]; without: string[] } {
   const t = norm(text).trim();
   const m = ADD_RE.exec(t);
-  if (!m) return [];
-  return m[1]!
-    .split(/\s*(?:,|;|\by\b|\be\b|\bademas de\b|\+)\s*/)
-    .map((s) => s.replace(/^(?:(?:un|una|unos|unas|el|la|los|las|de|del|tambien|que)\s+)+/g, "").replace(/[.!?¡¿]+$/g, "").trim())
-    .filter((s) => s.length >= 3 && s.length <= 80 && !/^(?:nada|todo|eso|esto|mas)$/.test(s))
-    .map((s) => cap(withAccents(s, original.trim())))
-    .slice(0, 8);
+  if (!m) return { add: [], without: [] };
+  const add: string[] = [];
+  const without: string[] = [];
+  const pieces = guardParens(m[1]!)
+    .split(LIST_SEPARATOR)
+    .map((s) => unguard(s).replace(/^(?:(?:un|una|unos|unas|el|la|los|las|de|del|tambien|que)\s+)+/g, "").replace(/[.!?¡¿]+$/g, "").trim())
+    .filter((s) => s.length >= 3 && s.length <= 160 && !/^(?:nada|todo|eso|esto|mas)$/.test(s));
+  for (const s of pieces) (WITHOUT_RE.test(s) ? without : add).push(cap(withAccents(s, original.trim())));
+  return { add: add.slice(0, 8), without: without.slice(0, 4) };
+}
+
+/** Las cosas que el dueño NO quiere se apuntan en las notas del brief (sin repetir). */
+function withNotes(state: DiscoveryState, notes: readonly string[]): DiscoveryState {
+  const fresh = notes.filter((n) => !state.notes.some((x) => norm(x) === norm(n)));
+  return fresh.length ? touch({ ...state, notes: [...state.notes, ...fresh] }) : state;
 }
 
 // ------------------------------------------------------------------------------------------------ nombre del proyecto
@@ -821,7 +868,7 @@ function stripLead(original: string): string {
 function nounPhrase(text: string): string {
   const words = text.replace(/[,;:«»"“”()]+/g, " ").trim().split(/\s+/).filter(Boolean);
   const cut = words.findIndex((w, i) => i > 0 && /^(?:con|que|y|e|donde|para que|sin)$/i.test(norm(w)));
-  return (cut > 0 ? words.slice(0, cut) : words).slice(0, 5).join(" ").replace(/\s+(?:y|e|o|con|de|del|para|que|la|el|los|las|mi)$/i, "");
+  return (cut > 0 ? words.slice(0, cut) : words).slice(0, 5).join(" ").replace(/\s+(?:y|e|o|con|de|del|para|que|la|el|los|las|mi|en|a|al|por|sin|un|una)$/i, "");
 }
 
 /** Nombre corto y reconocible a partir de la idea («Quiero una app para mi peluquería» → «App de peluquería»). */
@@ -966,6 +1013,14 @@ export function featuresOf(state: DiscoveryState): Feature[] {
   return list.map((f, i) => ({ f, i })).sort((a, b) => order.indexOf(a.f.tier) - order.indexOf(b.f.tier) || a.i - b.i).map(({ f }) => f);
 }
 
+/** 25/09/2026 · Quita una función que añadiste tú (o que propuso la IA): si la escribiste mal o ya no la quieres, no queda como «no incluir». */
+export function removeFeature(state: DiscoveryState, id: string): DiscoveryState {
+  if (!state.custom.some((f) => f.id === id)) return state;
+  const toggles = { ...state.toggles };
+  delete toggles[id];
+  return touch({ ...state, custom: state.custom.filter((f) => f.id !== id), toggles });
+}
+
 export function toggleFeature(state: DiscoveryState, id: string): DiscoveryState {
   const current = featuresOf(state).find((f) => f.id === id);
   if (!current || current.tier === "futura") return state;
@@ -980,7 +1035,7 @@ export function setFeatureChoice(state: DiscoveryState, choice: OptionId): Disco
 
 /** Añade una función o requisito del dueño (o del cliente). Si ya existe, simplemente se enciende. */
 export function addFeature(state: DiscoveryState, label: string, source: CustomFeature["source"] = "dueño", tier: FeatureTier = "imprescindible"): DiscoveryState {
-  const clean = cap(label.replace(/\s+/g, " ").trim().slice(0, 90));
+  const clean = cap(label.replace(/\s+/g, " ").trim().slice(0, 160));
   if (clean.length < 2) return state;
   const id = slug(clean);
   const all = featuresOf(state);
@@ -1345,15 +1400,20 @@ export function applyOwnerText(state: DiscoveryState, text: string): { state: Di
     const parsed = parseAnswers(clean, [{ id: "__funciones", step: "funciones", topic: "FUNCIONES", text: "", options: FEATURE_CHOICES, recommended: "B", reason: "", known: null }]);
     const choice = parsed.answers["__funciones"] ?? (parsed.useRecommended ? "B" : null);
     if (choice) { next = setFeatureChoice(next, choice); said.push(`funciones: ${FEATURE_CHOICES.find((o) => o.id === choice)?.label.toLowerCase()}`); }
-    const added = extractAdditions(parsed.rest || (choice ? "" : clean), clean);
+    const { add: added, without } = splitAdditions(parsed.rest || (choice ? "" : clean), clean);
     for (const label of added) next = addFeature(next, label);
     if (added.length) said.push(`añadido: ${added.join(", ")}`);
-    if (!choice && !added.length) { next = addFeature(next, clean); said.push(`añadido: ${cap(clean.slice(0, 90))}`); }
+    if (without.length) { next = withNotes(next, without); said.push(`anotado: ${without.join(", ").toLowerCase()}`); }
+    if (!choice && !added.length && !without.length) { next = addFeature(next, clean); said.push(`añadido: ${cap(clean.slice(0, 90))}`); }
     return { state: touch(next), understood: said.join(" · ") };
   }
   if (state.step === "resumen") {
-    const added = extractAdditions(clean);
-    if (added.length) { for (const label of added) next = addFeature(next, label); return { state: next, understood: `añadido: ${added.join(", ")}` }; }
+    const { add: added, without } = splitAdditions(clean);
+    if (added.length || without.length) {
+      for (const label of added) next = addFeature(next, label);
+      next = withNotes(next, without);
+      return { state: next, understood: [added.length ? `añadido: ${added.join(", ")}` : "", without.length ? `anotado: ${without.join(", ").toLowerCase()}` : ""].filter(Boolean).join(" · ") };
+    }
     return { state: touch({ ...next, notes: [...next.notes, clean.slice(0, 300)] }), understood: "anotado en el brief" };
   }
   const qs = questionsFor(state, state.step);
@@ -1361,9 +1421,10 @@ export function applyOwnerText(state: DiscoveryState, text: string): { state: Di
   for (const [id, option] of Object.entries(parsed.answers)) next = choose(next, id, option);
   if (Object.keys(parsed.answers).length) said.push(Object.entries(parsed.answers).map(([id, o]) => { const at = qs.findIndex((q) => q.id === id); return `${at + 1}${letterOf(qs[at]!, o)}`; }).join(", "));
   if (parsed.useRecommended) { next = applyRecommendations(next, state.step); said.push("lo que recomiendo en este bloque"); }
-  const added = extractAdditions(parsed.rest, clean);
+  const { add: added, without } = splitAdditions(parsed.rest, clean);
   for (const label of added) next = addFeature(next, label);
   if (added.length) said.push(`añadido: ${added.join(", ")}`);
+  if (without.length) { next = withNotes(next, without); said.push(`anotado: ${without.join(", ").toLowerCase()}`); }
   if (!said.length) { next = touch({ ...next, notes: [...next.notes, clean.slice(0, 300)] }); said.push("anotado en el brief"); }
   if (parsed.invalid.length) said.push(`no entendí ${parsed.invalid.join(", ")}`);
   return { state: next, understood: said.join(" · ") };

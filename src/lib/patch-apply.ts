@@ -177,25 +177,44 @@ const PLACEHOLDER =
  */
 export function validateContent(path: string, content: string, previous: string | null, wholeFile: boolean): string | null {
   if (!content.trim()) return `${path}: el contenido nuevo está vacío.`;
-  if (/^<{7}\s*(?:SEARCH|HEAD)\b|^>{7}\s*REPLACE\b/m.test(content)) {
+  const countBlocks = (text: string): number => {
+    const lines = text.replace(/\r/g, "").split("\n");
+    let count = 0;
+    for (let i = 0; i < lines.length; i += 1) {
+      if (/^<{7}\s*(?:SEARCH|HEAD)\b/.test(lines[i]!)) {
+        const sep = lines.slice(i + 1).findIndex((l) => /^=======\s*$/.test(l));
+        if (sep !== -1) {
+          const close = lines.slice(i + 1 + sep + 1).findIndex((l) => /^>{7}\s*REPLACE\b/.test(l));
+          if (close !== -1) {
+            count += 1;
+            i += 1 + sep + 1 + close;
+          }
+        }
+      }
+    }
+    return count;
+  };
+  const nowConflicts = countBlocks(content);
+  const beforeConflicts = previous ? countBlocks(previous) : 0;
+  if (nowConflicts > beforeConflicts) {
     return `${path}: contiene marcadores SEARCH/REPLACE sin resolver.`;
   }
   const isCode = /\.(?:tsx?|jsx?|css|json|html|mjs|cjs)$/i.test(path);
-  if (isCode && /^```/m.test(content)) return `${path}: contiene una línea con \`\`\` que pertenece a la respuesta del modelo, no al código.`;
+  if (isCode && /^```/m.test(content)) return JSON.stringify({ code: "INVALID_CODE", message: `${path}: contiene una línea con \`\`\` que pertenece a la respuesta del modelo, no al código.` });
   if (/\.json$/i.test(path)) {
     try {
       JSON.parse(content);
     } catch {
-      return `${path}: no es un JSON válido.`;
+      return JSON.stringify({ code: "INVALID_JSON", message: `${path}: no es un JSON válido.` });
     }
   }
   if (isCode) {
     const now = content.match(PLACEHOLDER)?.length ?? 0;
     const before = previous ? (previous.match(PLACEHOLDER)?.length ?? 0) : 0;
-    if (now > before) return `${path}: contiene marcas de código omitido («... resto igual»). Debe entregarse completo.`;
+    if (now > before) return JSON.stringify({ code: "INCOMPLETE_CODE", message: `${path}: contiene marcas de código omitido («... resto igual»). Debe entregarse completo.` });
   }
   if (wholeFile && previous && previous.length > 3000 && content.length < previous.length * 0.5) {
-    return `${path}: el archivo nuevo ocupa menos de la mitad que el actual (${content.length} frente a ${previous.length} caracteres); parece incompleto. Usa bloques SEARCH/REPLACE para archivos grandes.`;
+    return JSON.stringify({ code: "INCOMPLETE_FILE", message: `${path}: el archivo nuevo ocupa menos de la mitad que el actual (${content.length} frente a ${previous.length} caracteres); parece incompleto. Usa bloques SEARCH/REPLACE para archivos grandes.` });
   }
   return null;
 }

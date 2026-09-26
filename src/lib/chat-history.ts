@@ -62,6 +62,9 @@ export function saveThread(id: string, messages: StoredMsg[]) {
   const prev = all[id];
   const firstUser = messages.find((m) => m.who === "you" && m.text.trim());
   const title = (firstUser?.text.trim().slice(0, 60) || prev?.title || "Nueva conversación");
+  // Abrir una conversación también la vuelve a guardar: si no ha cambiado nada, se deja como estaba (antes subía la primera en
+  // «Recientes» y parecía nueva solo por abrirla).
+  if (prev && prev.title === title && JSON.stringify(prev.messages) === JSON.stringify(messages)) return;
   all[id] = {
     id,
     title,

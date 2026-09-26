@@ -145,6 +145,7 @@ function shortFailure(res: { error: string; kind?: string }): string {
   if (res.kind === "auth") return "su clave no vale";
   if (res.kind === "payment") return "pide pago";
   if (res.kind === "transient") return "no responde ahora";
+  if (res.kind === "too-large") return "la petición es demasiado grande para su nivel gratuito";
   return res.error.replace(/\s*\(.*$/s, "").slice(0, 90);
 }
 
@@ -156,7 +157,9 @@ export async function askChatCloud(o: {
   pick: string;
   messages: Msg[];
   status: () => Promise<PublicStatus | null>;
-  ask: (id: string, messages: Msg[], maxTokens: number) => Promise<AskResult>;
+  ask: (id: string, messages: Msg[], maxTokens: number, compact?: Msg[]) => Promise<AskResult>;
+  /** (25/09/2026) La misma petición con menos contexto, por si el motor rechaza la grande por saturación (Gemini con 26.000 tokens). */
+  compact?: Msg[];
   notify: (text: string) => void;
   onText: (text: string) => void;
   signal?: AbortSignal;
@@ -166,10 +169,17 @@ export async function askChatCloud(o: {
   onLocal?: (model: string) => void;
   /** Qué IA externa respondió de verdad (nombre del motor y modelo), para poder decírselo al dueño. */
   onAnswered?: (engine: string, model: string) => void;
+  /** (25/09/2026) Una respuesta que no sirvió (por qué, y su texto) para que quede a la vista en la conversación del proyecto. */
+  onRefused?: (engine: string, model: string, reason: string, text: string) => void;
   /** Las IA marcadas en el apartado «IA externa» (si falta, se leen de este navegador). */
   chosen?: string[] | null;
   /** Tope de tokens de la respuesta (por defecto 4.000; para código y webs completas, más). */
   maxTokens?: number;
+  /**
+   * 25/09/2026 · ¿Sirve la respuesta para lo que se pidió? Devuelve por qué no (o null si sirve). Una respuesta que no sirve
+   * (p. ej. un «Reparar» que devuelve el mismo archivo roto) cuenta como un fallo de esa IA y el relevo pasa a la siguiente.
+   */
+  accept?: (text: string) => string | null;
 }): Promise<string | null> {
   if (o.pick === "local") return null;
   const status = await o.status();
@@ -194,9 +204,17 @@ export async function askChatCloud(o: {
   for (const [index, id] of ids.entries()) {
     if (o.signal?.aborted) return null;
     o.notify(`Enviando a ${names.get(id) ?? id}… (el mensaje sale de tu equipo)`);
-    const res = await o.ask(id, o.messages, o.maxTokens ?? 4000);
+    const res = await o.ask(id, o.messages, o.maxTokens ?? 4000, o.compact);
     // Contestó o falló: su estado (lista / sin cuota gratis) puede haber cambiado, y los botones de arriba y abajo lo reflejan.
     announce(CHAT_STATUS_EVENT);
+    const refused = res.ok ? o.accept?.(res.data) ?? null : null;
+    if (res.ok && refused) {
+      failures.push(`${names.get(id) ?? id}: ${refused}`);
+      o.onRefused?.(res.engine, res.model, refused, res.data);
+      const after = ids[index + 1];
+      o.notify(`${names.get(id) ?? id} ${refused}: no sirve.${after ? ` Paso sola a ${names.get(after) ?? after}…` : ""}`);
+      continue;
+    }
     if (res.ok) {
       o.onText(res.data);
       o.onAnswered?.(res.engine, res.model);

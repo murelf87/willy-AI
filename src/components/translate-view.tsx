@@ -10,7 +10,11 @@ import { loadDraft, saveDraft, usePersistentState } from "@/lib/persistent-state
 import { pushNotice } from "@/lib/notifications";
 import { useSettings } from "@/lib/workspace-store";
 import { aiService } from "@/services/ai-service";
+import { isChatModel } from "@/lib/local-ai";
 import { runTask } from "@/services/orchestrator";
+import { cloudChat, engineStatus } from "@/lib/engines-client";
+import { looksSensitive } from "@/lib/auto-engine";
+import { KIND_CLOUD_ORDER, usableInOrder } from "@/lib/routing-table";
 import { extractAnyText } from "@/lib/pdf-text";
 import { ensureNaturalVoice, speakBest, synthesizeSpeech } from "@/lib/natural-voice";
 import type { SpeechHandle } from "@/lib/tts-voice";
@@ -107,7 +111,8 @@ export function TranslateView() {
   const narrationToken = useRef(0);
 
   useEffect(() => {
-    void aiService.models(settings.endpoint).then((r) => { if (r.ok) setAvailable(r.data.map((m) => m.name)); });
+    // Solo modelos que saben conversar: los de búsqueda (nomic-embed-text y similares) no traducen y darían error.
+    void aiService.models(settings.endpoint).then((r) => { if (r.ok) setAvailable(r.data.map((m) => m.name).filter(isChatModel)); });
     return () => { speech.current?.stop(); abort.current?.abort(); stopVideoNarration(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.endpoint]);
@@ -201,6 +206,14 @@ export function TranslateView() {
       onEnd: () => { if (clockMode.current) stopVideoNarration(); },
     });
     narratorRef.current = narration;
+    // 26/09/2026: antes el vídeo arrancaba al instante y la voz tardaba en sintetizarse, así que se oía hablar
+    // al del vídeo unos segundos antes de que entrara la traducción (Antonio: «no es simultáneo… empieza a
+    // hablar después del chico ya hablando»). Ahora se prepara el audio de la primera línea ANTES de arrancar
+    // el vídeo, para que las dos cosas empiecen exactamente a la vez.
+    setPlayerNote((n) => (clockMode.current ? n : "Preparando la voz…"));
+    await narration.warmup(1);
+    if (narration.isStopped || token !== narrationToken.current) return; // la paraste mientras se preparaba
+    setPlayerNote((n) => (clockMode.current ? n : ""));
     const p = clockMode.current ? null : player.current;
     if (p) {
       try {
@@ -285,7 +298,15 @@ export function TranslateView() {
       // así la traducción se puede leer luego sincronizada con el vídeo, línea a línea.
       const chunks = ytSegments ? ytSegments.map((s) => s.text) : splitForTranslation(text, 1100);
       setProgress({ done: 0, total: chunks.length });
-      setPhase("Traduciendo…");
+      // 26/09/2026: la IA externa (Gemini, Mistral…) traduce mejor que tu equipo; el modelo local a veces deja
+      // fragmentos sin traducir o incompletos, y eso desincroniza la voz con el vídeo (si lo silencias, esas
+      // líneas se quedan mudas). Se usa la IA externa primero si hay alguna encendida y con clave; si todas
+      // fallan o están apagadas, sigue traduciendo con tu equipo como siempre, sin que tengas que hacer nada.
+      const cloudStatus = await engineStatus();
+      const cloudOrder: readonly string[] = KIND_CLOUD_ORDER["traduccion"] ?? [];
+      const cloudIds = cloudStatus?.master && cloudStatus.mode !== "ahorro" ? usableInOrder(cloudOrder, cloudStatus.engines) : [];
+      const cloudNames = new Map(cloudStatus?.engines.map((e) => [e.id, e.name]) ?? []);
+      setPhase(cloudIds.length ? `Traduciendo con ${cloudNames.get(cloudIds[0]!) ?? cloudIds[0]}…` : "Traduciendo…");
       const done: string[] = [];
       const segsDone: { start: number; original: string; text: string }[] = ytSegments ? ytSegments.map((s) => ({ start: s.start, original: s.text, text: "" })) : [];
       const show = (partial: string) => setOut([...done, partial].filter(Boolean).join(ytSegments ? " " : "\n\n"));
@@ -297,6 +318,14 @@ export function TranslateView() {
         ...(det.code && !sourceLang ? { sourceCode: det.code } : {}),
         signal: controller.signal,
         translate: async (prompt, _index, onDelta) => {
+          // Lo que no debe salir de tu equipo (DNI/NIE, IBAN, tarjeta, claves…) se queda en tu equipo aunque haya IA externa.
+          if (cloudIds.length && !looksSensitive(prompt)) {
+            for (const id of cloudIds) {
+              if (controller.signal.aborted) throw new Error("Cancelado.");
+              const res = await cloudChat(id, [{ role: "user", content: prompt }], 3000);
+              if (res.ok && res.data.trim()) return res.data;
+            }
+          }
           const res = await runTask({ endpoint: settings.endpoint, kind: "traduccion", ...(model ? { preferred: model } : {}), available, signal: controller.signal, prompt, onDelta });
           if (!res.ok) throw new Error(res.error);
           return res.data.text;

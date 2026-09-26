@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   FEATURE_CHOICES, STEP_TITLES, addFeature, advance, answerOf, answersText, briefOf, choose, featuresOf, goTo, letterOf, progressOf,
   questionsFor, rename, requirementsCount, setFeatureChoice, setMode, stepComplete, stepsOf, summaryOf, toggleFeature,
-  applyAllRecommendations, applyRecommendations,
+  applyAllRecommendations, applyRecommendations, removeFeature,
   type DiscoveryState, type FeatureTier, type StepId,
 } from "@/lib/project-discovery";
 
@@ -223,11 +223,16 @@ function FeaturesStep({ state, onChange, newFeature, setNewFeature, addOwnFeatur
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{TIER_TITLES[tier]}</p>
               <ul className="space-y-0.5">
                 {items.map((f) => (
-                  <li key={f.id}>
-                    <label className={`flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent/40 ${tier === "futura" ? "cursor-default opacity-70" : ""}`}>
+                  <li key={f.id} className="flex items-start gap-1">
+                    <label className={`flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent/40 ${tier === "futura" ? "cursor-default opacity-70" : ""}`}>
                       <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-primary" checked={f.on} disabled={tier === "futura"} onChange={() => onChange(toggleFeature(state, f.id))} aria-label={f.label} />
                       <span className="min-w-0 flex-1">{f.label}{f.source === "dueño" ? <span className="ml-1 text-[10px] font-semibold text-primary">(tuya)</span> : f.source === "ia" ? <span className="ml-1 text-[10px] font-semibold text-amber-600">(idea nueva)</span> : null}</span>
                     </label>
+                    {f.source !== "willy" && (
+                      <button type="button" onClick={() => onChange(removeFeature(state, f.id))} title="Quitar de la lista" aria-label={`Quitar «${f.label}»`} className="mt-0.5 rounded p-0.5 text-muted-foreground hover:bg-accent/40 hover:text-foreground">
+                        <X className="size-3.5" />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

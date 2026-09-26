@@ -29,9 +29,14 @@ export function maxAttemptsFor(base: number, steps: Step[]): number {
   return Math.min(8, base + clouds);
 }
 
-/** El motor de este intento: se va rotando entre los que siguen disponibles en este trabajo. */
+/**
+ * El motor de este intento: se va rotando entre los que siguen disponibles en este trabajo, en orden y sin saltarse ninguno.
+ * (25/09/2026: antes el número de intento era el índice de una lista que encogía al descartar motores, y con Gemini caído el
+ * segundo intento se saltaba Mistral, el tercero Groq y el cuarto caía ya en el modelo local, lento. Cada motor descartado gastó
+ * un intento: se descuentan, y así el índice sigue apuntando al siguiente de la lista.)
+ */
 export function attemptStep(steps: Step[], skipped: Set<string>, attempt: number): Step | null {
   const usable = steps.filter((step) => !skipped.has(step.key));
   if (!usable.length) return null;
-  return usable[attempt % usable.length]!;
+  return usable[Math.max(0, attempt - skipped.size) % usable.length]!;
 }

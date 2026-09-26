@@ -671,7 +671,9 @@ export function AvatarStudio({ tab, onTab, script, scriptNonce, savedPhoto }: { 
             <li><b>ComfyUI:</b> arráncalo con su lanzador y deja la ventana abierta (en tu equipo: <code>C:\WILLY_AVATAR\ARRANCAR_WILLY_AVATAR.bat</code>; en la versión portable: <code>run_nvidia_gpu.bat</code>). WILLY lo espera en <code>http://127.0.0.1:8188</code>. No abras dos ComfyUI a la vez: usan el mismo puerto.</li>
             <li><b>Nodos</b> (ComfyUI-Manager → Custom Nodes Manager): <i>ComfyUI-VideoHelperSuite</i>, <i>ComfyUI-LivePortraitKJ</i> (movimiento) y uno de labios: <i>ComfyUI_wav2lip</i>, <i>ComfyUI-MuseTalk_FSH</i> o <i>ComfyUI-LatentSync-Node</i>. Reinicia ComfyUI.</li>
             <li><b>Flujos:</b> abre en ComfyUI el flujo, asegúrate de que termina en un nodo <i>Video Combine</i> y guárdalo con <b>Workflow → Export (API)</b> (si no aparece, activa «Dev mode» en los ajustes de ComfyUI). Si tiene varios nodos de imagen, audio o vídeo, pon al tuyo el título <code>AVATAR_IMAGEN</code>, <code>AVATAR_AUDIO</code> o <code>AVATAR_VIDEO</code>. Después, «Añadir flujo» aquí arriba.</li>
-            <li><b>Voz:</b> WILLY instala Piper y las voces de España en Lectura → Voces naturales (recomendadas: <i>es_ES-davefx-medium</i> o <i>es_ES-sharvard-medium</i>). Aquí eliges cuál usa el vídeo.</li>
+            <li><b>Voz:</b> {status?.natural?.onlyNatural
+              ? <>el vídeo lee con la voz de WILLY que elijas en Lectura → Voces más humanas (Gemini, «Mi voz» con Chatterbox…). Arriba ves cuál está activa y la pruebas con «Probar la voz».</>
+              : <>WILLY instala Piper y las voces de España en Lectura → Voces naturales (recomendadas: <i>es_ES-davefx-medium</i> o <i>es_ES-sharvard-medium</i>). Aquí eliges cuál usa el vídeo.</>}</li>
             <li><b>Con 6 GB de memoria gráfica:</b> trabaja a 512–768 px, cierra otros programas y libera Ollama antes de crear el vídeo (<code>ollama stop nombre-del-modelo</code>).</li>
           </ol>
         </details>

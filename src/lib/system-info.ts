@@ -17,6 +17,8 @@ export type SystemSnapshot = {
   gpu: GpuInfo | null;
   disk: { drive: string; freeGB: number; totalGB: number; percent: number } | null;
   engine: { alive: boolean; installed: number; loaded: LoadedModel[] };
+  /** A la instalación de Ollama le falta ggml-cuda.dll (se quedó a medias): no puede usar la gráfica. Solo en Windows. */
+  ollamaCudaMissing?: boolean;
   /** Solo en la lectura ampliada. */
   processes?: ProcInfo[];
   power?: PowerScheme | null;
@@ -129,7 +131,7 @@ export type GpuUsage =
   | { state: "mixto"; model: string; share: number }
   | { state: "procesador"; model: string; reason: string; fix: string };
 
-export function gpuUsage(loaded: LoadedModel[], gpu: GpuInfo | null): GpuUsage {
+export function gpuUsage(loaded: LoadedModel[], gpu: GpuInfo | null, hints: { cudaMissing?: boolean | undefined } = {}): GpuUsage {
   // El modelo que más pesa es el que decide cómo de rápido va.
   const model = [...loaded].filter((entry) => entry.sizeMB > 0).sort((a, b) => b.sizeMB - a.sizeMB)[0];
   if (!model) return { state: "sin-modelo" };
@@ -152,6 +154,15 @@ export function gpuUsage(loaded: LoadedModel[], gpu: GpuInfo | null): GpuUsage {
       fix: "Cierra los programas que usan la gráfica (juegos, editores de vídeo o de imagen) y pulsa «Reiniciar» en la IA de tu equipo.",
     };
   }
+  if (hints.cudaMissing) {
+    // Visto en el equipo del dueño (25/09/2026): lib\ollama\cuda_v12 sin ggml-cuda.dll tras una instalación cortada.
+    return {
+      state: "procesador",
+      model: model.name,
+      reason: `Tu gráfica (${gpu.name}, ${formatMB(gpu.vramTotalMB)}) está libre, pero a la instalación de Ollama le falta la pieza que la usa (ggml-cuda.dll, en su carpeta lib\\ollama): la instalación se quedó a medias.`,
+      fix: "Vuelve a instalar Ollama con su instalador completo (de ollama.com si no lo tienes) y pulsa «Reiniciar» en la IA de tu equipo. El controlador de NVIDIA no es el problema.",
+    };
+  }
   return {
     state: "procesador",
     model: model.name,
@@ -165,7 +176,7 @@ export function advise(s: SystemSnapshot): string[] {
   const tips: string[] = [];
   if (!s.engine.alive) tips.push("El motor de IA (Ollama) no responde. Si el chat tampoco contesta, pulsa «Arrancar la IA de mi equipo» en el chat.");
   if (s.memory.percent >= 90) tips.push(`La memoria está casi llena (${s.memory.percent} %). Pulsa «Liberar memoria de la IA» o cierra programas pesados (abajo ves los que más usan).`);
-  const usage = gpuUsage(s.engine.loaded, s.gpu);
+  const usage = gpuUsage(s.engine.loaded, s.gpu, { cudaMissing: s.ollamaCudaMissing });
   if (usage.state === "procesador") tips.push(`La IA de tu equipo («${usage.model}») va solo con el procesador, por eso tarda más. ${usage.reason} ${usage.fix}`);
   if (usage.state === "mixto") {
     const total = s.gpu ? ` (${formatMB(s.gpu.vramTotalMB)} en total)` : "";

@@ -60,13 +60,16 @@ import { PROJECT_WORK_RULES, agentsLine, filesContext, isPrivateFile } from "@/l
 import {
   autoRepairRequest, brokenReason, isBrokenPreview, repairNote, repairStep, watchAfterSave, type RepairWatch,
 } from "@/lib/preview-runtime";
-import { planJsonRequest, planPromptBlock } from "@/lib/project-progress";
+import { STATUS_LABEL, needsAttention, normalizePlan, planJsonRequest, planPromptBlock, projectStatus } from "@/lib/project-progress";
 import { previewEvidenceOf, recordAnswer, recordAttention, recordPreview, recordTests, syncDiscoveryPlan } from "@/lib/project-plan-sync";
+import { missingRequestedPages, requestFileHints } from "@/lib/plan-evidence";
+import { fitNote, preferFitting, readFitInfo } from "@/lib/local-fit";
 import {
   TESTS_RULES, testsEvidenceOf, testsNote, testsRepairRequest, testsStep, testsSummary, testsWatchAfterSave, type TestRun, type TestsWatch,
 } from "@/lib/project-tests";
 import { fetchProjectLibraries, fetchProjectPlan } from "@/services/disk-project-service";
 import { SYSTEM_PROMPT, type GeneratedFile } from "@/lib/ai-standard";
+import { mustChangeFiles, requiredTexts, unusableAnswer } from "@/lib/answer-check";
 import { projectService, useProjects, useVersions } from "@/services/project-service";
 import { TYPE_LABELS } from "@/lib/project-brief";
 import { isExampleProject, type ProjectVersion } from "@/types/domain";
@@ -112,10 +115,18 @@ type ExecOptions = {
   testsAttempt?: number;
   /** Rev23: «Analizar proyecto»: la IA revisa los archivos y entrega el plan; no se guarda ningún archivo. */
   analysis?: boolean;
+  /** (25/09/2026) Petición automática de las páginas que pidió el dueño y no están en los archivos (una vez por cambio). */
+  completeAttempt?: number;
+  /** «Construir ya sin preguntas»: es un proyecto nuevo aunque la frase no lo deje claro («crea la web de mi…»). */
+  newProject?: boolean;
+  /** (25/09/2026) Continuación de una entrega que se cortó o que dejó archivos por entregar («FALTAN: …»); 1..3. */
+  continueAttempt?: number;
 };
 
 /** Qué tipo de tarea es construir cada tipo de proyecto (para elegir la IA adecuada). */
 const BUILD_TASK = (d: DiscoveryState): TaskKind => (["escritorio", "api", "herramienta"].includes(d.kind) ? "codigo" : "web");
+/** (25/09/2026) Pedido un texto de botón, Gemini añadió una página de reservas entera (y se cortó): el alcance se dice explícito. */
+const CHANGE_SCOPE_RULE = "ALCANCE: haz SOLO lo que pide este mensaje. Un cambio pequeño (un texto, un color, un botón, un campo) se entrega tocando el mínimo de archivos; no añadas páginas, rutas, componentes ni funciones que no se hayan pedido, ni reescribas archivos que no cambian. Si crees que hace falta algo más, dilo en una línea al final y espera a que el dueño lo pida.";
 
 /** «Vuelve a la versión anterior», «deshaz el último cambio», «déjalo como estaba» (rediseño, punto 92). */
 const UNDO = /^(?:por favor,? )?(?:vuelve|volver|vuelva|regresa|deshaz|deshacer|desház|quita el ultimo cambio|quita el último cambio|d[eé]jalo como estaba)\b.{0,40}?(?:anterior|como estaba|ultimo cambio|último cambio|antes)?\s*[.!]?$/i;
@@ -224,6 +235,11 @@ export function SuperIAView() {
   const [autoRepair, setAutoRepair] = usePersistentState<boolean>("superwilly:reparar-solo", true);
   const repairWatch = useRef<RepairWatch | null>(null);
   const [repairTick, setRepairTick] = useState(0);
+  // (25/09/2026) Tras un cambio de WILLY, cuando la vista previa vuelve a verse bien se comprueba que estén las páginas que pidió
+  // el dueño; las que falten se le piden a WILLY UNA vez (en «Sonrisa Clara» se saltó «equipo» y nadie lo dijo).
+  const completeAfter = useRef<{ projectId: string; attempt: number } | null>(null);
+  // Y las imágenes que no existen en el proyecto (la página se ve, pero con huecos): se arreglan solas una vez por proyecto.
+  const resourcesFixedFor = useRef<string | null>(null);
   // La última versión que se veía bien (la de antes del último cambio que la rompió): para volver a ella de una vez.
   const lastGood = useRef<{ projectId: string; version: ProjectVersion } | null>(null);
   // Rev28: las pruebas automáticas. Tras cada cambio de WILLY se vigila la pasada siguiente (si rompe alguna que iba bien, se
@@ -498,6 +514,8 @@ export function SuperIAView() {
       ? OTHER_PROJECT.test(text) && request === "nuevo"
       : request === "nuevo" || (request === "posible" && !projectActive);
     if (isProject && kindOf(text) !== "herramienta" && !pictures.images.length) { startInterview(text); return; }
+    // En el chat de un proyecto, lo enviado sale del cuadro (como en cualquier chat); en la mesa de operaciones se queda, por si se repite.
+    if (projectMode) setPrompt("");
     void execute(text);
   };
 
@@ -588,7 +606,11 @@ export function SuperIAView() {
     let sess = sessionRef.current;
     // «Construir ya sin preguntas» (o cualquier encargo de proyecto): si WILLY lo va a construir, ES UN PROYECTO. Se crea
     // antes de empezar, para que lo que genere quede guardado en él.
-    if (!sess?.projectId && !opts.discoveryBuild && projectRequest(text) === "nuevo" && kindOf(text) !== "herramienta") {
+    // (25/09/2026) «Crea la web del restaurante…» es «posible» (no «nuevo») para projectRequest: con «Construir ya» no se creaba
+    // el proyecto y los archivos que generaba la IA se perdían (solo se veían como texto). Ahora el botón lo dice explícitamente.
+    const request = projectRequest(text);
+    const wantsProject = opts.newProject || request === "nuevo" || (request === "posible" && !projectActive);
+    if (!sess?.projectId && !opts.discoveryBuild && wantsProject && kindOf(text) !== "herramienta") {
       const base = persist(addTurn(sess ?? { ...emptySession(), prompt: text }, "owner", opts.ownerText ?? text));
       sessionRef.current = base;
       setSession(base);
@@ -626,8 +648,15 @@ export function SuperIAView() {
     let projectFiles: GeneratedFile[] = [];
     if (projectId) projectFiles = (await projectService.get(projectId))?.files ?? [];
     const working = Boolean(projectId) || Boolean(opts.discoveryBuild);
-    const filesCloud = projectFiles.length ? filesContext(projectFiles, text, 32_000, { exclude: isPrivateFile }) : null;
-    const filesLocal = projectFiles.length ? filesContext(projectFiles, text, 10_000) : null;
+    // (25/09/2026) Al continuar una entrega cortada, la IA no necesita releer lo que acaba de escribir: con la lista de archivos
+    // y los pequeños (tipos, datos, router) basta. Con 24.800 tokens Gemini contestaba 503 «high demand» en sus 3 modelos; con
+    // unos 12.000 responde. El resto de peticiones sigue viendo hasta 32.000 caracteres.
+    // «En la portada…» → la IA tiene que ver HomePage.tsx: los nombres de archivo de las páginas nombradas se suman a la petición
+    // al elegir qué archivos enseñar (antes «portada» no encontraba «HomePage.tsx» y la IA cambiaba otra cosa).
+    const focus = projectFiles.length ? `${text}\n${requestFileHints(text, projectFiles)}`.trim() : text;
+    const filesCloud = projectFiles.length ? filesContext(projectFiles, focus, opts.continueAttempt ? 9_000 : 32_000, { exclude: isPrivateFile }) : null;
+    const filesCompact = projectFiles.length && !opts.continueAttempt ? filesContext(projectFiles, focus, 9_000, { exclude: isPrivateFile }) : null;
+    const filesLocal = projectFiles.length ? filesContext(projectFiles, focus, 10_000) : null;
     // Rev23: el PLAN del proyecto (tareas con su id) para que WILLY diga qué termina; si aún no tiene, que lo entregue.
     const planKind = projectsRef.current.find((p) => p.id === projectId)?.kind ?? sess?.discovery?.kind ?? "web";
     const plan = projectId ? await fetchProjectPlan(projectId) : null;
@@ -641,11 +670,15 @@ export function SuperIAView() {
     const screenRules = working && !opts.analysis ? `PANTALLAS:\n${SCREEN_RULES}` : "";
     // Rev28: las pruebas automáticas (formato Playwright) que WILLY pasa solo después de cada cambio.
     const testsRules = working && !opts.analysis && !/^(?:api|backend|automatizacion)$/i.test(planKind) ? TESTS_RULES : "";
-    const workRules = working ? [SYSTEM_PROMPT, agentsLine(settings.agents), projectFiles.length && !opts.analysis ? PROJECT_WORK_RULES : "", reactRules, screenRules, testsRules, projectId ? describeVisual(visualRef.current) : "", planRules].filter(Boolean).join("\n\n") : "";
+    const scopeRule = projectFiles.length && !opts.analysis && !opts.discoveryBuild && !opts.continueAttempt && !opts.completeAttempt ? CHANGE_SCOPE_RULE : "";
+    const workRules = working ? [SYSTEM_PROMPT, agentsLine(settings.agents), projectFiles.length && !opts.analysis ? PROJECT_WORK_RULES : "", scopeRule, reactRules, screenRules, testsRules, projectId ? describeVisual(visualRef.current) : "", planRules].filter(Boolean).join("\n\n") : "";
 
     const brief = pb && !opts.noPlaybook ? playbookBrief(pb, sess?.accepted ?? [], sess?.rejected ?? []) : "";
     const fullPrompt = [text, imageNote, brief, opts.material ?? ""].filter(Boolean).join("\n\n");
-    const taskKind: TaskKind = forced ?? (kind !== "auto" ? kind : detectTask(text));
+    // (25/09/2026) Sobre un proyecto, una petición sin palabra clave («arréglalo», «continúa», una reparación automática) es
+    // trabajo de web o de código, no «General»: así va a las IA que mejor programan (antes «General» mandaba a otras).
+    const detected = detectTask(text);
+    const taskKind: TaskKind = forced ?? (kind !== "auto" ? kind : detected !== "general" || !working ? detected : /^(?:api|escritorio|herramienta|automatizacion)$/i.test(planKind) ? "codigo" : "web");
     // Si lo que pides es una regla («a partir de ahora…», «recuerda que…»), se aprende para todas las IA y todos los chats.
     if (text === prompt) {
       const learned = learnFromOwner(text, "SUPER WILLY");
@@ -660,6 +693,15 @@ export function SuperIAView() {
     const personaText = persona.trim() ? `Perfil de estilo del propietario:\n${persona.trim()}` : "";
     const system = [OWNER_POLICY, ownerRules(), `Tarea detectada: ${TASK_LABELS[taskKind]}.`, personaText, projectContext, workRules].filter(Boolean).join("\n\n");
     const route = superRoute(superMode, taskKind, fullPrompt, TASK_LABELS[taskKind]);
+    // 25/09/2026 · En el trabajo sobre un proyecto, una respuesta que es su razonamiento en vez de la respuesta, con archivos rotos
+    // o con una página que no se ejecuta no vale, y el relevo pasa sola a la siguiente IA (lib/answer-check.ts). Lo que TIENE que
+    // cambiar archivos (un «Reparar», una reparación automática, arreglar lo elegido) tampoco vale si no cambia ninguno. Construir
+    // no se exige: su primera respuesta puede ser proponer las direcciones visuales y esperar a que elijas.
+    const mustChange = working && !opts.analysis && mustChangeFiles({ label, text, ...(opts.repairAttempt ? { repairAttempt: opts.repairAttempt } : {}), ...(opts.testsAttempt ? { testsAttempt: opts.testsAttempt } : {}) });
+    // Lo que el dueño pide entre comillas («pon «Reserva tu clase gratis»») tiene que aparecer en los archivos: si no, la respuesta
+    // no vale y pasa a la siguiente IA (solo en lo que escribe el dueño, no en las peticiones automáticas de WILLY).
+    const mustContain = working && !opts.analysis && !opts.discoveryBuild && !opts.repairAttempt && !opts.testsAttempt && !opts.continueAttempt && !opts.completeAttempt && !opts.newProject && text === (opts.ownerText ?? text) ? requiredTexts(text) : [];
+    const accept = working && !opts.analysis ? (answerText: string) => unusableAnswer(answerText, projectFiles, { requireFiles: mustChange || mustContain.length > 0, mustContain }) : undefined;
     const warning = localWarning(superMode, taskKind, available, TASK_LABELS[taskKind]);
     setSteps((prev) => [...prev, { model: SUPER_MODES.find((m) => m.id === superMode)?.label ?? "SUPER WILLY", state: "ok", detail: route.why }, ...(warning ? [{ model: "Aviso", state: "relevo" as const, detail: warning }] : [])]);
     if (warning) pushNotice(warning, "warn");
@@ -681,24 +723,42 @@ export function SuperIAView() {
           smart: { text: [fullPrompt, projectContext].filter(Boolean).join("\n"), kind: taskKind, labelOf: (k) => TASK_LABELS[k as TaskKind] ?? k, hasAttachments: false, installed: available, localPlan: (k) => planChain(k as TaskKind, superModel || undefined, available) },
           messages: [{ role: "system", content: [system, filesCloud?.block ?? ""].filter(Boolean).join("\n\n") }, ...cloudHistory, { role: "user", content: fullPrompt }],
           maxTokens: 16000,
+          // La misma petición con menos archivos y menos historial, por si el motor rechaza la grande por saturación.
+          ...(filesCompact ? { compact: [{ role: "system" as const, content: [system, filesCompact.block].filter(Boolean).join("\n\n") }, ...(opts.discoveryBuild ? [] : withoutSensitive(historyOf(sess, { last: 2_000, other: 600, turns: 4 }))), { role: "user" as const, content: fullPrompt }] } : {}),
           // SUPER WILLY decide aquí la prioridad con su propio modo (no el «ahorro» del Plug and play de la pestaña Chat).
           status: async () => { const s = await engineStatus(); return s ? { ...s, mode: "calidad" as const } : s; },
-          ask: (id, msgs, maxTokens) => cloudChat(id, msgs, maxTokens),
+          ask: (id, msgs, maxTokens, compact) => cloudChat(id, msgs, maxTokens, undefined, compact),
           notify: (m) => {
-            const state: RunStep["state"] = m.startsWith("Respuesta de") ? "ok" : /Ninguna IA externa|no han podido|contesta tu equipo|se queda en tu equipo|uso tu equipo|ninguna IA externa/i.test(m) ? "relevo" : "probando";
+            const state: RunStep["state"] = m.startsWith("Respuesta de") ? "ok" : /Ninguna IA externa|no han podido|contesta tu equipo|se queda en tu equipo|uso tu equipo|ninguna IA externa|no sirve\.|Paso sola a/i.test(m) ? "relevo" : "probando";
             setSteps((prev) => [...prev.filter((p) => !(p.model === "IA externa" && p.state === "probando")), { model: "IA externa", state, detail: m }]);
           },
           onText: (t) => { setAnswer(t); setWritten(t.length); },
           onAnswered: (engine, model) => { cloudEngine = `${engine} · ${model}`; },
+          // La respuesta descartada queda en la conversación (sin reenviarse a la IA): así se ve qué contestó y por qué no valió.
+          onRefused: (engine, model, reason, answerText) => {
+            const cur = sessionRef.current;
+            if (!cur) return;
+            const shown = answerText.replace(/\s+/g, " ").trim();
+            const next = persist(addTurn(cur, "ia", `🚫 Descartada la respuesta de ${engine} · ${model}: ${reason}. Empezaba así: «${shown.slice(0, 500)}${shown.length > 500 ? "…" : ""}»`, "WILLY", "descartada"));
+            sessionRef.current = next;
+            setSession(next);
+          },
+          ...(accept ? { accept } : {}),
           signal: controller.signal,
         });
         if (cloudText !== null) break;
       } else {
         const localContext = [personaText, projectContext, workRules, filesLocal?.block ?? ""].filter(Boolean).join("\n\n");
+        // (25/09/2026) Sin modelo elegido a mano, primero el mejor de los que CABEN ENTEROS en la gráfica (lib/local-fit.ts): en un
+        // PC de 6 GB, qwen2.5-coder:7b va a medias con el procesador y un cambio de un texto tardó más de 20 minutos.
+        const fit = preferred ? null : await readFitInfo();
+        const chainNow = preferred ? [] : preferFitting(planChain(taskKind, undefined, available), fit);
+        const localPick = preferred || chainNow[0] || "";
+        if (localPick && !preferred && fit) setSteps((prev) => [...prev, { model: "Tu equipo", state: "ok", detail: `Primero ${fitNote(localPick, fit)}${chainNow[1] ? `; después ${fitNote(chainNow[1], fit)}` : ""}.` }]);
         local = await runTask({
           endpoint: settings.endpoint,
           prompt: fullPrompt,
-          ...(preferred ? { preferred } : {}),
+          ...(localPick ? { preferred: localPick } : {}),
           available,
           ...(forced ?? (kind !== "auto" ? kind : undefined) ? { kind: forced ?? (kind as TaskKind) } : {}),
           ...(localContext ? { context: localContext } : {}),
@@ -783,10 +843,28 @@ export function SuperIAView() {
           if (files?.saved) pushNotice(`${files.saved} archivo(s) guardados en el proyecto «${saved.discovery?.name ?? projectsRef.current.find((p) => p.id === saved.projectId)?.name ?? saved.title}» (${files.total} en total).`, "success");
           if (files?.rejected.length) pushNotice(`⚠️ No he guardado ${files.rejected.length} archivo(s) porque venían incompletos o rotos (${files.rejected.slice(0, 3).map((r) => r.path).join(", ")}): se conservan los que tenías. Pide a WILLY que los entregue completos.`, "warn");
           if (files) setLastSaved({ saved: files.saved, rejected: files.rejected.map((r) => r.path) });
+          // (25/09/2026) La entrega se ha cortado (límite de la IA) o la IA dice lo que no le ha cabido: WILLY le pide que siga,
+          // como mucho 3 veces, sin que el dueño tenga que hacer nada. Antes se quedaba a medias y decía «hecho».
+          if (files && (files.cut || files.pending.length) && (opts.continueAttempt ?? 0) < 3 && !opts.analysis) {
+            const attempt = (opts.continueAttempt ?? 0) + 1;
+            const have = [...files.changed, ...files.added];
+            const want = [...new Set([...(files.cut ? [files.cut] : []), ...files.pending])];
+            const note = `✂️ La entrega se ha cortado por el tamaño máximo de una respuesta${files.cut ? ` (a mitad de «${files.cut}», que no se guarda a medias)` : ""}${files.pending.length ? `; quedan por entregar ${files.pending.map((p) => `«${p}»`).join(", ")}` : ""}. Le pido que siga (${attempt} de 3).`;
+            const cur2 = sessionRef.current;
+            if (cur2) { const next2 = persist(addTurn(cur2, "ia", note, "WILLY")); sessionRef.current = next2; setSession(next2); }
+            const ask = [
+              `Tu entrega anterior se cortó por el tamaño máximo de una respuesta${files.cut ? ` (a mitad de «${files.cut}», que NO se ha guardado)` : ""}.`,
+              have.length ? `Ya están guardados en el proyecto (no los repitas): ${have.join(", ")}.` : "",
+              `Entrega ahora, COMPLETOS: ${want.length ? want.join(", ") : "los archivos que faltan"} y todo lo que falte para que el proyecto arranque y tenga lo pedido (empieza por lo que hace arrancar el proyecto si aún no está: src/main.tsx, el router, los estilos).`,
+              "Si vuelve a no caber, termina otra vez con una línea «FALTAN: …».",
+            ].filter(Boolean).join("\n");
+            window.setTimeout(() => void latest.current.execute(ask, undefined, "Continuar la entrega", { ownerAlreadySaved: true, noPlaybook: true, continueAttempt: attempt }), 400);
+          }
           // Tras guardar, se vigila la vista previa: si este cambio la rompe, se repara sola (o se avisa).
           if (files?.saved) {
             const projectId = saved.projectId;
             repairWatch.current = watchAfterSave({ projectId, brokenBefore, ...(opts.repairAttempt ? { attempt: opts.repairAttempt } : {}) });
+            completeAfter.current = opts.repairAttempt || opts.testsAttempt ? completeAfter.current : { projectId, attempt: opts.completeAttempt ?? 0 };
             // Rev28: y sus pruebas (las que ya fallaban antes de este cambio no las ha roto él).
             testsWatch.current = testsWatchAfterSave({ projectId, before: lastTests.current.get(projectId) ?? null, ...(opts.testsAttempt ? { attempt: opts.testsAttempt } : {}) });
             // Antes de este cambio la vista previa se veía bien: esa versión es «la que funcionaba».
@@ -858,6 +936,7 @@ export function SuperIAView() {
     if (!previewStatus || runningRef.current) return;
     const { step, watch } = repairStep(repairWatch.current, { projectId: sessionRef.current?.projectId ?? null, state: previewStatus, auto: autoRepair, now: Date.now() });
     repairWatch.current = watch;
+    if ((step.kind === "nada" || step.kind === "recuperada") && previewStatus === "lista") void completeRequested();
     if (step.kind === "nada") return;
     const seen = visualRef.current;
     const good = lastGood.current?.projectId === sessionRef.current?.projectId ? lastGood.current?.version : null;
@@ -885,6 +964,50 @@ export function SuperIAView() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewStatus, repairTick]);
+
+  /** Las páginas que pidió el dueño y no están en los archivos: se piden a WILLY una vez; si siguen faltando, se dice. */
+  const completeRequested = async () => {
+    const pending = completeAfter.current;
+    completeAfter.current = null;
+    const pid = sessionRef.current?.projectId;
+    if (!pending || !pid || pending.projectId !== pid || runningRef.current) return;
+    const [plan, project] = await Promise.all([fetchProjectPlan(pid), projectService.get(pid)]);
+    const missing = missingRequestedPages(plan, project?.files ?? []);
+    if (runningRef.current || sessionRef.current?.projectId !== pid) return;
+    const cur = sessionRef.current;
+    if (!missing.length) {
+      // Sin páginas que falten: si hay imágenes u otros recursos que no existen, se arreglan (una vez por proyecto). Las imágenes
+      // fallan poco después de que la página se dé por cargada: se espera un momento antes de mirar.
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 3000));
+      if (runningRef.current || sessionRef.current?.projectId !== pid) return;
+      const broken = visualRef.current?.resources ?? [];
+      if (!broken.length || resourcesFixedFor.current === pid) return;
+      resourcesFixedFor.current = pid;
+      if (cur) { const next = persist(addTurn(cur, "ia", `🖼️ La página se ve, pero ${broken.length === 1 ? "un recurso no existe" : `${broken.length} recursos no existen`} en el proyecto (${broken.slice(0, 3).map((r) => `«${r.replace(/^No se ha podido cargar:\s*/, "")}»`).join(", ")}${broken.length > 3 ? "…" : ""}). Lo arreglo yo solo.`, "WILLY")); sessionRef.current = next; setSession(next); }
+      setMobilePane("chat");
+      void latest.current.execute(
+        `Estos recursos de la página no existen en el proyecto y fallan al cargar:\n${broken.map((r) => `- ${r}`).join("\n")}\nSustituye cada imagen que no existe por un SVG hecho por ti dentro del proyecto (o un degradado o un icono de lucide-react) con el mismo tamaño y sitio; nunca servicios de imágenes de internet ni rutas a archivos que no entregas. Cambia solo eso y entrega los archivos que cambies COMPLETOS.`,
+        undefined,
+        "Arreglo de recursos",
+        { ownerAlreadySaved: true, noPlaybook: true, completeAttempt: Math.max(1, pending.attempt) },
+      );
+      return;
+    }
+    const list = missing.map((t) => `«${t}»`).join(", ");
+    if (pending.attempt >= 1) {
+      if (cur) { const next = persist(addTurn(cur, "ia", `⚠️ Sigue(n) faltando ${list}: lo pediste y no está en los archivos. Pídemelo otra vez con más detalle (qué tiene que llevar) o dime si ya no hace falta.`, "WILLY")); sessionRef.current = next; setSession(next); }
+      pushNotice(`Falta lo que pediste: ${list}.`, "warn");
+      return;
+    }
+    if (cur) { const next = persist(addTurn(cur, "ia", `🔎 He comprobado los archivos: falta(n) ${list}, que pediste. Lo completo yo solo.`, "WILLY")); sessionRef.current = next; setSession(next); }
+    setMobilePane("chat");
+    void latest.current.execute(
+      `Faltan estas páginas que pidió el dueño y NO están en los archivos del proyecto: ${list}. Créalas ahora con contenido real (no de relleno), con el mismo diseño y componentes que el resto, enlazadas en el menú y en las rutas, y entrega los archivos que cambies COMPLETOS. No toques lo que ya funciona.`,
+      undefined,
+      "Completar lo pedido",
+      { ownerAlreadySaved: true, noPlaybook: true, completeAttempt: pending.attempt + 1 },
+    );
+  };
 
   /**
    * Rev28: una pasada de las pruebas automáticas de un proyecto: queda en su plan (de ahí salen «Funciones principales probadas»
@@ -1318,7 +1441,10 @@ export function SuperIAView() {
     };
     // Lo que está haciendo, en una palabra (rediseño, punto 90): analizando, construyendo, respondiendo, guardando…
     const activity = savingFiles ? "guardando…" : running ? (!answer ? "analizando…" : /```/.test(answer) ? "construyendo…" : "respondiendo…") : null;
-    const stage = activity ?? (discovery ? (discovery.stage === "construyendo" ? "construyendo…" : "construido") : projectRecord?.state?.toLowerCase() ?? "abierto");
+    // Sin nada en marcha, el mismo estado que en Proyectos («En desarrollo», «Esperando tu decisión»…), como en la maqueta.
+    const statusId = projectRecord ? projectStatus({ state: projectRecord.state, working: running, plan: normalizePlan(projectRecord.plan ?? null) }) : null;
+    const stage = activity ?? (discovery?.stage === "construyendo" ? "construyendo…" : statusId ? STATUS_LABEL[statusId] : discovery ? "construido" : "abierto");
+    const stageTone = running || savingFiles ? "border-primary/40 text-primary" : statusId && needsAttention(statusId) ? "border-amber-500/50 text-amber-700 dark:text-amber-300" : "border-emerald-500/40 text-emerald-600 dark:text-emerald-400";
     const kindKey = discovery?.kind ?? projectRecord?.kind ?? "";
     const kindLabel = kindKey ? ((KIND_LABELS as Record<string, string>)[kindKey] ?? TYPE_LABELS[kindKey] ?? kindKey) : null;
     const PREVIEW_WORDS: Record<VisualContext["state"], string> = { vacio: "sin archivos", "sin-pagina": "sin página", "sin-vista": "falta vista-previa.html", cargando: "cargando", lista: "lista", actualizando: "actualizando", error: "con error", "en-blanco": "en blanco", compilando: "compilando", "no-compila": "no compila" };
@@ -1355,7 +1481,7 @@ export function SuperIAView() {
               </Menu>
             </span>
           </span>
-          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${running || savingFiles ? "border-primary/40 text-primary" : "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"}`}>{stage}</span>
+          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${stageTone}`} title="Estado del proyecto (el mismo que en Proyectos)">{stage}</span>
           {kindLabel && <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline" title="Tipo de proyecto">{kindLabel}</span>}
           {discovery && <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">{requirementsCount(discovery)} requisitos</span>}
           {projectVersions.length > 0 && <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline" title={`Última versión guardada: ${projectVersions[0]!.label}`}>v{projectVersions.length}</span>}
@@ -1553,7 +1679,7 @@ export function SuperIAView() {
         <div className="flex flex-wrap items-center gap-2">
           <SuperModeChip mode={superMode} onMode={chooseMode} available={available} localModel={settings.superIaModel} onLocalModel={(name) => updateSettings({ superIaModel: name })} />
           <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
-            {available.length ? `${available.length} modelo(s) en tu equipo` : "Sin motor local detectado"}
+            {available.length ? `${available.length} ${available.length === 1 ? "modelo" : "modelos"} en tu equipo` : "Sin motor local detectado"}
           </span>
         </div>
       </div>
@@ -1614,7 +1740,7 @@ export function SuperIAView() {
           )}
 
           {textIsProject && !running && (
-            <Button variant="ghost" className="gap-2" title="Sin entrevista: WILLY construye directamente con lo que has escrito" onClick={() => void execute(prompt)}>
+            <Button variant="ghost" className="gap-2" title="Sin entrevista: WILLY construye directamente con lo que has escrito" onClick={() => void execute(prompt, undefined, "Construcción del proyecto", { newProject: true, noPlaybook: true })}>
               <Hammer className="size-4" />Construir ya sin preguntas
             </Button>
           )}

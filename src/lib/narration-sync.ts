@@ -76,6 +76,15 @@ export class SyncNarrator {
   get currentRate(): number { return this.rate; }
   get isStopped(): boolean { return this.stopped; }
 
+  /** Prepara por adelantado el audio de las primeras líneas, SIN reproducir nada: para que cuando arranque
+   *  el vídeo, la voz ya esté lista y las dos empiecen exactamente a la vez (si no, el vídeo empieza a sonar
+   *  antes de que la síntesis de voz termine, y la narración entra tarde). */
+  async warmup(count = 1): Promise<void> {
+    const wanted: number[] = [];
+    for (let i = 0; i < this.lines.length && wanted.length < count; i++) if (this.lines[i]!.text.trim()) wanted.push(i);
+    await Promise.all(wanted.map((i) => (this.cache.get(i) ?? this.request(i)).blob.catch(() => undefined)));
+  }
+
   /** Llamar a menudo (cada ~200 ms) con el segundo del vídeo y si se está reproduciendo. */
   tick(time: number, playing: boolean): void {
     if (this.stopped || !Number.isFinite(time)) return;

@@ -228,6 +228,8 @@ export type DiscoveryInput = {
   done: boolean;
   /** Bloques ya contestados. */
   completedSteps: string[];
+  /** (25/09/2026) Páginas que el dueño enumeró en su idea («inicio, tratamientos, equipo…»): cada una es una tarea comprobable. */
+  pages?: string[];
 };
 
 /**
@@ -265,6 +267,7 @@ export function planFromDiscovery(d: DiscoveryInput, at = nowIso()): ProjectPlan
         break;
       case "frontend":
         add(m, key === "landing" ? "Estructura y secciones de la página" : "Estructura y navegación entre pantallas", 2);
+        for (const p of d.pages ?? []) add(m, `Página de ${p}`, 2);
         for (const f of features) add(m, f.label, TIER_WEIGHT[f.tier] ?? 1);
         break;
       case "endpoints":

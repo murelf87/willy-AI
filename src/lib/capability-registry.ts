@@ -94,12 +94,12 @@ export function routeRequest(req: RouteRequest, candidates: Candidate[]): RouteR
     const info = providerInfo(c.providerId);
     const caps = modelCapabilities(c.model, c.providerId);
     const missing = req.required.filter((cap) => !caps.includes(cap));
-    if (!info) return discarded.push({ ...c, why: "proveedor desconocido para WILLY" });
-    if (!c.available) return discarded.push({ ...c, why: "no disponible ahora (sin clave, sin cuota o apagado)" });
-    if (!caps.includes("FREE")) return discarded.push({ ...c, why: "no es gratuito: WILLY nunca gasta dinero por su cuenta" });
-    if (req.privacy === "sensible" && info.where !== "local") return discarded.push({ ...c, why: "hay datos sensibles: solo se usa tu equipo" });
-    if (req.commercial && info.commercialUse === "restricted") return discarded.push({ ...c, why: "su plan gratuito no permite uso comercial" });
-    if (missing.length) return discarded.push({ ...c, why: `le falta: ${missing.join(", ")}` });
+    if (!info) return void discarded.push({ ...c, why: "proveedor desconocido para WILLY" });
+    if (!c.available) return void discarded.push({ ...c, why: "no disponible ahora (sin clave, sin cuota o apagado)" });
+    if (!caps.includes("FREE")) return void discarded.push({ ...c, why: "no es gratuito: WILLY nunca gasta dinero por su cuenta" });
+    if (req.privacy === "sensible" && info.where !== "local") return void discarded.push({ ...c, why: "hay datos sensibles: solo se usa tu equipo" });
+    if (req.commercial && info.commercialUse === "restricted") return void discarded.push({ ...c, why: "su plan gratuito no permite uso comercial" });
+    if (missing.length) return void discarded.push({ ...c, why: `le falta: ${missing.join(", ")}` });
     const preferred = (req.preferred ?? []).filter((cap) => caps.includes(cap));
     // Orden explicable: primero lo que cumple más preferencias; a igualdad, se respeta el orden de entrada (el que ya usaba WILLY).
     const score = preferred.length * 10 - index * 0.01;

@@ -698,7 +698,7 @@ export async function ollamaReport(deps: MaintenanceDeps = {}, opts: { sizes?: b
     version: version?.version ?? null,
     models,
     loaded,
-    usage: gpuUsage(loaded, gpu),
+    usage: gpuUsage(loaded, gpu, { cudaMissing: snapshot?.ollamaCudaMissing }),
     gpu,
     modelsDir,
     program,

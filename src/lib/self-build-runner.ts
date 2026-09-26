@@ -36,7 +36,7 @@ export type SelfBuildJob = {
 export const JOB_EVENT = "willy-self-build-job";
 const JOB_KEY = "willy-self-build-job-v1";
 /** Intentos completos (modelo + aplicación + comprobación) antes de rendirse. */
-const MAX_ATTEMPTS = 4;
+const MAX_ATTEMPTS = 6;
 
 let current: SelfBuildJob | null = null;
 

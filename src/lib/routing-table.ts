@@ -8,12 +8,14 @@
 export const CHAT_ORDER = ["groq", "gemini", "nvidia", "mistral", "openrouter", "cohere"];
 
 /** Autoconstrucción (y SUPER WILLY cuando construye): primero la de más calidad; tu equipo siempre como último recurso. */
-export const BUILD_ORDER = ["gemini", "groq", "nvidia", "openrouter", "mistral", "cohere"];
+// 25/09/2026: Mistral (Codestral, un modelo hecho para programar) sube delante de NVIDIA, Groq y OpenRouter: en «Mundo jamon» contestaba
+// el modelo gratuito de OpenRouter porque los primeros fallaban por tamaño, y sus respuestas no servían.
+export const BUILD_ORDER = ["gemini", "mistral", "nvidia", "groq", "openrouter", "cohere"];
 
 /** «Plug and play»: orden por tipo de petición (rapidez para lo corto y el código, contexto y prosa para lo largo, razonamiento…). */
 export const KIND_CLOUD_ORDER: Record<string, string[]> = {
-  codigo: ["groq", "gemini", "nvidia", "openrouter", "mistral", "cohere"],
-  web: ["groq", "gemini", "nvidia", "openrouter", "mistral", "cohere"],
+  codigo: ["groq", "gemini", "mistral", "nvidia", "openrouter", "cohere"],
+  web: ["groq", "gemini", "mistral", "nvidia", "openrouter", "cohere"],
   datos: ["gemini", "groq", "nvidia", "openrouter", "mistral", "cohere"],
   razonamiento: ["gemini", "nvidia", "openrouter", "groq", "mistral", "cohere"],
   investigacion: ["gemini", "cohere", "nvidia", "openrouter", "mistral", "groq"],

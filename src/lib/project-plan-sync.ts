@@ -12,9 +12,11 @@ import {
   type Attention, type DiscoveryInput, type PreviewEvidence, type ProjectPlan, type TestsEvidence,
 } from "@/lib/project-progress";
 import { filesKeyOf } from "@/lib/project-tests";
-import { STEP_TITLES, featuresOf, needsServer, stepComplete, stepsOf, type DiscoveryState } from "@/lib/project-discovery";
+import { STEP_TITLES, featuresOf, needsServer, requestedPages, stepComplete, stepsOf, type DiscoveryState } from "@/lib/project-discovery";
 import { fetchProjectPlan, saveProjectPlan } from "@/services/disk-project-service";
 import { projectService } from "@/services/project-service";
+import { checkDoneClaims } from "@/lib/plan-evidence";
+import { pushNotice } from "@/lib/notifications";
 
 const chains = new Map<string, Promise<unknown>>();
 /** De uno en uno por proyecto: dos cambios del plan nunca se pisan. */
@@ -35,6 +37,7 @@ export function discoveryInput(d: DiscoveryState): DiscoveryInput {
     needsServer: needsServer(d),
     done: d.stage !== "entrevista",
     completedSteps: steps.filter((s) => stepComplete(d, s.id)).map((s) => s.id),
+    pages: requestedPages(d.idea),
   };
 }
 
@@ -60,6 +63,21 @@ export function syncDiscoveryPlan(projectId: string, d: DiscoveryState): Promise
  * WILLY ha contestado en el proyecto: lo que dice su bloque «plan» (lo «hecho» solo si esta vez se han guardado archivos), lo
  * que se sabe ahora de los archivos del proyecto y, si el proyecto aún no tenía plan, el que ha entregado («plan-json»).
  */
+/**
+ * (25/09/2026) Lo que la IA da por hecho se busca en los archivos: una página que dice haber terminado y no está sigue pendiente,
+ * y se avisa al dueño. Así el progreso no sube con trabajo que no existe (en «Mundo jamon» decía 47 % con solo la portada).
+ */
+function verifyClaims(next: ProjectPlan, before: ProjectPlan | null, files: ReadonlyArray<{ path: string; content: string }> | undefined): ProjectPlan {
+  if (!files) return next;
+  const { plan, unproven } = checkDoneClaims(next, before, files);
+  if (unproven.length) {
+    const list = unproven.slice(0, 3).map((t) => `«${t}»`).join(", ");
+    const one = unproven.length === 1;
+    pushNotice(`La IA ha dado por ${one ? "hecha una página que no está" : `hechas ${unproven.length} páginas que no están`} en los archivos del proyecto (${list}${unproven.length > 3 ? "…" : ""}): ${one ? "sigue pendiente" : "siguen pendientes"} en el plan.`, "warn");
+  }
+  return plan;
+}
+
 export function recordAnswer(projectId: string, text: string, info: { saved: number; kind: string; analysis?: boolean }): Promise<ProjectPlan | null> {
   return queue(projectId, async () => {
     const project = await projectService.get(projectId);
@@ -69,12 +87,14 @@ export function recordAnswer(projectId: string, text: string, info: { saved: num
     if (!current || info.analysis) {
       next = parsePlanJson(text, info.kind, { source: info.analysis ? "analisis" : "willy", ...(evidence ? { evidence: { ...evidence, ...(current ? { preview: current.evidence.preview, errors: current.evidence.errors } : {}) } } : {}) });
       if (!next) return current;
+      next = verifyClaims(next, current, project?.files);
     } else {
       // Lo que estaba pendiente de ti se da por contestado al seguir trabajando (si sigue haciendo falta, WILLY lo vuelve a decir).
       const base = current.attention && current.attention.kind !== "error" ? setAttention(current, null) : current;
       const update = parsePlanBlock(text);
       next = update ? applyPlanUpdate(base, update, { saved: info.saved > 0 }) : base;
       if (evidence) next = withEvidence(next, evidence);
+      next = verifyClaims(next, current, project?.files);
       if (same(next.milestones, current.milestones) && same(next.attention, current.attention) && same({ ...next.evidence, at: "" }, { ...current.evidence, at: "" })) return current;
     }
     const r = await saveProjectPlan(projectId, next, { touch: true });

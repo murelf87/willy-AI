@@ -109,8 +109,9 @@ export function reactProjectRules(installed: readonly string[] = []): string {
     ...(extra.length ? [`- Ya instaladas en el equipo (también se pueden usar): ${extra.join(", ")}.`] : []),
     `- ¿Hace falta otra (react-router-dom, framer-motion, chart.js…)? ${LIBRARY_RULE} Solo librerías conocidas de npm (nada de direcciones de git ni de archivos); para pedir datos a internet no hace falta axios: usa fetch.`,
     "- El index.html carga el punto de entrada con <script type=\"module\" src=\"/src/main.tsx\"></script> y monta la app en <div id=\"root\"></div>. El alias «@/» apunta a «src/».",
-    "- Si usas rutas por archivos de @tanstack/react-router, entrega también src/routeTree.gen.ts (en el equipo no se genera solo).",
-    "- Los estilos, en archivos .css importados desde el código (Tailwind v4 con @import \"tailwindcss\" funciona). Las imágenes, en SVG dentro del proyecto o enlaces https.",
+    "- La vista previa de WILLY ES este proyecto compilado: no crees «vista-previa.html» ni la mantengas al día (en los proyectos React/Vite esto sustituye a la regla 5 de «TRABAJAS SOBRE UN PROYECTO»).",
+    "- Rutas en código, en src/router.tsx (createRootRoute, createRoute y createRouter de @tanstack/react-router, con history: createHashHistory()). Si el proyecto ya usa rutas por archivos (src/routes y src/routeTree.gen.ts), al añadir o quitar una página actualiza también src/routeTree.gen.ts: en el equipo no se genera solo.",
+    "- Los estilos, en archivos .css importados desde el código (Tailwind v4 con @import \"tailwindcss\" funciona). Las imágenes, en SVG dentro del proyecto (o las fotos que dé el dueño): nada de servicios de relleno de internet ni rutas a imágenes que no existen en el proyecto.",
   ].join("\n");
 }
 

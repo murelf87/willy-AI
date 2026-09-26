@@ -4,6 +4,7 @@
 
 import { openView } from "@/lib/background-tasks";
 import { applyAnswer } from "@/lib/project-work";
+import { cutDelivery } from "@/lib/answer-check";
 import { projectService } from "@/services/project-service";
 import { fetchProjectSession, fetchVersion, saveProjectSession } from "@/services/disk-project-service";
 import { compareFiles } from "@/lib/line-diff";
@@ -118,7 +119,11 @@ export function mergeFiles(base: GeneratedFile[], incoming: GeneratedFile[]): Ge
   return [...out.values()];
 }
 
-export type SavedAnswer = { saved: number; total: number; changed: string[]; added: string[]; rejected: Array<{ path: string; reason: string }> };
+export type SavedAnswer = {
+  saved: number; total: number; changed: string[]; added: string[]; rejected: Array<{ path: string; reason: string }>;
+  /** (25/09/2026) La respuesta se cortó a mitad de este archivo (no se guarda) y lo que la IA dice que no le ha cabido («FALTAN: …»). */
+  cut: string | null; pending: string[];
+};
 
 /**
  * Guarda en el proyecto los archivos que trae una respuesta, como versión nueva. Una respuesta suele traer solo lo que
@@ -132,10 +137,13 @@ export async function saveAnswerFiles(projectId: string, text: string, label: st
   if (!/```|<file\s|^(?:#{1,6}\s*)?(?:FILE|PATH|ARCHIVO|RUTA)?\s*[:=-]?\s*[`"']?(?:src|public)\//im.test(text)) return null;
   const current = await projectService.get(projectId);
   if (!current) return null;
-  const applied = applyAnswer(current.files, text);
+  // Un archivo cortado por el límite de la respuesta no se guarda a medias: se dice y WILLY pide que siga.
+  const delivery = cutDelivery(text);
+  const applied = applyAnswer(current.files, delivery.text);
   const saved = applied.changed.length + applied.added.length;
-  const result: SavedAnswer = { saved, total: applied.files.length, changed: applied.changed, added: applied.added, rejected: applied.rejected };
-  if (!saved) return applied.rejected.length ? { ...result, total: current.files.length } : null;
+  const rejected = delivery.cutPath ? [...applied.rejected, { path: delivery.cutPath, reason: `${delivery.cutPath}: la respuesta se cortó a mitad de este archivo (límite de tamaño de la IA).` }] : applied.rejected;
+  const result: SavedAnswer = { saved, total: applied.files.length, changed: applied.changed, added: applied.added, rejected, cut: delivery.cutPath, pending: delivery.pending };
+  if (!saved) return rejected.length ? { ...result, total: current.files.length } : null;
   const r = await projectService.saveFiles(projectId, applied.files, label);
   if (!r.ok) return null;
   if (current.state === "Borrador") void projectService.setState(projectId, "Activo");
