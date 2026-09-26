@@ -1,7 +1,7 @@
 # D10 — Acceso con contraseña desde fuera del ordenador: carga lista para `/api/self-build`
 
 Para la conversación **«WILLY AI setup and Docker»** (la que despliega en el PC). Preparada el 25/09/2026 por la
-conversación «WILLY AI» (rama `acceso-remoto` en GitHub, commit `8a9de44`). **Implementar en local primero**; el VPS
+conversación «WILLY AI» (rama `acceso-remoto` en GitHub, commit `8a9de44`; carga v2 sin `routeTree.gen.ts`). **Implementar en local primero**; el VPS
 va después con esta misma pieza (el instalador `deploy/vps/instalar-willy-vps.sh` la detecta solo).
 
 ## Qué hace (y qué NO cambia)
@@ -23,12 +23,14 @@ va después con esta misma pieza (el instalador `deploy/vps/instalar-willy-vps.s
 | `src/lib/acceso-server.ts` | nuevo (`files`) | `484a808b…37a41f` |
 | `src/routes/api/acceso.ts` | nuevo (`files`) | `a642e0b5…b1e6ad` |
 | `src/routes/acceso.tsx` | nuevo (`files`) | `eb043855…507694` |
-| `src/routeTree.gen.ts` | completo (`files`; es el que regenera el plugin de rutas: idéntico al del PC + las 2 rutas nuevas) | `32607bde…68f6cd` |
+| `src/routeTree.gen.ts` | **no va en la carga**: lo regenera el plugin de rutas de TanStack durante la compilación de la candidata (comprobado: `vite build` lo reescribe con `/acceso` y `/api/acceso`). Así no pisa rutas que se hayan añadido en el PC después del 25/09 | (lo genera la compilación) |
 | `src/start.ts` | 2 `patches` (import + middleware) | `991298bd…33e73a` |
 | `src/components/settings-view.tsx` | 2 `patches` (imports + tarjeta tras `IphoneCard`) | `eb8cd46e…dc4b91` |
 
-Comprobado contra los archivos **actuales del PC** (25/09 ~14:30 UTC): cada `search` encaja exactamente **una** vez y la
-simulación reproduce byte a byte el resultado esperado. `checks.mustContain`: «Acceso a WILLY AI», «Acceso desde fuera
+Comprobado contra copias del PC del 25/09 ~14:30 UTC (local ~29): cada `search` encaja exactamente **una** vez y la
+simulación reproduce byte a byte el resultado esperado. **Desde entonces el PC ha seguido desplegando (locales 30–61+): antes de
+enviar, repetir la comprobación de siempre (`content.count(search) == 1`) en `src/start.ts` y `src/components/settings-view.tsx`;
+si la tarjeta `IphoneCard` o los imports de `settings-view.tsx` han cambiado, ajustar solo ese `search`.** `checks.mustContain`: «Acceso a WILLY AI», «Acceso desde fuera
 (contraseña)», «Guardar contraseña» (textos literales de pantalla). Sin comentarios con «…»; `Button` sin `variant`
 nuevo; icono `Lock` (ya usado en `status-screens.tsx`). Nada toca `src/lib/project-work.ts`.
 
