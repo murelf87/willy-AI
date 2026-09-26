@@ -27,6 +27,9 @@
 #    OLLAMA_MODEL   Modelo a descargar (por defecto: llama3.2:3b — cabe en 8 GB)
 #    TLS_MODE       auto|internal (internal = certificado propio, avisa el navegador)
 #    ACME_EMAIL     Correo para avisos de caducidad de certificado (opcional)
+#    WEB_AUTH       auto|willy|caddy. auto (por defecto): si el código trae el acceso con contraseña de
+#                   WILLY (src/lib/acceso-server.ts), la contraseña la pide la propia WILLY (pantalla
+#                   /acceso) y Caddy solo hace HTTPS; si no, Caddy pide usuario y contraseña (basic auth).
 # =============================================================================
 set -Eeuo pipefail
 
@@ -39,6 +42,7 @@ INSTALL_OLLAMA="${INSTALL_OLLAMA:-yes}"
 OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
 TLS_MODE="${TLS_MODE:-auto}"
 ACME_EMAIL="${ACME_EMAIL:-}"
+WEB_AUTH="${WEB_AUTH:-auto}"
 
 APP_USER="willy"
 APP_DIR="/opt/willy-ai"
@@ -186,6 +190,27 @@ chown -R "$APP_USER":"$APP_USER" "$APP_DIR"
 
 # ----------------------------------------------------------------------------- 4
 paso "4/6 Servicio systemd (arranca solo, se reinicia si cae)"
+if [[ -z "$ADMIN_PASS" ]]; then
+  ADMIN_PASS="$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)"
+  GENERATED_PASS="sí"
+else
+  GENERATED_PASS="no (la que indicaste)"
+fi
+if [[ "$WEB_AUTH" == "auto" ]]; then
+  [[ -f "$SRC_DIR/src/lib/acceso-server.ts" ]] && WEB_AUTH="willy" || WEB_AUTH="caddy"
+fi
+ok "Quién pide la contraseña: $WEB_AUTH ($( [[ "$WEB_AUTH" == "willy" ]] && echo "la pantalla /acceso de WILLY; Caddy solo HTTPS" || echo "Caddy, delante de WILLY" ))"
+# Entorno del servicio (solo lo lee root): la contraseña inicial de WILLY se guarda como huella en
+# datos-privados/acceso.json la primera vez que arranca; después se cambia desde Ajustes → General.
+{
+  echo "NODE_ENV=production"
+  echo "HOST=127.0.0.1"
+  echo "PORT=3000"
+  echo "NITRO_HOST=127.0.0.1"
+  echo "NITRO_PORT=3000"
+  [[ "$WEB_AUTH" == "willy" ]] && echo "WILLY_ACCESO_PASS=$ADMIN_PASS"
+} > /etc/willy-ai.env
+chmod 600 /etc/willy-ai.env
 cat > /etc/systemd/system/willy-ai.service <<EOF
 [Unit]
 Description=WILLY AI (web, Nitro node-server)
@@ -197,11 +222,7 @@ Type=simple
 User=$APP_USER
 Group=$APP_USER
 WorkingDirectory=$SRC_DIR
-Environment=NODE_ENV=production
-Environment=HOST=127.0.0.1
-Environment=PORT=3000
-Environment=NITRO_HOST=127.0.0.1
-Environment=NITRO_PORT=3000
+EnvironmentFile=/etc/willy-ai.env
 ExecStart=/usr/bin/node $SRC_DIR/.output/server/index.mjs
 Restart=always
 RestartSec=3
@@ -220,14 +241,12 @@ for i in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:3000/app && bre
 curl -fsS -o /dev/null http://127.0.0.1:3000/app && ok "WILLY AI responde en 127.0.0.1:3000 (solo interno)" || { fallo "WILLY AI no responde. journalctl -u willy-ai -n 50"; exit 1; }
 
 # ----------------------------------------------------------------------------- 5
-paso "5/6 Caddy: HTTPS + usuario y contraseña delante de WILLY AI"
-if [[ -z "$ADMIN_PASS" ]]; then
-  ADMIN_PASS="$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)"
-  GENERATED_PASS="sí"
-else
-  GENERATED_PASS="no (la que indicaste)"
+paso "5/6 Caddy: HTTPS delante de WILLY AI"
+BASIC_AUTH_BLOCK=""
+if [[ "$WEB_AUTH" == "caddy" ]]; then
+  HASH="$(caddy hash-password --plaintext "$ADMIN_PASS")"
+  BASIC_AUTH_BLOCK=$'\tbasic_auth {\n\t\t'"$ADMIN_USER $HASH"$'\n\t}'
 fi
-HASH="$(caddy hash-password --plaintext "$ADMIN_PASS")"
 TLS_LINE=""
 [[ "$TLS_MODE" == "internal" ]] && TLS_LINE="tls internal"
 GLOBAL_BLOCK=""
@@ -244,9 +263,7 @@ $DOMAIN {
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
-	basic_auth {
-		$ADMIN_USER $HASH
-	}
+$BASIC_AUTH_BLOCK
 	reverse_proxy 127.0.0.1:3000 {
 		flush_interval -1
 	}
@@ -263,16 +280,26 @@ caddy validate --config /etc/caddy/Caddyfile
 systemctl enable caddy
 systemctl restart caddy
 sleep 3
-ok "Caddy configurado para https://$DOMAIN (usuario: $ADMIN_USER)"
+ok "Caddy configurado para https://$DOMAIN"
 
 # ----------------------------------------------------------------------------- 6
 paso "6/6 Verificación"
-RESULT_NOAUTH="$(curl -sk -o /dev/null -w '%{http_code}' "https://$DOMAIN/app" || true)"
-RESULT_AUTH="$(curl -sk -o /dev/null -w '%{http_code}' -u "$ADMIN_USER:$ADMIN_PASS" "https://$DOMAIN/app" || true)"
-RESULT_ENGINE="$(curl -sk -u "$ADMIN_USER:$ADMIN_PASS" "https://$DOMAIN/api/engine" || true)"
-[[ "$RESULT_NOAUTH" == "401" ]] && ok "Sin contraseña → 401 (bloqueado)" || aviso "Sin contraseña devuelve $RESULT_NOAUTH (esperado 401). Si es 000, el certificado aún se está emitiendo: espera 1-2 min y prueba en el navegador."
-[[ "$RESULT_AUTH" == "200" ]] && ok "Con contraseña → 200 (WILLY AI accesible)" || aviso "Con contraseña devuelve $RESULT_AUTH (esperado 200)."
-echo "   /api/engine → $RESULT_ENGINE"
+if [[ "$WEB_AUTH" == "willy" ]]; then
+  RESULT_NOAUTH="$(curl -sk -o /dev/null -w '%{http_code}' "https://$DOMAIN/app" || true)"
+  RESULT_API="$(curl -sk -o /dev/null -w '%{http_code}' "https://$DOMAIN/api/sistema" || true)"
+  COOKIE_JAR="$(mktemp)"
+  RESULT_LOGIN="$(curl -sk -o /dev/null -w '%{http_code}' -c "$COOKIE_JAR" -H 'Content-Type: application/json' -H "Origin: https://$DOMAIN" -d "{\"action\":\"entrar\",\"contrasena\":\"$ADMIN_PASS\"}" "https://$DOMAIN/api/acceso" || true)"
+  RESULT_AUTH="$(curl -sk -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" "https://$DOMAIN/app" || true)"
+  rm -f "$COOKIE_JAR"
+  [[ "$RESULT_NOAUTH" == "302" ]] && ok "Sin sesión → 302 a /acceso (bloqueado)" || aviso "Sin sesión devuelve $RESULT_NOAUTH (esperado 302). Si es 000, el certificado aún se está emitiendo: espera 1-2 min y prueba en el navegador."
+  [[ "$RESULT_API" == "401" ]] && ok "Sin sesión /api → 401 (bloqueado)" || aviso "Sin sesión /api/sistema devuelve $RESULT_API (esperado 401)."
+  [[ "$RESULT_LOGIN" == "200" && "$RESULT_AUTH" == "200" ]] && ok "Entrar con la contraseña → 200 (WILLY AI accesible)" || aviso "Entrar devuelve $RESULT_LOGIN y /app con sesión $RESULT_AUTH (esperado 200 y 200)."
+else
+  RESULT_NOAUTH="$(curl -sk -o /dev/null -w '%{http_code}' "https://$DOMAIN/app" || true)"
+  RESULT_AUTH="$(curl -sk -o /dev/null -w '%{http_code}' -u "$ADMIN_USER:$ADMIN_PASS" "https://$DOMAIN/app" || true)"
+  [[ "$RESULT_NOAUTH" == "401" ]] && ok "Sin contraseña → 401 (bloqueado)" || aviso "Sin contraseña devuelve $RESULT_NOAUTH (esperado 401). Si es 000, el certificado aún se está emitiendo: espera 1-2 min y prueba en el navegador."
+  [[ "$RESULT_AUTH" == "200" ]] && ok "Con contraseña → 200 (WILLY AI accesible)" || aviso "Con contraseña devuelve $RESULT_AUTH (esperado 200)."
+fi
 PORTS="$(ss -ltn | awk 'NR>1 {print $4}' | sed 's/.*://' | sort -un | tr '\n' ' ')"
 echo "   Puertos escuchando (locales+públicos): $PORTS"
 
@@ -280,7 +307,7 @@ cat > "$RESUMEN" <<EOF
 WILLY AI en tu VPS — resumen ($(date '+%d/%m/%Y %H:%M'))
 --------------------------------------------------------
 URL:           https://$DOMAIN
-Usuario web:   $ADMIN_USER
+Quién pide la contraseña: $WEB_AUTH ($( [[ "$WEB_AUTH" == "willy" ]] && echo "pantalla /acceso de WILLY; se cambia en Ajustes → General → Acceso desde fuera" || echo "Caddy (usuario $ADMIN_USER)" ))
 Contraseña:    $ADMIN_PASS   (generada automáticamente: $GENERATED_PASS)
 Código:        $SRC_DIR (commit $COMMIT, versión declarada $APP_VERSION)
 Servicios:     systemctl status willy-ai caddy ollama
