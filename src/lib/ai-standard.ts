@@ -209,26 +209,14 @@ export function extractFiles(text: string, fallbackPaths: string[] = []): Genera
  * ```tsx src/a.ts…), en el texto inmediatamente anterior o, si solo hay un archivo
  * candidato, sin ruta. Tolera CRLF, marcadores con espacios y REPLACE vacío (borrar código).
  * Un bloque al que le falta el cierre `>>>>>>> REPLACE` se descarta por estar cortado.
+ * También captura SEARCH/REPLACE fuera de bloques de código (modelos pequeños).
  */
 export function extractPatches(text: string, fallbackPaths: string[] = []): GeneratedPatch[] {
   const patches: GeneratedPatch[] = [];
   const source = text.replace(/\r\n?/g, "\n");
-  const fences = /```([^\n]*)\n([\s\S]*?)(?:\n```|$)/g;
-  let fence: RegExpExecArray | null;
-  while ((fence = fences.exec(source))) {
-    const body = fence[2] ?? "";
-    if (!/^<{5,9}\s*SEARCH\s*$/m.test(body)) continue;
 
-    let path = pathFromHeader((fence[1] ?? "").trim()).path;
-    if (!path.includes(".")) {
-      const before = source.slice(Math.max(0, fence.index - 240), fence.index);
-      path = findPath(`${body.split("\n").slice(0, 3).join("\n")}\n${before}`);
-    }
-    if (!path.includes(".")) path = pathFromMention(source.slice(Math.max(0, fence.index - 240), fence.index), fallbackPaths);
-    if (!path.includes(".") && fallbackPaths.length === 1) path = fallbackPaths[0] ?? "";
-    path = path.replace(/^\.\//, "").replace(/\\/g, "/");
-    if (!path) continue;
-
+  /** Procesa el contenido de un bloque o texto libre buscando pares SEARCH/REPLACE */
+  function extractPairsFromBody(body: string, resolvedPath: string): void {
     const lines = body.split("\n");
     let index = 0;
     while (index < lines.length) {
@@ -247,10 +235,60 @@ export function extractPatches(text: string, fallbackPaths: string[] = []): Gene
       index += 1;
       const searchText = search.join("\n");
       if (!closed || !searchText.trim()) continue;
-      if (!patches.some((entry) => entry.path === path && entry.search === searchText)) {
-        patches.push({ path, search: searchText, replace: replace.join("\n") });
+      if (!patches.some((entry) => entry.path === resolvedPath && entry.search === searchText)) {
+        patches.push({ path: resolvedPath, search: searchText, replace: replace.join("\n") });
       }
     }
   }
+
+  // 1. Dentro de bloques de código (formato habitual)
+  const fences = /```([^\n]*)\n([\s\S]*?)(?:\n```|$)/g;
+  let fence: RegExpExecArray | null;
+  while ((fence = fences.exec(source))) {
+    const body = fence[2] ?? "";
+    if (!/^<{5,9}\s*SEARCH\s*$/m.test(body)) continue;
+
+    let path = pathFromHeader((fence[1] ?? "").trim()).path;
+    if (!path.includes(".")) {
+      const before = source.slice(Math.max(0, fence.index - 360), fence.index);
+      path = findPath(`${body.split("\n").slice(0, 3).join("\n")}\n${before}`);
+    }
+    if (!path.includes(".")) path = pathFromMention(source.slice(Math.max(0, fence.index - 360), fence.index), fallbackPaths);
+    if (!path.includes(".") && fallbackPaths.length === 1) path = fallbackPaths[0] ?? "";
+    path = path.replace(/^\.\//, "").replace(/\\/g, "/");
+    if (!path) continue;
+
+    extractPairsFromBody(body, path);
+  }
+
+  // 2. SEARCH/REPLACE fuera de bloques (modelos pequeños omiten las comillas de código)
+  //    Busca el patrón directamente en el texto plano, ignorando zonas ya cubiertas por fences.
+  const inFence = new Set<number>();
+  const fenceZones = /```[^\n]*\n[\s\S]*?(?:```|$)/g;
+  let fz: RegExpExecArray | null;
+  while ((fz = fenceZones.exec(source))) {
+    for (let i = fz.index; i < fz.index + fz[0].length; i++) inFence.add(i);
+  }
+
+  const bareSearch = /<{5,9}\s*SEARCH\s*\n/g;
+  let bs: RegExpExecArray | null;
+  while ((bs = bareSearch.exec(source))) {
+    if (inFence.has(bs.index)) continue; // ya procesado dentro de un fence
+    const blockStart = bs.index;
+    // Busca ruta en los 360 caracteres previos
+    const before = source.slice(Math.max(0, blockStart - 360), blockStart);
+    let path = findPath(before);
+    if (!path.includes(".")) path = pathFromMention(before, fallbackPaths);
+    if (!path.includes(".") && fallbackPaths.length === 1) path = fallbackPaths[0] ?? "";
+    path = path.replace(/^\.\//, "").replace(/\\/g, "/");
+    if (!path) continue;
+
+    // Extrae hasta el siguiente marcador de cierre o fin de texto
+    const closeMatch = />{5,9}\s*REPLACE\s*$/m.exec(source.slice(blockStart));
+    const blockEnd = closeMatch ? blockStart + closeMatch.index + closeMatch[0].length : source.length;
+    const body = source.slice(blockStart, blockEnd);
+    extractPairsFromBody(body, path);
+  }
+
   return patches;
 }
