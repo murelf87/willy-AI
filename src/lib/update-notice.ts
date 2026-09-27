@@ -2,7 +2,9 @@
 // NO desaparece hasta que pulsas Aceptar (aunque recargues la página o abras otro navegador). Aquí vive lo que no depende de la pantalla.
 
 export type Notice = { version: string; from: string; label: string; at: string; notes: string[]; ack: boolean };
-export type Poll = { version: string; notice: Notice | null } | null;
+/** Actualización descargada y lista para instalar, pendiente de confirmación del usuario. */
+export type PendingUpdate = { version: string; label: string; at: string };
+export type Poll = { version: string; notice: Notice | null; pendingUpdate?: PendingUpdate | null } | null;
 
 const str = (v: unknown, max: number): string => (typeof v === "string" ? v.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max) : "");
 
@@ -21,7 +23,13 @@ export function mergeNotice(previous: Notice | null, next: Notice): Notice {
   return { ...next, from: previous.from || next.from, notes };
 }
 
-export type Ui = { kind: "none" } | { kind: "waiting" } | { kind: "stale"; serverVersion: string } | { kind: "balloon"; notice: Notice };
+export type Ui =
+  | { kind: "none" }
+  | { kind: "waiting" }
+  | { kind: "stale"; serverVersion: string }
+  | { kind: "balloon"; notice: Notice }
+  /** Actualización lista para instalar: se muestra un diálogo de confirmación antes de proceder. */
+  | { kind: "pending"; update: PendingUpdate };
 
 /**
  * Qué enseñar y si recargar la pestaña. Un WILLY que se está reiniciando (varios avisos sin respuesta) se dice con calma; una pestaña que
@@ -32,6 +40,8 @@ export function decide(clientVersion: string, poll: Poll, missed: number): { ui:
   if (!poll) return { ui: missed >= 2 ? { kind: "waiting" } : { kind: "none" }, reload: false };
   const stale = poll.version !== clientVersion;
   if (poll.notice && !poll.notice.ack) return { ui: { kind: "balloon", notice: poll.notice }, reload: stale };
+  // Actualización pendiente de confirmación: se muestra antes que el aviso de versión vieja.
+  if (poll.pendingUpdate) return { ui: { kind: "pending", update: poll.pendingUpdate }, reload: false };
   if (stale) return { ui: { kind: "stale", serverVersion: poll.version }, reload: true };
   return { ui: { kind: "none" }, reload: false };
 }

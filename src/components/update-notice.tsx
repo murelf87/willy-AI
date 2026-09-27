@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION } from "@/lib/version";
 import { decide, expectedRestartMs, noticeTitle, rememberRestartMs, restartProgress, type Poll, type Ui } from "@/lib/update-notice";
@@ -70,12 +70,39 @@ export function UpdateNotice() {
     try { await fetch("/api/actualizacion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ack" }) }); } catch { /* se reintenta al volver a preguntar */ }
     setUi({ kind: "none" });
   };
+
+  const confirmUpdate = async () => {
+    try { await fetch("/api/actualizacion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "confirm-update" }) }); } catch { /* se reintenta */ }
+    setUi({ kind: "none" });
+  };
+
+  const cancelUpdate = async () => {
+    try { await fetch("/api/actualizacion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "cancel-update" }) }); } catch { /* se reintenta */ }
+    setUi({ kind: "none" });
+  };
+
   if (ui.kind === "none" && !back) return null;
   const box = "fixed bottom-4 right-4 z-[200] w-[min(24rem,calc(100vw-2rem))] rounded-xl border bg-card p-4 shadow-2xl";
   const progress = restartProgress(downSince.current === null ? 0 : now - downSince.current, expected, back);
   if (ui.kind === "none") return createPortal(<RestartBox pct={100} remainingText={progress.remainingText} />, document.body);
   return createPortal(
-    ui.kind === "balloon" ? (
+    ui.kind === "pending" ? (
+      <div role="alertdialog" aria-modal="true" className={`${box} border-primary/60`}>
+        <p className="flex items-start gap-2 text-sm font-semibold">
+          <Download className="mt-0.5 size-5 shrink-0 text-primary" />
+          WILLY AI se va a actualizar a la versión {ui.update.version}
+        </p>
+        {ui.update.label && <p className="mt-1 text-xs text-muted-foreground">{ui.update.label}</p>}
+        <p className="mt-2 text-xs text-muted-foreground flex items-center gap-1">
+          <AlertTriangle className="size-3 shrink-0" />
+          WILLY se reiniciará unos segundos durante la actualización.
+        </p>
+        <div className="mt-3 flex justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={() => void cancelUpdate()}>Ahora no</Button>
+          <Button size="sm" onClick={() => void confirmUpdate()}>Aceptar</Button>
+        </div>
+      </div>
+    ) : ui.kind === "balloon" ? (
       <div role="alert" className={`${box} border-emerald-500/60`}>
         <p className="flex items-start gap-2 text-sm font-semibold"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-500" />{noticeTitle(ui.notice)}</p>
         {ui.notice.notes.length > 0 && <ul className="mt-2 max-h-48 list-disc space-y-1 overflow-auto pl-5 text-xs leading-5 text-muted-foreground">{ui.notice.notes.map((n) => <li key={n}>{n}</li>)}</ul>}

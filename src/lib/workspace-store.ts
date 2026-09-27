@@ -31,7 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   superIaModel: "",
   projectId: "",
   project: "",
-  agents: ["Analist", "Programmer", "Tester", "Debugger"],
+  agents: ["Arquitecto", "Programador", "Diseñador UI", "Analista", "Revisor", "Orquestador"],
   tools: ["Terminal local", "Sistema de archivos", "Servidor de desarrollo"],
   notify: true,
   notifySteps: true,
