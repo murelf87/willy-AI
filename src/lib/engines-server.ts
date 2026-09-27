@@ -20,14 +20,36 @@ export type Provider = {
   maxOutput?: number;
 };
 
+// Orden de prioridad: primero los que aguantan contextos largos (Autoconstrucción genera prompts de 10k+ tokens).
+// Groq es el más rápido pero tiene límite de 8k tokens en el tier gratuito → va el último.
+// Gemini va penúltimo porque el modelo por defecto puede quedar inválido: se ha corregido a gemini-2.0-flash.
 export const PROVIDERS: Provider[] = [
-  { id: "gemini", name: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", keyUrl: "https://aistudio.google.com/apikey", dataNote: "En el nivel gratuito, Google puede usar lo que envíes para mejorar sus productos. No actives la facturación." },
-  { id: "groq", name: "Groq", baseUrl: "https://api.groq.com/openai/v1", keyUrl: "https://console.groq.com/keys", dataNote: "Gratis con límites por minuto y por día. No pases a su plan de pago." },
-  // (25/09/2026) nemotron-3-super (razonador) contestaba vacío una y otra vez: primero los modelos gratuitos que programan y contestan.
-  { id: "openrouter", name: "OpenRouter (modelos gratuitos)", baseUrl: "https://openrouter.ai/api/v1", keyUrl: "https://openrouter.ai/keys", dataNote: "Solo se usan modelos marcados «:free». Cada proveedor de esos modelos tiene sus propias condiciones.", onlyModelSuffix: ":free", prefer: ["qwen3-coder", "qwen3-235b", "llama-3\\.3-70b-instruct", "gemma-3-27b", "deepseek-chat", "mistral-small"] },
+  // 1. OpenRouter: múltiples modelos :free, contexto grande (hasta 128k), mejor para código largo.
+  // Orden de preferencia: Qwen3-Coder (especializado en código) > DeepSeek-R1 (razonador) > Llama 3.3 70B > Gemma > otros.
+  {
+    id: "openrouter",
+    name: "OpenRouter (modelos gratuitos)",
+    baseUrl: "https://openrouter.ai/api/v1",
+    keyUrl: "https://openrouter.ai/keys",
+    dataNote: "Solo se usan modelos marcados «:free». Cada proveedor de esos modelos tiene sus propias condiciones.",
+    onlyModelSuffix: ":free",
+    prefer: ["qwen3-coder", "deepseek-r1(?!.*lite)", "qwen3-235b", "llama-3\\.3-70b-instruct", "gemma-3-27b", "deepseek-chat", "mistral-small", "phi-4"],
+  },
+  // 2. NVIDIA Build (NIM): gratis y sin tarjeta, 40 req/min, modelos grandes (DeepSeek, Llama, Qwen-Coder).
+  // (25/09/2026) deepseek-v4.1-flash responde bien; glm-5.3 daba timeouts → movido al final de prefer.
+  {
+    id: "nvidia",
+    name: "NVIDIA",
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    keyUrl: "https://build.nvidia.com/settings/api-keys",
+    dataNote: "Gratis y sin tarjeta (cuenta de NVIDIA Developer): unas 40 peticiones por minuto. Revisa sus condiciones sobre el uso de datos.",
+    fallbackModels: ["deepseek-ai/deepseek-v4.1-flash", "meta/llama-3.3-70b-instruct", "qwen/qwen3-235b-a22b", "mistralai/mistral-large-2-instruct", "deepseek-ai/deepseek-r1"],
+    prefer: ["deepseek-v4[.\\d]*-flash", "llama-3\\.3-70b-instruct", "qwen3-235b", "qwen[^/]*coder", "deepseek-r1(?!.*lite)", "mistral-large-2", "deepseek-v4", "glm-5"],
+  },
+  // 3. Mistral: nivel gratuito estable, bueno para código y contextos medianos.
   { id: "mistral", name: "Mistral", baseUrl: "https://api.mistral.ai/v1", keyUrl: "https://console.mistral.ai/api-keys", dataNote: "Nivel gratuito con límites. Revisa sus condiciones sobre el uso de datos." },
-  // SambaNova se quitó: ya no es gratis. En su lugar, Cohere: clave de prueba gratis y sin tarjeta, muy buena en español y con
-  // documentos largos (unas 1.000 peticiones al mes). Su API compatible con OpenAI no siempre da la lista de modelos: por eso lleva los conocidos.
+  // 4. Cohere: 1.000 peticiones/mes gratis, sin tarjeta. Muy buena con documentos largos y español.
+  // Su API compatible con OpenAI no siempre da la lista de modelos: por eso lleva los conocidos.
   {
     id: "cohere",
     name: "Cohere",
@@ -38,16 +60,22 @@ export const PROVIDERS: Provider[] = [
     prefer: ["^command-a-plus", "^command-a-\\d", "^command-r-plus"],
     maxOutput: 8000,
   },
-  // NVIDIA Build (NIM): gratis y sin tarjeta, unas 40 peticiones por minuto, con decenas de modelos grandes (DeepSeek, Mistral Large, GLM, Llama…).
+  // 5. Google Gemini: muy potente (gemini-2.0-flash tiene contexto de 1M tokens), límite diario generoso.
+  // IMPORTANTE: el modelo debe ser gemini-2.0-flash (gemini-1.5-flash como fallback). Si la clave falla,
+  // vuelve a guardarla en Ajustes → Centro de Inteligencia → Motores para que se autodetecte el modelo correcto.
   {
-    id: "nvidia",
-    name: "NVIDIA",
-    baseUrl: "https://integrate.api.nvidia.com/v1",
-    keyUrl: "https://build.nvidia.com/settings/api-keys",
-    dataNote: "Gratis y sin tarjeta (cuenta de NVIDIA Developer): unas 40 peticiones por minuto. Revisa sus condiciones sobre el uso de datos.",
-    fallbackModels: ["deepseek-ai/deepseek-v4.1-flash", "mistralai/mistral-large-2-instruct", "meta/llama-3.3-70b-instruct"],
-    prefer: ["deepseek-v4[.\\d]*-flash", "llama-3\\.3-70b-instruct", "qwen[^/]*coder", "mistral-large-2", "glm-5", "deepseek-v4"],
+    id: "gemini",
+    name: "Google Gemini",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    keyUrl: "https://aistudio.google.com/apikey",
+    dataNote: "En el nivel gratuito, Google puede usar lo que envíes para mejorar sus productos. No actives la facturación.",
+    fallbackModels: ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite"],
+    prefer: ["gemini-2\\.0-flash(?!-lite|-exp)", "gemini-2\\.0-flash-lite", "gemini-1\\.5-flash"],
   },
+  // 6. Groq: el MÁS RÁPIDO pero límite de ~8k tokens de entrada en el tier gratuito.
+  // Va el último porque Autoconstrucción genera prompts largos que Groq rechaza; para chats normales es ideal.
+  // (25/09/2026) nemotron-3-super (razonador) contestaba vacío → usar modelos de chat estables primero.
+  { id: "groq", name: "Groq", baseUrl: "https://api.groq.com/openai/v1", keyUrl: "https://console.groq.com/keys", dataNote: "Gratis con límites por minuto y por día. No pases a su plan de pago." },
 ];
 
 /** Tope general de tokens de respuesta (una web completa con su vista previa cabe de sobra). */
