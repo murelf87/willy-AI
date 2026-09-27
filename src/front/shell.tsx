@@ -51,6 +51,7 @@ const NAV_MORE: NavItem[] = [
   { icon: ScanText, label: "OCR", view: "ocr" },
   { icon: AudioLines, label: "Transcribir", view: "transcribir" },
   { icon: Languages, label: "Traducir", view: "traducir" },
+  { icon: Wand2, label: "Crea tu avatar IA", view: "personaje" },
   { icon: Video, label: "Mi yo en IA", view: "avatar" },
   { icon: Wand2, label: "Crea tu avatar IA", view: "personaje" },
   { icon: Puzzle, label: "Nuevas funciones", view: "extras" },

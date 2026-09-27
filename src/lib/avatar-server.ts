@@ -708,5 +708,74 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
     return { ok: true, job: publicJob(job) };
   }
 
+  // ——— Acciones de instalación de modelos (Crea tu avatar IA) ———
+  if (action === "model-install") {
+    const url = String(body["url"] ?? "");
+    const folder = String(body["folder"] ?? "checkpoints");
+    const filename = String(body["filename"] ?? "");
+    if (!url || !filename) return { error: "Faltan parámetros: url y filename son obligatorios." };
+    const comfyuiRoot = String(state.settings?.comfyuiPath ?? "");
+    if (!comfyuiRoot) return { error: "Configura la ruta de ComfyUI en Ajustes antes de descargar modelos." };
+    try {
+      const { startModelInstall } = await import("./model-install");
+      const jobId = await startModelInstall({ comfyuiRoot, folder, filename, url });
+      return { ok: true, jobId };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  if (action === "model-install-status") {
+    const jobId = String(body["jobId"] ?? "");
+    if (!jobId) return { error: "Falta jobId." };
+    try {
+      const { getModelInstallStatus } = await import("./model-install");
+      return { ok: true, ...getModelInstallStatus(jobId) };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  if (action === "model-install-cancel") {
+    const jobId = String(body["jobId"] ?? "");
+    if (!jobId) return { error: "Falta jobId." };
+    try {
+      const { cancelModelInstall } = await import("./model-install");
+      cancelModelInstall(jobId);
+      return { ok: true };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  if (action === "personaje-generar") {
+    const prompt = String(body["prompt"] ?? "");
+    const negative = String(body["negative"] ?? "");
+    if (!prompt) return { error: "El prompt no puede estar vacío." };
+    const comfyUrl = String(state.settings?.comfyuiUrl ?? "http://localhost:8188");
+    // Llama a ComfyUI prompt API con un workflow básico txt2img
+    try {
+      const workflow = {
+        "3": { class_type: "KSampler", inputs: { seed: Math.floor(Math.random() * 1e9), steps: 4, cfg: 1.5, sampler_name: "dpm_2", scheduler: "karras", denoise: 1, model: ["4", 0], positive: ["6", 0], negative: ["7", 0], latent_image: ["5", 0] } },
+        "4": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "sdxl_lightning_4step.safetensors" } },
+        "5": { class_type: "EmptyLatentImage", inputs: { width: 1024, height: 1024, batch_size: 1 } },
+        "6": { class_type: "CLIPTextEncode", inputs: { text: prompt, clip: ["4", 1] } },
+        "7": { class_type: "CLIPTextEncode", inputs: { text: negative || "blurry, bad anatomy", clip: ["4", 1] } },
+        "8": { class_type: "VAEDecode", inputs: { samples: ["3", 0], vae: ["4", 2] } },
+        "9": { class_type: "SaveImage", inputs: { filename_prefix: "willy_avatar", images: ["8", 0] } },
+      };
+      const queueRes = await fetch(`${comfyUrl}/prompt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: workflow }),
+      });
+      if (!queueRes.ok) return { error: `ComfyUI no responde (${queueRes.status}). ¿Está arrancado?` };
+      const queueData = await queueRes.json() as { prompt_id?: string };
+      return { ok: true, promptId: queueData.prompt_id ?? null, message: "Imagen en cola. ComfyUI está procesando..." };
+    } catch (e: unknown) {
+      return { error: `No se pudo conectar con ComfyUI (${comfyUrl}): ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+
   return { error: "Acción desconocida." };
 }
