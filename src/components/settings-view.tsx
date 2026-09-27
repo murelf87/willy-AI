@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  Copy, Database, FolderOpen, HardDrive, Loader2, Power, RefreshCw, RotateCw, ScrollText, Server, Smartphone,
-  Stethoscope, Trash2, Wrench,
+  Copy, Database, FolderOpen, HardDrive, Loader2, Monitor, Power, RefreshCw, RotateCw, ScrollText, Server, Smartphone,
+  Stethoscope, Trash2, WifiOff, Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PanelCard as Card } from "@/components/panel-card";
@@ -20,6 +20,8 @@ import {
 import { apiAuthService } from "@/services/api-auth-service";
 import { backendOn, health, listOrganizations, refreshData, useBackend, type Organization } from "@/services/backend";
 import type { Ping } from "@/types/domain";
+import { useRemoteConnection } from "@/hooks/use-remote-connection";
+import { RemotePermissionDialog } from "@/components/remote-permission-dialog";
 
 // AJUSTES (revisión 20): lo que antes estaba repartido entre «Configuración», «Estado del sistema» y el «Workspace» global,
 // ordenado en General · Sistema · Almacenamiento · Diagnóstico (y Avanzado, oculto). Cada botón hace lo que dice: reiniciar
@@ -540,8 +542,84 @@ function AdvancedTab({ ping }: { ping: Ping }) {
         </Card>
       )}
       <BackendCard ping={ping} />
+      <RemoteConnectCard ping={ping} />
       <a href="/api/sistema?registros&completos=1" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs text-primary underline-offset-2 hover:underline"><ScrollText className="size-3.5" />Ver los registros completos en bruto (sin claves)</a>
     </div>
+  );
+}
+
+/** Conexión remota segura con permiso explícito por acción. */
+function RemoteConnectCard({ ping }: { ping: Ping }) {
+  const { status, pendingAction, log, connect, disconnect, allowAction, denyAction } = useRemoteConnection();
+
+  const isConnected = status === "connected";
+  const isConnecting = status === "connecting";
+
+  const handleToggle = async () => {
+    if (isConnected) {
+      disconnect();
+      ping("Conexión remota cerrada.");
+    } else {
+      ping("Estableciendo canal cifrado...");
+      await connect();
+      if (status === "error") ping("⚠️ No se pudo conectar. Comprueba que el servidor de WILLY está en marcha.");
+    }
+  };
+
+  return (
+    <>
+      <Card className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Monitor className="size-4" /> Conectar Remotamente
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {isConnected
+                ? "Canal cifrado activo. Cada acción pedirá tu permiso antes de ejecutarse."
+                : status === "error"
+                ? "Error al conectar. Comprueba que WILLY está ejecutándose."
+                : "Establece una conexión segura (WSS) para controlar WILLY desde otro dispositivo."}
+            </p>
+          </div>
+          <Toggle on={isConnected} label="Conectar Remotamente" onClick={() => void handleToggle()} />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className={`inline-block size-2 rounded-full ${
+            isConnected ? "bg-emerald-500" :
+            isConnecting ? "bg-amber-400 animate-pulse" :
+            status === "error" ? "bg-red-500" : "bg-muted-foreground/40"
+          }`} />
+          <span className="text-xs text-muted-foreground">
+            {isConnected ? "Conectado (cifrado AES-256)" :
+             isConnecting ? "Conectando..." :
+             status === "error" ? "Sin conexión" :
+             status === "disconnected" ? "Desconectado" : "Sin iniciar"}
+          </span>
+          {isConnected && (
+            <Button size="sm" variant="ghost" className="ml-auto gap-1.5 text-xs text-destructive" onClick={disconnect}>
+              <WifiOff className="size-3.5" /> Desconectar
+            </Button>
+          )}
+        </div>
+
+        {log.length > 0 && (
+          <div className="max-h-28 overflow-y-auto rounded-lg border border-border bg-muted/30 p-2">
+            {log.map((line, i) => (
+              <p key={i} className="font-mono text-[11px] text-muted-foreground leading-5">{line}</p>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Diálogo de permiso por acción — bloquea toda interacción hasta decidir */}
+      <RemotePermissionDialog
+        action={pendingAction}
+        onAllow={allowAction}
+        onDeny={denyAction}
+      />
+    </>
   );
 }
 
