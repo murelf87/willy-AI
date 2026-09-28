@@ -760,12 +760,15 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
 
   if (action === "montaje") {
     // Montar vídeo con subtítulos quemados + recorte 9:16 con ffmpeg.
+    // Opcionalmente reemplaza el audio con una pista de doblaje (audio_doblaje, base64).
     // Si ffmpeg no está disponible, devuelve el vídeo base tal cual (degradación elegante).
     try {
       const videoData = body["video"] ? decode(body["video"], 200 * 2 ** 20, ["mp4", "webm"], "el vídeo base") : null;
       if (!videoData) return { error: "Necesito el vídeo base para montar." };
       const subtitles = str(body["subtitles"] ?? "", 8000);
-      const formato = str(body["formato"] ?? "9:16", 10);
+      const formato = str(body["formato"] ?? "9:16", 10); // "9:16" | "original"
+      // audio_doblaje: base64 de audio wav/mp3 que sustituye al audio original del vídeo
+      const audioDoblajeB64 = body["audio_doblaje"] ? str(body["audio_doblaje"] as string, 200 * 2 ** 20) : null;
       const { fs: mfs, path: mpath } = await modules();
       // Verificar si ffmpeg está disponible
       const { spawnSync } = await import("child_process");
@@ -774,38 +777,58 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
         // Sin ffmpeg, devolvemos el vídeo original tal cual
         return { ok: true, file: { bytes: videoData.bytes, name: "willy-influencer.mp4", mime: "video/mp4" }, note: "ffmpeg no disponible: se devuelve el vídeo sin montar." };
       }
-      // Guardar vídeo temporal
+      // Guardar vídeo (y audio de doblaje si existe) temporal
       const tmpDir = mpath.join(dir, "montaje-tmp");
       await mfs.mkdir(tmpDir, { recursive: true });
-      const inFile = mpath.join(tmpDir, `in-${Date.now()}.${videoData.kind}`);
-      const outFile = mpath.join(tmpDir, `out-${Date.now()}.mp4`);
+      const ts = Date.now();
+      const inFile = mpath.join(tmpDir, `in-${ts}.${videoData.kind}`);
+      const outFile = mpath.join(tmpDir, `out-${ts}.mp4`);
       await mfs.writeFile(inFile, videoData.bytes);
-      // Construir filtro ffmpeg
-      const filters: string[] = [];
+
+      let audioFile: string | null = null;
+      if (audioDoblajeB64) {
+        audioFile = mpath.join(tmpDir, `doblaje-${ts}.wav`);
+        await mfs.writeFile(audioFile, Buffer.from(audioDoblajeB64, "base64"));
+      }
+
+      // Construir filtro de vídeo ffmpeg
+      const vFilters: string[] = [];
       if (formato === "9:16") {
         // Recortar/escalar a 9:16 (1080x1920 o similar)
-        filters.push("scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black");
+        vFilters.push("scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black");
       }
       if (subtitles.trim()) {
         // Quemar subtítulos como overlay de texto (simplificado, sin SRT)
         const safeText = subtitles.replace(/['"\\:]/g, " ").slice(0, 500);
-        filters.push(`drawtext=text='${safeText}':fontsize=36:fontcolor=white:x=(w-tw)/2:y=h-100:box=1:boxcolor=black@0.5:boxborderw=10`);
+        vFilters.push(`drawtext=text='${safeText}':fontsize=36:fontcolor=white:x=(w-tw)/2:y=h-100:box=1:boxcolor=black@0.5:boxborderw=10`);
       }
-      const ffArgs = ["-i", inFile, "-y"];
-      if (filters.length > 0) {
-        ffArgs.push("-vf", filters.join(","));
+
+      const ffArgs = ["-i", inFile];
+      if (audioFile) {
+        // Añadir audio de doblaje como segunda entrada y reemplazar el audio original
+        ffArgs.push("-i", audioFile, "-map", "0:v:0", "-map", "1:a:0");
+      }
+      ffArgs.push("-y");
+      if (vFilters.length > 0) {
+        ffArgs.push("-vf", vFilters.join(","));
+      }
+      if (audioFile) {
+        // Acortar al más corto de vídeo o audio de doblaje
+        ffArgs.push("-shortest");
       }
       ffArgs.push("-c:v", "libx264", "-preset", "fast", "-crf", "23", "-c:a", "aac", outFile);
+
       const result = spawnSync("ffmpeg", ffArgs, { encoding: "utf8", timeout: 5 * 60 * 1000 });
       if (result.status !== 0) {
         // Si falla el montaje, devolver original
         const original = new Uint8Array(await mfs.readFile(inFile));
         await mfs.rm(tmpDir, { recursive: true, force: true });
-        return { ok: true, file: { bytes: original, name: "willy-influencer.mp4", mime: "video/mp4" }, note: "El montaje falló: se devuelve el vídeo original." };
+        return { ok: true, file: { bytes: original, name: "willy-doblaje.mp4", mime: "video/mp4" }, note: "El montaje falló: se devuelve el vídeo original." };
       }
       const outBytes = new Uint8Array(await mfs.readFile(outFile));
       await mfs.rm(tmpDir, { recursive: true, force: true });
-      return { ok: true, file: { bytes: outBytes, name: "willy-influencer-9x16.mp4", mime: "video/mp4" } };
+      const outName = audioDoblajeB64 ? "willy-doblaje.mp4" : formato === "9:16" ? "willy-influencer-9x16.mp4" : "willy-montaje.mp4";
+      return { ok: true, file: { bytes: outBytes, name: outName, mime: "video/mp4" } };
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) };
     }
