@@ -4,25 +4,37 @@
 // reexportan con su nombre de siempre (nada cambia para quien ya las usaba). Así el Centro de Inteligencia → Routing enseña
 // la tabla que se usa de verdad, no una copia que se pueda quedar vieja. Solo datos: sin importaciones.
 
-/** Chat normal con «IA externa»: primero las más rápidas y fiables para conversar (las que marques van antes). */
-export const CHAT_ORDER = ["groq", "gemini", "nvidia", "mistral", "openrouter", "cohere"];
+/** Chat normal con «IA externa»: Groq primero (más rápido para conversaciones cortas), luego el resto. */
+export const CHAT_ORDER = ["groq", "gemini", "openrouter", "nvidia", "mistral", "cohere"];
 
-/** Autoconstrucción (y SUPER WILLY cuando construye): primero la de más calidad; tu equipo siempre como último recurso. */
-// 25/09/2026: Mistral (Codestral, un modelo hecho para programar) sube delante de NVIDIA, Groq y OpenRouter: en «Mundo jamon» contestaba
-// el modelo gratuito de OpenRouter porque los primeros fallaban por tamaño, y sus respuestas no servían.
-export const BUILD_ORDER = ["gemini", "mistral", "nvidia", "groq", "openrouter", "cohere"];
+/**
+ * Autoconstrucción (y SUPER WILLY cuando construye): primero los que aguantan contextos largos (10k+ tokens).
+ * Groq NO está aquí: su límite de 8k tokens hace que rechace siempre los prompts de autoconstrucción,
+ * ralentizando el proceso sin aportar nada. Para chats cortos sigue disponible en CHAT_ORDER.
+ *
+ * Orden: OpenRouter (Qwen3-Coder:free, contexto 128k) → NVIDIA (DeepSeek-v4.1-flash, Llama-3.3-70B) →
+ *        Gemini (gemini-2.0-flash, 1M tokens) → Mistral (Codestral, hecho para código) → Cohere (1000 req/mes).
+ *
+ * 28/09/2026: Groq eliminado de BUILD_ORDER — límite 8k tokens lo hace inútil para autoconstrucción.
+ * 25/09/2026: Mistral (Codestral) subido para código; OpenRouter adelantado por Qwen3-Coder:free.
+ */
+export const BUILD_ORDER = ["openrouter", "nvidia", "gemini", "mistral", "cohere"];
 
-/** «Plug and play»: orden por tipo de petición (rapidez para lo corto y el código, contexto y prosa para lo largo, razonamiento…). */
+/**
+ * «Plug and play»: orden por tipo de petición.
+ * Groq solo en tareas cortas (código simple, chat, web, traducción) donde su límite 8k no es problema.
+ * Para tareas que generan respuestas largas (razonamiento, investigación, escritura) no va primero.
+ */
 export const KIND_CLOUD_ORDER: Record<string, string[]> = {
-  codigo: ["groq", "gemini", "mistral", "nvidia", "openrouter", "cohere"],
-  web: ["groq", "gemini", "mistral", "nvidia", "openrouter", "cohere"],
-  datos: ["gemini", "groq", "nvidia", "openrouter", "mistral", "cohere"],
-  razonamiento: ["gemini", "nvidia", "openrouter", "groq", "mistral", "cohere"],
-  investigacion: ["gemini", "cohere", "nvidia", "openrouter", "mistral", "groq"],
-  escritura: ["gemini", "mistral", "cohere", "nvidia", "openrouter", "groq"],
-  traduccion: ["gemini", "mistral", "cohere", "nvidia", "groq", "openrouter"],
-  vision: ["gemini", "groq", "mistral", "nvidia", "openrouter", "cohere"],
-  general: ["groq", "gemini", "nvidia", "mistral", "openrouter", "cohere"],
+  codigo:        ["openrouter", "nvidia", "gemini", "mistral", "groq", "cohere"],
+  web:           ["openrouter", "gemini", "nvidia", "mistral", "groq", "cohere"],
+  datos:         ["gemini", "openrouter", "nvidia", "mistral", "cohere", "groq"],
+  razonamiento:  ["openrouter", "nvidia", "gemini", "mistral", "cohere", "groq"],
+  investigacion: ["gemini", "openrouter", "cohere", "nvidia", "mistral", "groq"],
+  escritura:     ["gemini", "openrouter", "mistral", "cohere", "nvidia", "groq"],
+  traduccion:    ["gemini", "mistral", "openrouter", "cohere", "groq", "nvidia"],
+  vision:        ["gemini", "openrouter", "nvidia", "mistral", "cohere", "groq"],
+  general:       ["openrouter", "nvidia", "gemini", "mistral", "groq", "cohere"],
 };
 
 /** Las IA externas de una lista que se pueden usar ahora mismo (con clave, activadas y sin agotar), en su orden. */
