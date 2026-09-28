@@ -63,7 +63,8 @@ function pushBrowserNotification(text: string, kind: NoticeKind) {
       icon: "/icon-192.png",
       badge: "/icon-192.png",
       tag: "willy-notice", // sustituye la anterior para no apilar
-      renotify: kind !== "info",
+      // renotify es estándar W3C pero los tipos de TS no siempre lo incluyen
+      ...({ renotify: kind !== "info" } as NotificationOptions),
       silent: true, // el pitido ya lo hace beep()
     });
   } catch {
