@@ -212,8 +212,9 @@ function UploadStep({ state, onChange, onNext }: {
 
 // ── Paso 2: Transcribir ────────────────────────────────────────────────────
 
-function TranscribeStep({ videoB64, state, onChange, onNext }: {
+function TranscribeStep({ videoB64, videoExt, state, onChange, onNext }: {
   videoB64: string | null;
+  videoExt: string;
   state: TranscribeState;
   onChange: (s: Partial<TranscribeState>) => void;
   onNext: () => void;
@@ -225,7 +226,7 @@ function TranscribeStep({ videoB64, state, onChange, onNext }: {
       const body: Record<string, unknown> = {};
       body["action"] = "transcribir";
       body["audio"] = videoB64;
-      body["ext"] = "mp4";
+      body["ext"] = videoExt || "mp4";
       body["lang"] = "auto";
 
       const res = await fetch("/api/iphone", {
@@ -587,6 +588,7 @@ export function DubbingView() {
           <div className="px-4 pb-4">
             <TranscribeStep
               videoB64={upload.b64}
+              videoExt={upload.nombre.split(".").pop()?.toLowerCase() ?? "mp4"}
               state={transcribe}
               onChange={(s) => setTranscribe((prev) => ({ ...prev, ...s }))}
               onNext={() => setStep(3)}
