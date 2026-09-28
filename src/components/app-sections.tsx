@@ -22,6 +22,7 @@ import { TranscribeView } from "@/components/transcribe-view";
 import { AvatarView } from "@/components/avatar-view";
 import { AvatarCharacterView } from "@/components/avatar-character-view";
 import { InfluencerView } from "@/components/influencer-view";
+import { DubbingView } from "@/components/dubbing-view";
 import { TranslateView } from "@/components/translate-view";
 import { ExtrasView } from "@/components/extras-view";
 import { BookView } from "@/components/book-view";
@@ -45,7 +46,7 @@ export type View =
   | "chat" | "inicio" | "superia" | "inteligencia" | "autoconstruccion" | "proyectos" | "historial"
   | "herramientas" | "documentacion" | "ajustes" | "cuenta"
   | "github" | "instalacion" | "demo" | "licencias"
-  | "lectura" | "ocr" | "avatar" | "personaje" | "influencer" | "traducir" | "extras" | "libros" | "transcribir";
+  | "lectura" | "ocr" | "avatar" | "personaje" | "influencer" | "traducir" | "extras" | "libros" | "transcribir" | "doblaje";
 
 export const VIEW_TITLES: Record<View, string> = {
   chat: "Chats",
@@ -63,6 +64,7 @@ export const VIEW_TITLES: Record<View, string> = {
   avatar: "Mi yo en IA",
   personaje: "Crea tu avatar IA",
   influencer: "IA Influencer",
+  doblaje: "Doblar vídeos",
   traducir: "Traducir enlace",
   extras: "Nuevas funciones",
   libros: "Libros",
@@ -369,6 +371,7 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
         {view === "avatar" && <AvatarView />}
         {view === "personaje" && <AvatarCharacterView />}
         {view === "influencer" && <InfluencerView />}
+        {view === "doblaje" && <DubbingView />}
         {view === "traducir" && <TranslateView />}
         {view === "extras" && <ExtrasView />}
         {view === "libros" && <BookView />}

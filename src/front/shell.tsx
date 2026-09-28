@@ -6,7 +6,7 @@ import { useId, type ReactNode } from "react";
 import {
   ArrowRight, AudioLines, BookOpen, Brain, Check, ChevronDown, ChevronRight, CircleDot, Clock, Cloud, Cpu, FileText, FolderKanban, Github,
   Headphones, Home, KeyRound, Languages, LayoutGrid, Menu as MenuIcon, MessageSquare, Moon, PanelLeftClose, PanelLeftOpen,
-  Presentation, Puzzle, ScanText, Settings, Sparkles, Sun, UserRound, Video, Wand2, Wrench, X, Zap,
+  Film, Presentation, Puzzle, ScanText, Settings, Sparkles, Sun, UserRound, Video, Wand2, Wrench, X, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
@@ -54,6 +54,7 @@ const NAV_MORE: NavItem[] = [
   { icon: Video, label: "Mi yo en IA", view: "avatar" },
   { icon: Wand2, label: "Crea tu avatar IA", view: "personaje" },
   { icon: UserRound, label: "IA Influencer", view: "influencer" },
+  { icon: Film, label: "Doblar vídeos", view: "doblaje" },
   { icon: Puzzle, label: "Nuevas funciones", view: "extras" },
   { icon: Clock, label: "Historial", view: "historial" },
   { icon: Presentation, label: "Demo", view: "demo" },

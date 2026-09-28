@@ -22,6 +22,7 @@ import { Route as ApiFabricaRouteImport } from './routes/api/fabrica'
 import { Route as ApiFetchUrlRouteImport } from './routes/api/fetch-url'
 import { Route as ApiIphoneRouteImport } from './routes/api/iphone'
 import { Route as ApiLanRouteImport } from './routes/api/lan'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiRemoteStatusRouteImport } from './routes/api/remote-status'
 import { Route as ApiLocalAiRouteImport } from './routes/api/local-ai'
 import { Route as ApiProyectosRouteImport } from './routes/api/proyectos'
@@ -97,6 +98,11 @@ const ApiLanRoute = ApiLanRouteImport.update({
   path: '/api/lan',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiRemoteStatusRoute = ApiRemoteStatusRouteImport.update({
   id: '/api/remote-status',
   path: '/api/remote-status',
@@ -151,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/movil': typeof MovilRoute
   '/api/actualizacion': typeof ApiActualizacionRoute
   '/api/avatar': typeof ApiAvatarRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
   '/api/engine': typeof ApiEngineRoute
   '/api/fabrica': typeof ApiFabricaRoute
@@ -175,6 +182,7 @@ export interface FileRoutesByTo {
   '/movil': typeof MovilRoute
   '/api/actualizacion': typeof ApiActualizacionRoute
   '/api/avatar': typeof ApiAvatarRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
   '/api/engine': typeof ApiEngineRoute
   '/api/fabrica': typeof ApiFabricaRoute
@@ -200,6 +208,7 @@ export interface FileRoutesById {
   '/movil': typeof MovilRoute
   '/api/actualizacion': typeof ApiActualizacionRoute
   '/api/avatar': typeof ApiAvatarRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
   '/api/engine': typeof ApiEngineRoute
   '/api/fabrica': typeof ApiFabricaRoute
@@ -226,6 +235,7 @@ export interface FileRouteTypes {
     | '/movil'
     | '/api/actualizacion'
     | '/api/avatar'
+    | '/api/chat'
     | '/api/build-installer'
     | '/api/engine'
     | '/api/fabrica'
@@ -250,6 +260,7 @@ export interface FileRouteTypes {
     | '/movil'
     | '/api/actualizacion'
     | '/api/avatar'
+    | '/api/chat'
     | '/api/build-installer'
     | '/api/engine'
     | '/api/fabrica'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/movil'
     | '/api/actualizacion'
     | '/api/avatar'
+    | '/api/chat'
     | '/api/build-installer'
     | '/api/engine'
     | '/api/fabrica'
@@ -299,6 +311,7 @@ export interface RootRouteChildren {
   MovilRoute: typeof MovilRoute
   ApiActualizacionRoute: typeof ApiActualizacionRoute
   ApiAvatarRoute: typeof ApiAvatarRoute
+  ApiChatRoute: typeof ApiChatRoute
   ApiBuildInstallerRoute: typeof ApiBuildInstallerRoute
   ApiEngineRoute: typeof ApiEngineRoute
   ApiFabricaRoute: typeof ApiFabricaRoute
@@ -365,6 +378,13 @@ declare module '@tanstack/react-router' {
       path: '/api/avatar'
       fullPath: '/api/avatar'
       preLoaderRoute: typeof ApiAvatarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/build-installer': {
@@ -483,6 +503,7 @@ const rootRouteChildren: RootRouteChildren = {
   MovilRoute: MovilRoute,
   ApiActualizacionRoute: ApiActualizacionRoute,
   ApiAvatarRoute: ApiAvatarRoute,
+  ApiChatRoute: ApiChatRoute,
   ApiBuildInstallerRoute: ApiBuildInstallerRoute,
   ApiEngineRoute: ApiEngineRoute,
   ApiFabricaRoute: ApiFabricaRoute,

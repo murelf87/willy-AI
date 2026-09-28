@@ -708,12 +708,13 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
     const ffmpeg = await findFfmpeg(dir, deps);
     if (!ffmpeg) return { error: "No encuentro ffmpeg en este equipo. Instálalo para usar el montaje." };
     try {
+      const { path: mpath2 } = await modules();
       const { tmpdir } = await import("node:os");
-      const tmp = path.join(tmpdir(), `willy-montaje-${Date.now()}`);
+      const tmp = mpath2.join(tmpdir(), `willy-montaje-${Date.now()}`);
       await fs.mkdir(tmp, { recursive: true });
       const ext = (videoData.ext ?? "mp4").replace(/[^a-z0-9]/gi, "").slice(0, 6) || "mp4";
-      const inPath = path.join(tmp, `input.${ext}`);
-      const outPath = path.join(tmp, "output.mp4");
+      const inPath = mpath2.join(tmp, `input.${ext}`);
+      const outPath = mpath2.join(tmp, "output.mp4");
       const videoBytes = Buffer.from(videoData.data as string, "base64");
       await fs.writeFile(inPath, videoBytes);
       const guion = str(body["guion"] as string ?? "", 5000);
