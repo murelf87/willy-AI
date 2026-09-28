@@ -434,21 +434,34 @@ function SynthStep({ translatedText, videoB64, state, onChange }: {
       bodyMontaje["audio_doblaje"] = audioB64;
 
       const montajeRes = await avatarPost(bodyMontaje);
-      const montajeData = await montajeRes.json() as {
-        video?: string; file?: string; b64?: string; mime?: string; filename?: string; error?: string;
-      };
-      if (!montajeRes.ok || montajeData["error"]) {
-        throw new Error(montajeData["error"] ?? `Error en montaje: ${montajeRes.status}`);
+      if (!montajeRes.ok) {
+        // Intentar leer el error como JSON
+        let errMsg = `Error en montaje: ${montajeRes.status}`;
+        try {
+          const errData = await montajeRes.json() as { error?: string };
+          if (errData["error"]) errMsg = errData["error"];
+        } catch { /* ignore */ }
+        throw new Error(errMsg);
       }
 
-      const b64 = montajeData["video"] ?? montajeData["file"] ?? montajeData["b64"] ?? "";
+      // El endpoint devuelve el vídeo como binario directo (Content-Disposition: attachment)
+      const contentType = montajeRes.headers.get("Content-Type") ?? "video/mp4";
+      const disposition = montajeRes.headers.get("Content-Disposition") ?? "";
+      const filenameMatch = /filename="([^"]+)"/.exec(disposition);
+      const resolvedFileName = filenameMatch?.[1] ?? "video-doblado.mp4";
+
+      const arrayBuf = await montajeRes.arrayBuffer();
+      const uint8 = new Uint8Array(arrayBuf);
+      let binary = "";
+      for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i] ?? 0);
+      const b64 = btoa(binary);
       if (!b64) throw new Error("El servidor no devolvió el vídeo doblado.");
 
       onChange({
         generando: false,
         resultB64: b64,
-        resultMime: montajeData["mime"] ?? "video/mp4",
-        fileName: montajeData["filename"] ?? "video-doblado.mp4",
+        resultMime: contentType,
+        fileName: resolvedFileName,
       });
     } catch (e: unknown) {
       onChange({ generando: false, error: e instanceof Error ? e.message : String(e) });
