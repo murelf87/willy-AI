@@ -701,6 +701,51 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
     }
   }
 
+  if (action === "montaje") {
+    // Montaje final del vídeo del influencer: recorte 9:16 + subtítulos quemados del guion + música opcional
+    const videoData = body["video"] as { data?: string; ext?: string } | undefined;
+    if (!videoData?.data) return { error: "Falta el vídeo para montar." };
+    const ffmpeg = await findFfmpeg(dir, deps);
+    if (!ffmpeg) return { error: "No encuentro ffmpeg en este equipo. Instálalo para usar el montaje." };
+    try {
+      const { tmpdir } = await import("node:os");
+      const tmp = path.join(tmpdir(), `willy-montaje-${Date.now()}`);
+      await fs.mkdir(tmp, { recursive: true });
+      const ext = (videoData.ext ?? "mp4").replace(/[^a-z0-9]/gi, "").slice(0, 6) || "mp4";
+      const inPath = path.join(tmp, `input.${ext}`);
+      const outPath = path.join(tmp, "output.mp4");
+      const videoBytes = Buffer.from(videoData.data as string, "base64");
+      await fs.writeFile(inPath, videoBytes);
+      const guion = str(body["guion"] as string ?? "", 5000);
+      const withSubs = body["subtitulos"] === true && guion.trim();
+      // Filters: escale 9:16 (crop to portrait) + drawtext if subtitles requested
+      const vfParts: string[] = [
+        // Crop to 9:16 center
+        "crop=min(iw\\,ih*9/16):min(ih\\,iw*16/9):(iw-min(iw\\,ih*9/16))/2:(ih-min(ih\\,iw*16/9))/2",
+        "scale=1080:1920",
+      ];
+      if (withSubs) {
+        // Use first 80 chars of guion as a subtitle strip
+        const safe = guion.slice(0, 80).replace(/['":\\]/g, " ").trim();
+        vfParts.push(
+          `drawtext=text='${safe}':fontsize=36:fontcolor=white:x=(w-text_w)/2:y=h-100:box=1:boxcolor=black@0.5:boxborderw=8`,
+        );
+      }
+      const ffmpegArgs = ["-y", "-i", inPath, "-vf", vfParts.join(","), "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-c:a", "aac", "-b:a", "128k", outPath];
+      await new Promise<void>((resolve, reject) => {
+        const { spawn } = require("node:child_process") as typeof import("node:child_process");
+        const proc = spawn(ffmpeg, ffmpegArgs, { windowsHide: true });
+        proc.on("error", reject);
+        proc.on("close", (code: number) => code === 0 ? resolve() : reject(new Error(`ffmpeg salió con código ${code}`)));
+      });
+      const outBytes = await fs.readFile(outPath);
+      await fs.rm(tmp, { recursive: true, force: true });
+      return { ok: true, file: { bytes: outBytes, name: "willy-influencer-montaje.mp4", mime: "video/mp4" } };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Error en el montaje." };
+    }
+  }
+
   if (action === "job" || action === "cancel" || action === "job-file") {
     const job = jobs.get(String(body["id"] ?? ""));
     if (!job) return { error: "No encuentro ese trabajo." };
