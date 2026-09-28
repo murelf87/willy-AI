@@ -51,6 +51,18 @@ export function useRemoteConnection(): UseRemoteConnectionReturn {
 
   const connect = useCallback(async () => {
     if (wsRef.current) return;
+
+    // Guardia de localhost: el canal del PC solo funciona desde la propia máquina.
+    // Si WILLY se abre desde otra IP, el servidor lo trataría como canal remoto (móvil)
+    // y enviaría PAIR_CODE en vez de PC_READY, quedando el hook bloqueado indefinidamente.
+    const hostname = window.location.hostname;
+    const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+    if (!isLocal) {
+      addLog(`⚠️ La conexión remota solo está disponible desde tu propio equipo (acceso actual: ${hostname}). Abre WILLY en localhost para usar esta función.`);
+      setStatus("error");
+      return;
+    }
+
     setStatus("connecting");
     setPairCode(null);
     setMobileConnected(false);
