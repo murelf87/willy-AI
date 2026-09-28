@@ -351,7 +351,7 @@ function FlujosComiUITab() {
               <Download className="w-4 h-4 mr-1" /> Descargar
             </Button>
           ) : (
-            <Button onClick={cancelDownload} size="sm" variant="destructive">
+            <Button onClick={cancelDownload} size="sm" variant="outline">
               <X className="w-4 h-4 mr-1" /> Cancelar
             </Button>
           )}

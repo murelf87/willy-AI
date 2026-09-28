@@ -6,7 +6,7 @@ import { CHARACTER_TIPS, FAMILIES, familiesIn, hintForMissing, planCharacterFlow
 import { ComfyError, bindGraph, bindPrompt, comfyBase, describeGraph, downloadFile, interrupt, missingClasses, pickImageOutput, pickOutput, probe, sniff, submit, unwrapGraph, uploadFile, waitForResult, MIME, type Deps as ComfyDeps, type Graph, type Kind, type Probe, type Slot } from "@/lib/comfy-server";
 import { hfSpeak, listVoiceOptions, piperSpeak, piperStatus, type PiperCfg, type PiperDeps } from "@/lib/piper-server";
 import { installComfy, type ComfyInstallJob } from "@/lib/comfy-install";
-import { downloadModel, MODEL_FOLDERS, type ModelFolder, type ModelInstallJob } from "@/lib/model-install";
+import type { ModelInstallStatus } from "@/lib/model-install";
 
 export type Settings = { comfyUrl: string; piper: PiperCfg & { voicesDir: string }; hf: { enabled: boolean; model: string; token: string }; timeoutMin: number };
 // Ritmo y pausa por defecto: algo más lento y con más aire que la voz "de fábrica" de Piper (1.0 / 0.2 s),
@@ -201,11 +201,12 @@ function showComfyInstall(job: ComfyInstallJob | null) {
   return job ? { id: job.id, status: job.status, pct: job.pct, step: job.step, text: job.text, error: job.error, log: job.log.slice(-8) } : null;
 }
 
-// Descarga de un modelo de imagen suelto (checkpoint, LoRA, IPAdapter…) a petición del dueño: un único trabajo
-// a la vez, con progreso real en bytes. WILLY no trae ninguna URL grabada a fuego (ver model-install.ts).
-let modelInstallJob: ModelInstallJob | null = null;
-function showModelInstall(job: ModelInstallJob | null) {
-  return job ? { id: job.id, status: job.status, pct: job.pct, text: job.text, error: job.error, bytesDone: job.bytesDone, bytesTotal: job.bytesTotal, file: job.file ? job.file.split(/[\\/]/).pop() : "" } : null;
+// Descarga de un modelo de imagen suelto (checkpoint, LoRA, IPAdapter…) a petición del dueño.
+// Se usa la API nueva de model-install.ts (startModelInstall / getModelInstallStatus / cancelModelInstall).
+// El estado se guarda por jobId en memoria dentro de model-install.ts.
+let modelInstallJobId: string | null = null;
+function showModelInstall(status: ModelInstallStatus | null) {
+  return status ?? null;
 }
 
 const publicJob = (job: Job) => ({ id: job.id, status: job.status, steps: job.steps.slice(-40), attempts: job.attempts, error: job.error, file: job.file ? { name: job.file.name, mime: job.file.mime, size: job.file.size } : null, seconds: Math.round(((job.finishedAt || Date.now()) - job.startedAt) / 1000) });
@@ -524,7 +525,7 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
       personaje: { ready: personajePlan.ready.map((f) => f.id), skipped: personajePlan.skipped, tips: CHARACTER_TIPS },
       families: FAMILIES.map((f) => ({ id: f.id, label: f.label, repo: f.repo, note: f.note })),
       comfyInstall: showComfyInstall(comfyInstallJob),
-      modelInstall: showModelInstall(modelInstallJob),
+      modelInstall: modelInstallJobId ? showModelInstall((await import("@/lib/model-install")).getModelInstallStatus(modelInstallJobId)) : null,
     };
   }
 
@@ -572,29 +573,31 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
   }
 
   if (action === "model-install") {
-    if (modelInstallJob && modelInstallJob.status === "activo") return { ok: true, job: showModelInstall(modelInstallJob) };
     const url = str(body["url"], 2000);
-    const folder = str(body["folder"], 20) as ModelFolder;
+    const folder = str(body["folder"], 20);
     const filename = str(body["filename"], 150);
     if (!url) return { error: "Pega la dirección (https://) del archivo del modelo." };
-    if (!(MODEL_FOLDERS as readonly string[]).includes(folder)) return { error: "Carpeta de destino no válida." };
+    if (!folder) return { error: "Carpeta de destino no válida." };
     if (!filename) return { error: "Ponle un nombre de archivo (acabado en .safetensors, .ckpt, .pt, .pth, .bin o .onnx)." };
-    const job: ModelInstallJob = { id: crypto.randomBytes(6).toString("hex"), status: "activo", pct: 0, text: "Empezando la descarga…", error: "", bytesDone: 0, bytesTotal: 0, file: "", abort: new AbortController() };
-    modelInstallJob = job;
-    void downloadModel(dir, job, url, folder, filename, deps).then(
-      () => { job.status = "listo"; },
-      (error: unknown) => { job.status = job.abort.signal.aborted ? "cancelado" : "error"; job.error = error instanceof Error ? error.message : String(error); },
-    );
-    return { ok: true, job: showModelInstall(job) };
+    const comfyuiRoot = settings.comfyuiPath ?? "";
+    if (!comfyuiRoot) return { error: "Configura la ruta de ComfyUI en Ajustes antes de descargar modelos." };
+    const { startModelInstall } = await import("@/lib/model-install");
+    modelInstallJobId = await startModelInstall({ comfyuiRoot, folder, filename, url });
+    return { ok: true, jobId: modelInstallJobId };
   }
 
   if (action === "model-install-status") {
-    return { ok: true, job: showModelInstall(modelInstallJob) };
+    if (!modelInstallJobId) return { ok: true, job: null };
+    const { getModelInstallStatus } = await import("@/lib/model-install");
+    return { ok: true, job: showModelInstall(getModelInstallStatus(modelInstallJobId)) };
   }
 
   if (action === "model-install-cancel") {
-    modelInstallJob?.abort.abort();
-    return { ok: true, job: showModelInstall(modelInstallJob) };
+    if (modelInstallJobId) {
+      const { cancelModelInstall } = await import("@/lib/model-install");
+      cancelModelInstall(modelInstallJobId);
+    }
+    return { ok: true };
   }
 
   if (action === "settings") {
@@ -706,75 +709,6 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
       return { ok: true, file: { bytes: new Uint8Array(await fs.readFile(job.file.path)), name: job.file.name, mime: job.file.mime } };
     }
     return { ok: true, job: publicJob(job) };
-  }
-
-  // ——— Acciones de instalación de modelos (Crea tu avatar IA) ———
-  if (action === "model-install") {
-    const url = String(body["url"] ?? "");
-    const folder = String(body["folder"] ?? "checkpoints");
-    const filename = String(body["filename"] ?? "");
-    if (!url || !filename) return { error: "Faltan parámetros: url y filename son obligatorios." };
-    const comfyuiRoot = String(state.settings?.comfyuiPath ?? "");
-    if (!comfyuiRoot) return { error: "Configura la ruta de ComfyUI en Ajustes antes de descargar modelos." };
-    try {
-      const { startModelInstall } = await import("./model-install");
-      const jobId = await startModelInstall({ comfyuiRoot, folder, filename, url });
-      return { ok: true, jobId };
-    } catch (e: unknown) {
-      return { error: e instanceof Error ? e.message : String(e) };
-    }
-  }
-
-  if (action === "model-install-status") {
-    const jobId = String(body["jobId"] ?? "");
-    if (!jobId) return { error: "Falta jobId." };
-    try {
-      const { getModelInstallStatus } = await import("./model-install");
-      return { ok: true, ...getModelInstallStatus(jobId) };
-    } catch (e: unknown) {
-      return { error: e instanceof Error ? e.message : String(e) };
-    }
-  }
-
-  if (action === "model-install-cancel") {
-    const jobId = String(body["jobId"] ?? "");
-    if (!jobId) return { error: "Falta jobId." };
-    try {
-      const { cancelModelInstall } = await import("./model-install");
-      cancelModelInstall(jobId);
-      return { ok: true };
-    } catch (e: unknown) {
-      return { error: e instanceof Error ? e.message : String(e) };
-    }
-  }
-
-  if (action === "personaje-generar") {
-    const prompt = String(body["prompt"] ?? "");
-    const negative = String(body["negative"] ?? "");
-    if (!prompt) return { error: "El prompt no puede estar vacío." };
-    const comfyUrl = String(state.settings?.comfyuiUrl ?? "http://localhost:8188");
-    // Llama a ComfyUI prompt API con un workflow básico txt2img
-    try {
-      const workflow = {
-        "3": { class_type: "KSampler", inputs: { seed: Math.floor(Math.random() * 1e9), steps: 4, cfg: 1.5, sampler_name: "dpm_2", scheduler: "karras", denoise: 1, model: ["4", 0], positive: ["6", 0], negative: ["7", 0], latent_image: ["5", 0] } },
-        "4": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "sdxl_lightning_4step.safetensors" } },
-        "5": { class_type: "EmptyLatentImage", inputs: { width: 1024, height: 1024, batch_size: 1 } },
-        "6": { class_type: "CLIPTextEncode", inputs: { text: prompt, clip: ["4", 1] } },
-        "7": { class_type: "CLIPTextEncode", inputs: { text: negative || "blurry, bad anatomy", clip: ["4", 1] } },
-        "8": { class_type: "VAEDecode", inputs: { samples: ["3", 0], vae: ["4", 2] } },
-        "9": { class_type: "SaveImage", inputs: { filename_prefix: "willy_avatar", images: ["8", 0] } },
-      };
-      const queueRes = await fetch(`${comfyUrl}/prompt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: workflow }),
-      });
-      if (!queueRes.ok) return { error: `ComfyUI no responde (${queueRes.status}). ¿Está arrancado?` };
-      const queueData = await queueRes.json() as { prompt_id?: string };
-      return { ok: true, promptId: queueData.prompt_id ?? null, message: "Imagen en cola. ComfyUI está procesando..." };
-    } catch (e: unknown) {
-      return { error: `No se pudo conectar con ComfyUI (${comfyUrl}): ${e instanceof Error ? e.message : String(e)}` };
-    }
   }
 
   return { error: "Acción desconocida." };
