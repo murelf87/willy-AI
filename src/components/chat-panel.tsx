@@ -607,10 +607,12 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
                         const model = m.by ?? settings.model;
                         if (model) recordWin(detectTask(messages[i - 1]?.text ?? ""), model);
                         setThumbs((t) => ({ ...t, [i]: "up" }));
+                        ping("👍 ¡Gracias! Anotado para mejorar.");
                       }}
-                      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors ${thumbs[i] === "up" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors ${thumbs[i] === "up" ? "text-emerald-500" : "text-muted-foreground hover:text-emerald-500"}`}
                       aria-label="Buena respuesta"
                       title="Buena respuesta"
+                      disabled={thumbs[i] === "down"}
                     >
                       <ThumbsUp className="size-3.5" />
                     </button>
@@ -618,10 +620,12 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
                       onClick={() => {
                         if (thumbs[i] === "down") return;
                         setThumbs((t) => ({ ...t, [i]: "down" }));
+                        ping("👎 Entendido. Prueba a pulsar «Repetir con otro modelo» para una nueva respuesta.");
                       }}
-                      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors ${thumbs[i] === "down" ? "text-destructive" : "text-muted-foreground hover:text-foreground"}`}
+                      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors ${thumbs[i] === "down" ? "text-rose-500" : "text-muted-foreground hover:text-rose-500"}`}
                       aria-label="Mala respuesta"
                       title="Mala respuesta — probar con otro modelo"
+                      disabled={thumbs[i] === "up"}
                     >
                       <ThumbsDown className="size-3.5" />
                     </button>
