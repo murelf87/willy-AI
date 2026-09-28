@@ -327,6 +327,43 @@ export const Route = createFileRoute("/api/self-build")({
           }
         }
 
+        // «apply-file»: aplica un paquete {name, files, patches, checks} guardado en disco (intercambio-front/ o
+        // datos-privados/mejoras-pendientes/) con el mismo circuito de la Autoconstrucción. Pedido por «WILLY AI FRONT»
+        // (regla 21 del COORDINACION-IAS): así FRONT puede dejar paquetes grandes en disco sin trocearlos por el navegador.
+        if (body.action === "apply-file") {
+          try {
+            const nodePath = await import("node:path");
+            const nodeFs = await import("node:fs/promises");
+            const rawName = String(body.name ?? "").replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 120);
+            if (!rawName) return Response.json({ ok: false, error: "Falta el nombre del paquete." }, { status: 400 });
+            // Busca en intercambio-front/ primero, luego en datos-privados/mejoras-pendientes/
+            const searchDirs = [
+              nodePath.join(root, "intercambio-front"),
+              nodePath.join(root, "datos-privados", "mejoras-pendientes"),
+            ];
+            let pkgPath: string | null = null;
+            for (const dir of searchDirs) {
+              const candidate = nodePath.join(dir, rawName.endsWith(".json") ? rawName : `${rawName}.json`);
+              try { await nodeFs.access(candidate); pkgPath = candidate; break; } catch { /* siguiente */ }
+            }
+            if (!pkgPath) return Response.json({ ok: false, error: `No se encontró el paquete «${rawName}» en intercambio-front/ ni en datos-privados/mejoras-pendientes/.` }, { status: 404 });
+            const raw = await nodeFs.readFile(pkgPath, "utf8");
+            const pkg = JSON.parse(raw) as Record<string, unknown>;
+            const incoming = Array.isArray(pkg["files"]) ? (pkg["files"] as IncomingFile[]) : [];
+            const applyFiles = incoming
+              .map((file) => ({ path: safeRelativePath(file.path), content: String(file.content ?? "") }))
+              .filter((file): file is { path: string; content: string } => Boolean(file.path && file.content.trim()));
+            const incomingPatches = Array.isArray(pkg["patches"]) ? (pkg["patches"] as IncomingPatch[]) : [];
+            const applyPatches = incomingPatches
+              .map((patch) => ({ path: safeRelativePath(patch.path), search: String(patch.search ?? ""), replace: String(patch.replace ?? "") }))
+              .filter((patch): patch is { path: string; search: string; replace: string } => Boolean(patch.path && patch.search.trim()));
+            const outcome = await applySelfBuild({ root, name: String(pkg["name"] ?? rawName), files: applyFiles, patches: applyPatches, checks: pkg["checks"], liveUrl: new URL(request.url).origin }, deps);
+            return Response.json(outcome.body, { status: outcome.status });
+          } catch (error) {
+            return Response.json({ ok: false, error: `No se pudo aplicar el paquete: ${error instanceof Error ? error.message : String(error)}` }, { status: 500 });
+          }
+        }
+
         // Capturas antes/después guardadas como evidencia (solo las dos que genera WILLY dentro de la carpeta de copias).
         if (body.action === "evidence-image") {
           const dataUrl = await evidenceImage(root, String(body.backup ?? ""), String(body.name ?? ""));
