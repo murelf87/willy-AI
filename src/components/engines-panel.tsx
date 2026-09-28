@@ -100,7 +100,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
               );
             })}
           </ul>
-          <p className="text-xs leading-5 text-muted-foreground">Estos motores no están probados con tus claves reales: pulsa «Probar» tras guardar cada clave. ChatGPT, Claude, Grok y Perplexity no tienen API gratuita: se usan con «Usar otra IA» en cada mejora.</p>
+          <p className="text-xs leading-5 text-muted-foreground">Estos motores no están probados con tus claves reales: pulsa «Probar» tras guardar cada clave. ChatGPT, Claude y Perplexity no tienen API gratuita: se usan con «Usar otra IA» en cada mejora.</p>
         </div>
       )}
     </details>
