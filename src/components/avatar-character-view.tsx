@@ -393,9 +393,8 @@ export function AvatarCharacterView() {
   return (
     <div className="flex flex-col h-full overflow-auto">
       <Head
-        icon={<Wand2 className="w-5 h-5" />}
         title="Crea tu avatar IA"
-        subtitle="Diseña, genera y anima tu identidad visual con IA local"
+        desc="Diseña, genera y anima tu identidad visual con IA local"
       />
 
       <div className="flex-1 p-4">
