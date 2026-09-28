@@ -79,7 +79,7 @@ function writeMemory(mem: Memory) {
 }
 
 /** La IA mejora sola: el modelo que resuelve una tarea sube en la cadena. */
-function recordWin(kind: TaskKind, model: string) {
+export function recordWin(kind: TaskKind, model: string) {
   const mem = readMemory();
   const entry = mem[kind] ?? { wins: {}, notes: [] };
   entry.wins[model] = (entry.wins[model] ?? 0) + 1;

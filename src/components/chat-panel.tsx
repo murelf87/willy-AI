@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowUp, Bot, ChevronDown, Code2, Cpu, Download, FileText, Mail, MessageSquare, Paperclip, Plus, Search, Sparkles, Square, Upload, X, Mic,
-  Volume2, Cloud, Check, Copy,
+  Volume2, Cloud, Check, Copy, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
@@ -23,7 +23,7 @@ import { ThinkingDots } from "@/components/thinking-dots";
 import { AttachmentStrip } from "@/components/attachment-strip";
 import { detectSuggestions, readDismissed, type Suggestion } from "@/lib/capabilities";
 import { MODEL_CATALOG } from "@/services/model-catalog";
-import { OWNER_POLICY, TASK_LABELS, detectTask, planChain } from "@/services/orchestrator";
+import { OWNER_POLICY, TASK_LABELS, detectTask, planChain, recordWin } from "@/services/orchestrator";
 import { learnFromOwner, ownerRules } from "@/lib/owner-brain";
 import { loadThread, saveThread, type StoredProjectAction } from "@/lib/chat-history";
 import { readProfile } from "@/lib/profile";
@@ -126,6 +126,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
   useEffect(() => { setAutoVoiceState(window.localStorage.getItem("willy-chat-voz-auto") === "si"); }, []);
   const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [thumbs, setThumbs] = useState<Record<number, "up" | "down">>({});
   const activeSpeech = useRef<SpeechHandle | null>(null);
   const autoSpoken = useRef<Set<number>>(new Set());
   useEffect(() => () => activeSpeech.current?.stop(), []);
@@ -598,6 +599,31 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
                       title={copiedIdx === i ? "Copiada" : "Copiar respuesta"}
                     >
                       {copiedIdx === i ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
+                    </button>
+                    {/* Pulgares 👍/👎 — 👍 sube el modelo en la cadena de aprendizaje; 👎 no suma y marcamos la respuesta */}
+                    <button
+                      onClick={() => {
+                        if (thumbs[i] === "up") return;
+                        const model = m.by ?? settings.model;
+                        if (model) recordWin(detectTask(messages[i - 1]?.text ?? ""), model);
+                        setThumbs((t) => ({ ...t, [i]: "up" }));
+                      }}
+                      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors ${thumbs[i] === "up" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                      aria-label="Buena respuesta"
+                      title="Buena respuesta"
+                    >
+                      <ThumbsUp className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (thumbs[i] === "down") return;
+                        setThumbs((t) => ({ ...t, [i]: "down" }));
+                      }}
+                      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors ${thumbs[i] === "down" ? "text-destructive" : "text-muted-foreground hover:text-foreground"}`}
+                      aria-label="Mala respuesta"
+                      title="Mala respuesta — probar con otro modelo"
+                    >
+                      <ThumbsDown className="size-3.5" />
                     </button>
                   </>
                 ) : null
