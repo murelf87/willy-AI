@@ -259,7 +259,7 @@ export function InicioScreen({ ping, onNav, onNewProject, onOpenProject, onAskWi
   const tools: Array<{ icon: typeof Languages; title: string; desc: string; onClick?: () => void; pending?: string }> = [
     { icon: Languages, title: "Traducir", desc: "Texto, documentos y vídeo", onClick: () => onNav("traducir") },
     { icon: ScanText, title: "OCR", desc: "Extrae texto de imágenes y PDFs", onClick: () => onNav("ocr") },
-    { icon: UserRound, title: "IA Influencer", desc: "Crea contenido con IA", pending: "Pendiente de decidir qué abre (no existe todavía ninguna pantalla «IA Influencer»; lo más parecido es «Mi yo en IA»)." },
+    { icon: UserRound, title: "IA Influencer", desc: "Crea contenido con IA", onClick: () => onNav("influencer") },
     { icon: Video, title: "Vídeo IA", desc: "Genera, edita y dobla vídeos", pending: "Pendiente de decidir qué abre: hoy existen «Traducir» (vídeo doblado y narrado) y «Mi yo en IA» (vídeo con tu cara)." },
     { icon: BookOpen, title: "Lectura", desc: "Lee y resume documentos", onClick: () => onNav("lectura") },
     { icon: MoreHorizontal, title: "Más herramientas", desc: "Explora todas las capacidades", onClick: () => onNav("herramientas") },
