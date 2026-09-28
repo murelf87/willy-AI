@@ -98,7 +98,7 @@ const PLAN: Record<string, Item[]> = {
     ["Súper IA: selector de proyecto y estado del proyecto en la cabecera", 1, "2026-09-25"],
     ["Centro de Inteligencia → Resumen con datos reales (enrutado, salud, proveedores, modelos en uso)", 1, "2026-09-25"],
     ["Chats: ideas para empezar y «Copiar respuesta» en cada respuesta", 1, "2026-09-25"],
-    ["Los 6 agentes de la maqueta: Arquitecto, Programador, Diseñador UI, Analista, Revisor y Orquestador", 2, null],
+    ["Los 6 agentes de la maqueta: Arquitecto, Programador, Diseñador UI, Analista, Revisor y Orquestador", 2, "2026-09-26"],
     ["La mascota de WILLY con el dibujo original de la maqueta", 1, null],
     ["IA Influencer funcionando (4 pasos: guion → voz → vídeo → montaje)", 3, "2026-09-28"],
     ["Pulgares 👍/👎 en el chat: aprendizaje de qué modelo funciona mejor", 1, "2026-09-28"],
