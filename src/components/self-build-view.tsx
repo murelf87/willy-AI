@@ -34,7 +34,7 @@ import { buildClaudePack } from "@/lib/claude-pack";
 import { TRUTH_RULE, constitutionFor } from "@/lib/owner-constitution";
 import { formatDuration } from "@/services/estimator";
 import { useBackgroundReport } from "@/lib/background-tasks";
-import { SELF_BUILD_TABS, SelfBuildHistory, SelfBuildTabs, SelfBuildVersions, type SelfBuildTab } from "@/components/self-build-panels";
+import { SELF_BUILD_TABS, SelfBuildAudits, SelfBuildHistory, SelfBuildTabs, SelfBuildVersions, type SelfBuildTab } from "@/components/self-build-panels";
 import { SelfBuildModules, SelfBuildRoadmap, SelfBuildTasks, SelfBuildVision } from "@/components/self-build-roadmap";
 import { LogsCard } from "@/components/settings-view";
 import { useSectionTab } from "@/lib/section-tabs";
@@ -336,6 +336,7 @@ export function SelfBuildView({ ping }: { ping: Ping }) {
 
       <SelfBuildTabs tab={tab} onChange={setTab} />
       {(tab === "vision" || tab === "salud") && <SelfBuildVision ping={ping} onGo={setTab} />}
+      {tab === "auditorias" && <SelfBuildAudits ping={ping} />}
       {tab === "roadmap" && <SelfBuildRoadmap />}
       {tab === "modulos" && <SelfBuildModules />}
       {tab === "tareas" && <SelfBuildTasks />}

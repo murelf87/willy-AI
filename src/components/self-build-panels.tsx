@@ -5,7 +5,7 @@
 // resultado y una mejora fallida nunca aparece como éxito.
 import { useCallback, useEffect, useRef, useState } from "react";
 // Solo iconos que ya usa el resto de WILLY (existen seguro en la versión instalada de lucide-react).
-import { Activity, CheckCircle2, Circle, CircleAlert, Clock, Gauge, LayoutGrid, ListChecks, Package, Plus, RefreshCw, RotateCcw, ScrollText, TriangleAlert, Wrench } from "lucide-react";
+import { Activity, CheckCircle2, Circle, CircleAlert, Clock, Gauge, LayoutGrid, ListChecks, Package, Play, Plus, RefreshCw, RotateCcw, Save, ScrollText, ShieldCheck, TriangleAlert, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { OperationOutcome, OperationSummary } from "@/lib/self-build-journal";
 import type { VersionEntry, Verdict } from "@/lib/self-build-versions";
@@ -14,7 +14,7 @@ import { fetchSelfHealth, fetchSelfStatus, recoverSelfBuild, revertSelfVersion, 
 
 type Ping = (message: string) => void;
 
-export type SelfBuildTab = "vision" | "roadmap" | "modulos" | "tareas" | "historial" | "versiones" | "logs" | "mejorar" | "salud";
+export type SelfBuildTab = "vision" | "roadmap" | "modulos" | "tareas" | "historial" | "versiones" | "logs" | "mejorar" | "salud" | "auditorias";
 
 /** Pestañas de la maqueta, en su orden. «mejorar» (el formulario) se abre con «Nueva mejora»; «salud» se sigue aceptando (enlaces
  * antiguos) y enseña Visión, que ya trae la salud. Los ids de siempre no cambian: los enlaces directos siguen funcionando. */
@@ -28,9 +28,10 @@ export const SELF_BUILD_TABS: Array<{ id: SelfBuildTab; label: string; hint: str
   { id: "logs", label: "Logs", hint: "Registros del programa" },
   { id: "mejorar", label: "Nueva mejora", hint: "Escribe qué cambiar", hidden: true },
   { id: "salud", label: "Salud", hint: "Estado actual", hidden: true },
+  { id: "auditorias", label: "Auditorías", hint: "Revisiones automáticas de TypeScript programadas" },
 ];
 
-const TAB_ICON = { vision: Gauge, roadmap: Activity, modulos: LayoutGrid, tareas: ListChecks, historial: Clock, versiones: Package, logs: ScrollText, mejorar: Wrench, salud: Activity } as const;
+const TAB_ICON = { vision: Gauge, roadmap: Activity, modulos: LayoutGrid, tareas: ListChecks, historial: Clock, versiones: Package, logs: ScrollText, mejorar: Wrench, salud: Activity, auditorias: ShieldCheck } as const;
 
 export function SelfBuildTabs({ tab, onChange }: { tab: SelfBuildTab; onChange: (tab: SelfBuildTab) => void }) {
   return (
@@ -420,6 +421,238 @@ export function SelfBuildHealth({ ping }: { ping: Ping }) {
           })}
         </ul>
       )}
+    </section>
+  );
+}
+
+// ------------------------------------------------------------------------------------------------------------ AUDITORÍAS
+
+type AuditScheduleUI = {
+  enabled: boolean;
+  days: number[];
+  hour: number;
+  minute: number;
+  everyWeeks: number;
+};
+
+type AuditLogEntryUI = {
+  id: string;
+  startedAt: number;
+  finishedAt: number;
+  triggeredBy: "schedule" | "manual";
+  result: { ok: boolean; errors: unknown[]; warnings: unknown[]; summary: string };
+};
+
+const WEEKDAYS_UI = [
+  { d: 1, label: "L" }, { d: 2, label: "M" }, { d: 3, label: "X" }, { d: 4, label: "J" },
+  { d: 5, label: "V" }, { d: 6, label: "S" }, { d: 0, label: "D" },
+];
+
+const DEFAULT_SCHEDULE_UI: AuditScheduleUI = { enabled: false, days: [], hour: 3, minute: 0, everyWeeks: 1 };
+
+async function apiAudit(body: Record<string, unknown>) {
+  const res = await fetch("/api/self-audit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return res.json() as Promise<Record<string, unknown>>;
+}
+
+export function SelfBuildAudits({ ping }: { ping: Ping }) {
+  const [schedule, setSchedule] = useState<AuditScheduleUI>(DEFAULT_SCHEDULE_UI);
+  const [draft, setDraft] = useState<AuditScheduleUI>(DEFAULT_SCHEDULE_UI);
+  const [nextRun, setNextRun] = useState<number | null>(null);
+  const [log, setLog] = useState<AuditLogEntryUI[]>([]);
+  const [running, setRunning] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [runResult, setRunResult] = useState<string>("");
+  const pingRef = useRef(ping);
+  pingRef.current = ping;
+
+  const load = useCallback(async () => {
+    try {
+      const data = await apiAudit({ action: "schedule-get" });
+      if (data["ok"]) {
+        const s = data["schedule"] as AuditScheduleUI;
+        setSchedule(s);
+        setDraft(s);
+        setNextRun((data["nextRunAt"] as number | null) ?? null);
+        setLog((data["log"] as AuditLogEntryUI[]) ?? []);
+      }
+    } catch { /* silencioso */ }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const data = await apiAudit({ action: "schedule-set", schedule: draft });
+      if (data["ok"]) {
+        setSchedule(draft);
+        setNextRun((data["nextRunAt"] as number | null) ?? null);
+        pingRef.current("✅ Horario de auditorías guardado.");
+      } else {
+        setError(String(data["error"] ?? "No se pudo guardar."));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al guardar.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const runNow = async () => {
+    setRunning(true);
+    setError("");
+    setRunResult("");
+    pingRef.current("🔍 Auditando el código TypeScript…");
+    try {
+      const data = await apiAudit({ action: "run-now" });
+      if (data["ok"]) {
+        const entry = data["entry"] as AuditLogEntryUI;
+        setLog((prev) => [...prev.slice(-9), entry]);
+        const errCount = (entry.result.errors as unknown[]).length;
+        const warnCount = (entry.result.warnings as unknown[]).length;
+        const msg = errCount === 0 ? "✅ Sin errores TypeScript." : `⚠️ ${errCount} error(es), ${warnCount} aviso(s).`;
+        setRunResult(msg);
+        pingRef.current(`Auditoría completada: ${msg}`);
+      } else {
+        setError(String(data["error"] ?? "No se pudo auditar."));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al auditar.");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const toggleDay = (d: number) => {
+    setDraft((prev) => ({
+      ...prev,
+      days: prev.days.includes(d) ? prev.days.filter((x) => x !== d) : [...prev.days, d],
+    }));
+  };
+
+  const dirty = JSON.stringify(draft) !== JSON.stringify(schedule);
+
+  return (
+    <section className="space-y-5" aria-label="Auditorías automáticas de TypeScript">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-bold">Auditorías automáticas</h3>
+          <p className="text-xs text-muted-foreground">WILLY revisa el código TypeScript en los días y horas que elijas.</p>
+        </div>
+        <Button size="sm" className="gap-2" disabled={running} onClick={() => void runNow()}>
+          <Play className="size-3.5" />{running ? "Auditando…" : "Auditar ahora"}
+        </Button>
+      </div>
+
+      {runResult && (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm">{runResult}</p>
+      )}
+      {error && (
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">{error}</p>
+      )}
+
+      <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+        <label className="flex items-center gap-2 cursor-pointer select-none text-sm font-semibold">
+          <input
+            type="checkbox"
+            className="size-4 accent-primary"
+            checked={draft.enabled}
+            onChange={(e) => setDraft((p) => ({ ...p, enabled: e.target.checked }))}
+          />
+          Auditoría automática activada
+        </label>
+
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-muted-foreground">Días (vacío = todos los días)</p>
+          <div className="flex gap-1.5">
+            {WEEKDAYS_UI.map(({ d, label }) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleDay(d)}
+                className={`size-8 rounded-full text-xs font-bold transition-colors ${draft.days.includes(d) ? "bg-primary text-primary-foreground" : "border border-border bg-background text-muted-foreground hover:bg-accent"}`}
+                aria-pressed={draft.days.includes(d)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground">Hora</p>
+            <div className="flex items-center gap-1">
+              <input
+                type="number" min={0} max={23} value={draft.hour}
+                onChange={(e) => setDraft((p) => ({ ...p, hour: Math.max(0, Math.min(23, Number(e.target.value))) }))}
+                className="w-14 rounded border border-border bg-background px-2 py-1 text-center text-sm"
+              />
+              <span className="text-muted-foreground">:</span>
+              <input
+                type="number" min={0} max={59} value={draft.minute}
+                onChange={(e) => setDraft((p) => ({ ...p, minute: Math.max(0, Math.min(59, Number(e.target.value))) }))}
+                className="w-14 rounded border border-border bg-background px-2 py-1 text-center text-sm"
+              />
+              <span className="text-xs text-muted-foreground ml-1">(hora local)</span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground">Cada cuántas semanas</p>
+            <select
+              value={draft.everyWeeks}
+              onChange={(e) => setDraft((p) => ({ ...p, everyWeeks: Number(e.target.value) }))}
+              className="rounded border border-border bg-background px-2 py-1 text-sm"
+            >
+              {[1, 2, 3, 4, 6, 8, 12, 26, 52].map((n) => (
+                <option key={n} value={n}>{n === 1 ? "Cada semana" : `Cada ${n} semanas`}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {nextRun && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <Clock className="size-3.5" />
+            Próxima auditoría: {new Date(nextRun).toLocaleString()}
+          </p>
+        )}
+
+        <Button size="sm" variant="outline" className="gap-2" disabled={saving || !dirty} onClick={() => void save()}>
+          <Save className="size-3.5" />{saving ? "Guardando…" : "Guardar horario"}
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Últimas auditorías</p>
+        {log.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Todavía no hay auditorías registradas.</p>
+        ) : (
+          <ul className="space-y-2">
+            {[...log].reverse().map((entry) => {
+              const errCount = (entry.result.errors as unknown[]).length;
+              const warnCount = (entry.result.warnings as unknown[]).length;
+              const ok = entry.result.ok;
+              return (
+                <li key={entry.id} className="flex flex-wrap items-start gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs">
+                  <span className={ok ? "text-emerald-500" : "text-amber-500"}>{ok ? <CheckCircle2 className="size-3.5 inline" /> : <TriangleAlert className="size-3.5 inline" />}</span>
+                  <span className="flex-1 font-medium">{entry.result.summary || (ok ? "Sin errores" : `${errCount} error(es)`)}</span>
+                  <span className="text-muted-foreground">{errCount > 0 ? `${errCount} error(es)` : "✓"}{warnCount > 0 ? ` · ${warnCount} aviso(s)` : ""}</span>
+                  <span className="text-muted-foreground">{entry.triggeredBy === "manual" ? "Manual" : "Automática"}</span>
+                  <span className="text-muted-foreground">{new Date(entry.startedAt).toLocaleString()}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }
