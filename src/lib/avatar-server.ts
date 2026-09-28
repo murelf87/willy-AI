@@ -8,12 +8,12 @@ import { hfSpeak, listVoiceOptions, piperSpeak, piperStatus, type PiperCfg, type
 import { installComfy, type ComfyInstallJob } from "@/lib/comfy-install";
 import type { ModelInstallStatus } from "@/lib/model-install";
 
-export type Settings = { comfyUrl: string; piper: PiperCfg & { voicesDir: string }; hf: { enabled: boolean; model: string; token: string }; timeoutMin: number };
+export type Settings = { comfyUrl: string; comfyuiPath: string; piper: PiperCfg & { voicesDir: string }; hf: { enabled: boolean; model: string; token: string }; timeoutMin: number };
 // Ritmo y pausa por defecto: algo más lento y con más aire que la voz "de fábrica" de Piper (1.0 / 0.2 s),
 // para que suene natural y no atropellada, tal y como se pidió.
 export const DEFAULT_LENGTH_SCALE = 1.08;
 export const DEFAULT_SENTENCE_SILENCE = 0.55;
-export const DEFAULTS: Settings = { comfyUrl: "http://127.0.0.1:8188", piper: { mode: "python", exe: "python", model: "", speaker: 0, voicesDir: "", lengthScale: DEFAULT_LENGTH_SCALE, sentenceSilence: DEFAULT_SENTENCE_SILENCE }, hf: { enabled: false, model: "", token: "" }, timeoutMin: 25 };
+export const DEFAULTS: Settings = { comfyUrl: "http://127.0.0.1:8188", comfyuiPath: "", piper: { mode: "python", exe: "python", model: "", speaker: 0, voicesDir: "", lengthScale: DEFAULT_LENGTH_SCALE, sentenceSilence: DEFAULT_SENTENCE_SILENCE }, hf: { enabled: false, model: "", token: "" }, timeoutMin: 25 };
 
 export type AvatarDeps = ComfyDeps & { spawnImpl?: PiperDeps["spawnImpl"]; pollMs?: number; hfFetch?: typeof fetch; piperTimeoutMs?: number };
 
@@ -35,6 +35,7 @@ export function sanitizeSettings(raw: unknown, base: Settings = DEFAULTS): Setti
   const speaker = Number.isInteger(who) && who >= 0 && who < 1000 ? who : 0;
   return {
     comfyUrl: str(data["comfyUrl"], 120) || base.comfyUrl,
+    comfyuiPath: str(data["comfyuiPath"], 260) || base.comfyuiPath,
     piper: {
       mode: piper["mode"] === "exe" ? "exe" : piper["mode"] === "python" ? "python" : base.piper.mode,
       exe: piper["exe"] === undefined ? base.piper.exe : str(piper["exe"], 260),
@@ -579,7 +580,7 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
     if (!url) return { error: "Pega la dirección (https://) del archivo del modelo." };
     if (!folder) return { error: "Carpeta de destino no válida." };
     if (!filename) return { error: "Ponle un nombre de archivo (acabado en .safetensors, .ckpt, .pt, .pth, .bin o .onnx)." };
-    const comfyuiRoot = settings.comfyuiPath ?? "";
+    const comfyuiRoot = settings.comfyuiPath || (process.platform === "win32" ? "C:\\WILLY_AVATAR\\ComfyUI" : "");
     if (!comfyuiRoot) return { error: "Configura la ruta de ComfyUI en Ajustes antes de descargar modelos." };
     const { startModelInstall } = await import("@/lib/model-install");
     modelInstallJobId = await startModelInstall({ comfyuiRoot, folder, filename, url });

@@ -24,6 +24,7 @@ import { Route as ApiIphoneRouteImport } from './routes/api/iphone'
 import { Route as ApiLanRouteImport } from './routes/api/lan'
 import { Route as ApiLocalAiRouteImport } from './routes/api/local-ai'
 import { Route as ApiProyectosRouteImport } from './routes/api/proyectos'
+import { Route as ApiSelfAuditRouteImport } from './routes/api/self-audit'
 import { Route as ApiSelfBuildRouteImport } from './routes/api/self-build'
 import { Route as ApiSistemaRouteImport } from './routes/api/sistema'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
@@ -105,6 +106,11 @@ const ApiProyectosRoute = ApiProyectosRouteImport.update({
   path: '/api/proyectos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSelfAuditRoute = ApiSelfAuditRouteImport.update({
+  id: '/api/self-audit',
+  path: '/api/self-audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSelfBuildRoute = ApiSelfBuildRouteImport.update({
   id: '/api/self-build',
   path: '/api/self-build',
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
+  '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
   '/api/sistema': typeof ApiSistemaRoute
   '/api/tts': typeof ApiTtsRoute
@@ -169,6 +176,7 @@ export interface FileRoutesByTo {
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
+  '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
   '/api/sistema': typeof ApiSistemaRoute
   '/api/tts': typeof ApiTtsRoute
@@ -192,6 +200,7 @@ export interface FileRoutesById {
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
+  '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
   '/api/sistema': typeof ApiSistemaRoute
   '/api/tts': typeof ApiTtsRoute
@@ -216,6 +225,7 @@ export interface FileRouteTypes {
     | '/api/lan'
     | '/api/local-ai'
     | '/api/proyectos'
+    | '/api/self-audit'
     | '/api/self-build'
     | '/api/sistema'
     | '/api/tts'
@@ -238,6 +248,7 @@ export interface FileRouteTypes {
     | '/api/lan'
     | '/api/local-ai'
     | '/api/proyectos'
+    | '/api/self-audit'
     | '/api/self-build'
     | '/api/sistema'
     | '/api/tts'
@@ -260,6 +271,7 @@ export interface FileRouteTypes {
     | '/api/lan'
     | '/api/local-ai'
     | '/api/proyectos'
+    | '/api/self-audit'
     | '/api/self-build'
     | '/api/sistema'
     | '/api/tts'
@@ -283,6 +295,7 @@ export interface RootRouteChildren {
   ApiLanRoute: typeof ApiLanRoute
   ApiLocalAiRoute: typeof ApiLocalAiRoute
   ApiProyectosRoute: typeof ApiProyectosRoute
+  ApiSelfAuditRoute: typeof ApiSelfAuditRoute
   ApiSelfBuildRoute: typeof ApiSelfBuildRoute
   ApiSistemaRoute: typeof ApiSistemaRoute
   ApiTtsRoute: typeof ApiTtsRoute
@@ -397,6 +410,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProyectosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/self-audit': {
+      id: '/api/self-audit'
+      path: '/api/self-audit'
+      fullPath: '/api/self-audit'
+      preLoaderRoute: typeof ApiSelfAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/self-build': {
       id: '/api/self-build'
       path: '/api/self-build'
@@ -451,6 +471,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLanRoute: ApiLanRoute,
   ApiLocalAiRoute: ApiLocalAiRoute,
   ApiProyectosRoute: ApiProyectosRoute,
+  ApiSelfAuditRoute: ApiSelfAuditRoute,
   ApiSelfBuildRoute: ApiSelfBuildRoute,
   ApiSistemaRoute: ApiSistemaRoute,
   ApiTtsRoute: ApiTtsRoute,
