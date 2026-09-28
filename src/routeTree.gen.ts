@@ -22,6 +22,7 @@ import { Route as ApiFabricaRouteImport } from './routes/api/fabrica'
 import { Route as ApiFetchUrlRouteImport } from './routes/api/fetch-url'
 import { Route as ApiIphoneRouteImport } from './routes/api/iphone'
 import { Route as ApiLanRouteImport } from './routes/api/lan'
+import { Route as ApiRemoteStatusRouteImport } from './routes/api/remote-status'
 import { Route as ApiLocalAiRouteImport } from './routes/api/local-ai'
 import { Route as ApiProyectosRouteImport } from './routes/api/proyectos'
 import { Route as ApiSelfAuditRouteImport } from './routes/api/self-audit'
@@ -96,6 +97,11 @@ const ApiLanRoute = ApiLanRouteImport.update({
   path: '/api/lan',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRemoteStatusRoute = ApiRemoteStatusRouteImport.update({
+  id: '/api/remote-status',
+  path: '/api/remote-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLocalAiRoute = ApiLocalAiRouteImport.update({
   id: '/api/local-ai',
   path: '/api/local-ai',
@@ -151,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
   '/api/lan': typeof ApiLanRoute
+  '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
   '/api/self-audit': typeof ApiSelfAuditRoute
@@ -174,6 +181,7 @@ export interface FileRoutesByTo {
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
   '/api/lan': typeof ApiLanRoute
+  '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
   '/api/self-audit': typeof ApiSelfAuditRoute
@@ -198,6 +206,7 @@ export interface FileRoutesById {
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
   '/api/lan': typeof ApiLanRoute
+  '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
   '/api/self-audit': typeof ApiSelfAuditRoute
@@ -223,6 +232,7 @@ export interface FileRouteTypes {
     | '/api/fetch-url'
     | '/api/iphone'
     | '/api/lan'
+    | '/api/remote-status'
     | '/api/local-ai'
     | '/api/proyectos'
     | '/api/self-audit'
@@ -246,6 +256,7 @@ export interface FileRouteTypes {
     | '/api/fetch-url'
     | '/api/iphone'
     | '/api/lan'
+    | '/api/remote-status'
     | '/api/local-ai'
     | '/api/proyectos'
     | '/api/self-audit'
@@ -269,6 +280,7 @@ export interface FileRouteTypes {
     | '/api/fetch-url'
     | '/api/iphone'
     | '/api/lan'
+    | '/api/remote-status'
     | '/api/local-ai'
     | '/api/proyectos'
     | '/api/self-audit'
@@ -293,6 +305,7 @@ export interface RootRouteChildren {
   ApiFetchUrlRoute: typeof ApiFetchUrlRoute
   ApiIphoneRoute: typeof ApiIphoneRoute
   ApiLanRoute: typeof ApiLanRoute
+  ApiRemoteStatusRoute: typeof ApiRemoteStatusRoute
   ApiLocalAiRoute: typeof ApiLocalAiRoute
   ApiProyectosRoute: typeof ApiProyectosRoute
   ApiSelfAuditRoute: typeof ApiSelfAuditRoute
@@ -396,6 +409,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLanRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/remote-status': {
+      id: '/api/remote-status'
+      path: '/api/remote-status'
+      fullPath: '/api/remote-status'
+      preLoaderRoute: typeof ApiRemoteStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/local-ai': {
       id: '/api/local-ai'
       path: '/api/local-ai'
@@ -469,6 +489,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFetchUrlRoute: ApiFetchUrlRoute,
   ApiIphoneRoute: ApiIphoneRoute,
   ApiLanRoute: ApiLanRoute,
+  ApiRemoteStatusRoute: ApiRemoteStatusRoute,
   ApiLocalAiRoute: ApiLocalAiRoute,
   ApiProyectosRoute: ApiProyectosRoute,
   ApiSelfAuditRoute: ApiSelfAuditRoute,

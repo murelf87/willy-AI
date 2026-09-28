@@ -100,7 +100,10 @@ const PLAN: Record<string, Item[]> = {
     ["Chats: ideas para empezar y «Copiar respuesta» en cada respuesta", 1, "2026-09-25"],
     ["Los 6 agentes de la maqueta: Arquitecto, Programador, Diseñador UI, Analista, Revisor y Orquestador", 2, null],
     ["La mascota de WILLY con el dibujo original de la maqueta", 1, null],
-    ["IA Influencer y Vídeo IA funcionando desde Herramientas", 3, null],
+    ["IA Influencer funcionando (4 pasos: guion → voz → vídeo → montaje)", 3, "2026-09-28"],
+    ["Pulgares 👍/👎 en el chat: aprendizaje de qué modelo funciona mejor", 1, "2026-09-28"],
+    ["Montaje de vídeo influencer con ffmpeg (subtítulos + 9:16)", 2, "2026-09-28"],
+    ["Vídeo IA de alta calidad: LivePortrait + MuseTalk pipeline completo", 3, null],
   ],
 };
 

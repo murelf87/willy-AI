@@ -757,5 +757,58 @@ export async function avatarAction(dir: string, body: Record<string, unknown>, d
     return { ok: true, job: publicJob(job) };
   }
 
+  if (action === "montaje") {
+    // Montar vídeo con subtítulos quemados + recorte 9:16 con ffmpeg.
+    // Si ffmpeg no está disponible, devuelve el vídeo base tal cual (degradación elegante).
+    try {
+      const videoData = body["video"] ? decode(body["video"], 200 * 2 ** 20, ["mp4", "webm"], "el vídeo base") : null;
+      if (!videoData) return { error: "Necesito el vídeo base para montar." };
+      const subtitles = str(body["subtitles"] ?? "", 8000);
+      const formato = str(body["formato"] ?? "9:16", 10);
+      const { fs: mfs, path: mpath } = await modules();
+      // Verificar si ffmpeg está disponible
+      const { spawnSync } = await import("child_process");
+      const ffCheck = spawnSync("ffmpeg", ["-version"], { encoding: "utf8" });
+      if (ffCheck.status !== 0) {
+        // Sin ffmpeg, devolvemos el vídeo original tal cual
+        return { ok: true, file: { bytes: videoData.bytes, name: "willy-influencer.mp4", mime: "video/mp4" }, note: "ffmpeg no disponible: se devuelve el vídeo sin montar." };
+      }
+      // Guardar vídeo temporal
+      const tmpDir = mpath.join(dir, "montaje-tmp");
+      await mfs.mkdir(tmpDir, { recursive: true });
+      const inFile = mpath.join(tmpDir, `in-${Date.now()}.${videoData.kind}`);
+      const outFile = mpath.join(tmpDir, `out-${Date.now()}.mp4`);
+      await mfs.writeFile(inFile, videoData.bytes);
+      // Construir filtro ffmpeg
+      const filters: string[] = [];
+      if (formato === "9:16") {
+        // Recortar/escalar a 9:16 (1080x1920 o similar)
+        filters.push("scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black");
+      }
+      if (subtitles.trim()) {
+        // Quemar subtítulos como overlay de texto (simplificado, sin SRT)
+        const safeText = subtitles.replace(/['"\\:]/g, " ").slice(0, 500);
+        filters.push(`drawtext=text='${safeText}':fontsize=36:fontcolor=white:x=(w-tw)/2:y=h-100:box=1:boxcolor=black@0.5:boxborderw=10`);
+      }
+      const ffArgs = ["-i", inFile, "-y"];
+      if (filters.length > 0) {
+        ffArgs.push("-vf", filters.join(","));
+      }
+      ffArgs.push("-c:v", "libx264", "-preset", "fast", "-crf", "23", "-c:a", "aac", outFile);
+      const result = spawnSync("ffmpeg", ffArgs, { encoding: "utf8", timeout: 5 * 60 * 1000 });
+      if (result.status !== 0) {
+        // Si falla el montaje, devolver original
+        const original = new Uint8Array(await mfs.readFile(inFile));
+        await mfs.rm(tmpDir, { recursive: true, force: true });
+        return { ok: true, file: { bytes: original, name: "willy-influencer.mp4", mime: "video/mp4" }, note: "El montaje falló: se devuelve el vídeo original." };
+      }
+      const outBytes = new Uint8Array(await mfs.readFile(outFile));
+      await mfs.rm(tmpDir, { recursive: true, force: true });
+      return { ok: true, file: { bytes: outBytes, name: "willy-influencer-9x16.mp4", mime: "video/mp4" } };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
   return { error: "Acción desconocida." };
 }

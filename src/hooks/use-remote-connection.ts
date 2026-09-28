@@ -6,6 +6,7 @@ export type RemoteStatus = "idle" | "connecting" | "connected" | "error" | "disc
 export interface UseRemoteConnectionReturn {
   status: RemoteStatus;
   pendingAction: RemoteAction | null;
+  pairCode: string | null;
   log: string[];
   connect: () => Promise<void>;
   disconnect: () => void;
@@ -27,6 +28,7 @@ export interface UseRemoteConnectionReturn {
 export function useRemoteConnection(): UseRemoteConnectionReturn {
   const [status, setStatus] = useState<RemoteStatus>("idle");
   const [pendingAction, setPendingAction] = useState<RemoteAction | null>(null);
+  const [pairCode, setPairCode] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   // Resolvers para la promesa de permiso actual
@@ -38,7 +40,22 @@ export function useRemoteConnection(): UseRemoteConnectionReturn {
   const connect = useCallback(async () => {
     if (wsRef.current) return;
     setStatus("connecting");
-    addLog("Iniciando conexión segura...");
+    setPairCode(null);
+    addLog("Iniciando servidor remoto...");
+
+    // Arrancar el servidor remoto si no está corriendo
+    try {
+      const res = await fetch("/api/remote-status", { method: "POST" });
+      const data = (await res.json()) as { ok: boolean; message?: string };
+      if (!data.ok && res.status !== 200) {
+        addLog(`Aviso: ${data.message ?? "No se pudo arrancar el servidor remoto."}`);
+        // Intentar conectar de todas formas por si ya está corriendo
+      } else {
+        addLog(data.message ?? "Servidor remoto activo.");
+      }
+    } catch {
+      addLog("No se pudo verificar el servidor remoto. Intentando conectar...");
+    }
 
     // El servidor local de WILLY escucha en el puerto 4040 por WSS.
     // En desarrollo se permite ws:// solo en localhost; en producción es siempre wss://.
@@ -65,11 +82,23 @@ export function useRemoteConnection(): UseRemoteConnectionReturn {
     };
 
     ws.onmessage = async (event: MessageEvent) => {
-      let msg: { type: string; action?: RemoteAction; token?: string };
+      let msg: { type: string; action?: RemoteAction; token?: string; code?: string };
       try {
         msg = JSON.parse(event.data as string) as typeof msg;
       } catch {
         addLog("Mensaje no reconocido del servidor.");
+        return;
+      }
+
+      if (msg.type === "PAIR_CODE" && msg.token) {
+        setPairCode(String(msg.token));
+        addLog(`Código de emparejamiento: ${String(msg.token)} (introduce este código en tu dispositivo remoto)`);
+        return;
+      }
+
+      if (msg.type === "PAIR_CODE" && msg.code) {
+        setPairCode(String(msg.code));
+        addLog(`Código de emparejamiento: ${String(msg.code)} (introduce este código en tu dispositivo remoto)`);
         return;
       }
 
@@ -117,6 +146,7 @@ export function useRemoteConnection(): UseRemoteConnectionReturn {
         resolverRef.current = null;
       }
       setPendingAction(null);
+      setPairCode(null);
       setStatus("disconnected");
       addLog(`Conexión cerrada (código ${ev.code}).`);
     };
@@ -128,6 +158,7 @@ export function useRemoteConnection(): UseRemoteConnectionReturn {
       wsRef.current = null;
     }
     setStatus("idle");
+    setPairCode(null);
     addLog("Desconectado por el usuario.");
   }, []);
 
@@ -143,5 +174,5 @@ export function useRemoteConnection(): UseRemoteConnectionReturn {
     }
   }, [pendingAction]);
 
-  return { status, pendingAction, log, connect, disconnect, allowAction, denyAction };
+  return { status, pendingAction, pairCode, log, connect, disconnect, allowAction, denyAction };
 }
