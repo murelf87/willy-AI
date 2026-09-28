@@ -184,9 +184,10 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
   },
   {
     t: "Agentes",
-    d: "Qué son Analista, Programador, Revisor, Depurador y Diseñador UI.",
+    d: "Qué son Arquitecto, Programador, Diseñador UI, Analista, Revisor y Orquestador.",
     body: [
-      "Son papeles que SUPER WILLY tiene en cuenta cuando construye o cambia un proyecto: se le indican en cada petición del proyecto.",
+      "Son 6 papeles que SUPER WILLY tiene en cuenta cuando construye o cambia un proyecto: se le indican en cada petición del proyecto.",
+      "Arquitecto: define la estructura, los hitos y los archivos antes de empezar. Programador: escribe y modifica el código. Diseñador UI: cuida el diseño, los estilos y la accesibilidad. Analista: convierte lo que pides en tareas concretas. Revisor: repasa que todo funcione y propone pruebas. Orquestador: coordina al resto y decide el orden.",
       "No son programas aparte ni usan un modelo distinto: contesta la IA de SUPER WILLY.",
       "Puedes activar o desactivar cada uno en Centro de Inteligencia → Agentes.",
     ],

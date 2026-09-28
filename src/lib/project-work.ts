@@ -23,11 +23,12 @@ export function isPrivateFile(file: { path: string; content: string }): boolean 
  * Inteligencia → Agentes). No son programas aparte ni usan otro modelo: contesta la IA de SUPER WILLY.
  */
 export const AGENTS = [
-  { name: "Analist", role: "Analiza lo que pides y decide la estructura y los archivos." },
-  { name: "Programmer", role: "Escribe y modifica el código." },
-  { name: "Tester", role: "Repasa que todo funcione y propone pruebas." },
-  { name: "Debugger", role: "Busca y corrige los errores." },
-  { name: "Designer", role: "Cuida el diseño: estilos, colores y componentes." },
+  { name: "Arquitecto", role: "Define la estructura, los hitos y los archivos antes de empezar." },
+  { name: "Programador", role: "Escribe y modifica el código de cada archivo." },
+  { name: "Diseñador UI", role: "Cuida el diseño: estilos, colores, componentes y accesibilidad." },
+  { name: "Analista", role: "Analiza lo que pides y convierte los requisitos en tareas concretas." },
+  { name: "Revisor", role: "Repasa que todo funcione, propone pruebas y detecta regresiones." },
+  { name: "Orquestador", role: "Coordina al resto de agentes y decide qué se hace y en qué orden." },
 ];
 
 /** La línea de los agentes activos para la IA (vacía si no hay ninguno). */

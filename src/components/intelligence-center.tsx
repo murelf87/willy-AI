@@ -62,7 +62,12 @@ export { AGENTS } from "@/lib/project-work";
  * Cómo se ven en pantalla los papeles de los agentes: son los de project-work.ts (sus nombres internos siguen igual porque
  * van en las peticiones y en tus ajustes guardados); aquí solo se ponen en español, como pide el diseño del dueño.
  */
-const AGENT_LABEL: Record<string, string> = { Analist: "Analista", Programmer: "Programador", Tester: "Revisor", Debugger: "Depurador", Designer: "Diseñador UI" };
+// Mapeo de nombres antiguos (inglés) a los nuevos (español) para compatibilidad con ajustes guardados.
+const AGENT_LABEL: Record<string, string> = {
+  Analist: "Analista", Programmer: "Programador", Tester: "Revisor", Debugger: "Depurador", Designer: "Diseñador UI",
+  // Nombres nuevos (ya están en español; se pasan a sí mismos por si acaso).
+  Arquitecto: "Arquitecto", "Diseñador UI": "Diseñador UI", Analista: "Analista", Revisor: "Revisor", Orquestador: "Orquestador",
+};
 const agentLabel = (name: string): string => AGENT_LABEL[name] ?? name;
 
 export function IntelligenceCenter({ ping }: { ping: Ping }) {
