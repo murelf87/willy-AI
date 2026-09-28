@@ -223,6 +223,28 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
     ],
   },
   {
+    t: "IA Influencer",
+    d: "Crea contenido de vídeo vertical en 4 pasos: guion, voz, vídeo y montaje.",
+    body: [
+      "En Herramientas → IA Influencer (o en Inicio → IA Influencer) tienes un flujo de 4 pasos para crear contenido de redes sociales.",
+      "Paso 1 — Guion: elige el formato (UGC, anuncio, tutorial o podcast), la duración (15, 30 o 60 segundos) y el tono (enérgico, cercano, profesional o divertido). Describe tu producto o tema y WILLY escribe el guion; puedes editarlo antes de seguir.",
+      "Paso 2 — Voz: genera el audio del guion con tu motor de voz configurado (Chatterbox con tu propia voz o Gemini), o sube directamente un .wav/.mp3 ya grabado.",
+      "Paso 3 — Vídeo: sube un vídeo maestro con tu cara. WILLY genera el vídeo con movimiento de labios sincronizado con el audio (LivePortrait, en tu equipo; necesita ComfyUI).",
+      "Paso 4 — Montaje: WILLY combina el vídeo con el audio, añade subtítulos y entrega el archivo final en formato vertical 9:16 listo para publicar.",
+    ],
+  },
+  {
+    t: "Doblar vídeos",
+    d: "Sube un vídeo, transcríbelo, tradúcelo y genera una versión doblada con tu voz.",
+    body: [
+      "En Más → Doblar vídeos (o Herramientas → Doblar vídeos) tienes un estudio de doblaje de 4 pasos.",
+      "Paso 1 — Vídeo: sube el vídeo que quieres doblar (MP4, MOV, WEBM…). Se muestra un reproductor para previsualizarlo.",
+      "Paso 2 — Transcripción: WILLY transcribe el audio del vídeo con Whisper (en tu equipo). La primera vez hay que pulsar «Preparar la transcripción» para descargar el modelo (1,6 GB). Puedes corregir el texto antes de continuar.",
+      "Paso 3 — Traducción: WILLY traduce la transcripción al idioma que elijas. Si tienes IA externas activadas, las usa primero (más natural); si no, usa la IA de tu equipo.",
+      "Paso 4 — Síntesis y montaje: genera el audio doblado con tu motor de voz (Chatterbox o Gemini) y lo mezcla con el vídeo con ffmpeg, reemplazando el audio original.",
+    ],
+  },
+  {
     t: "Exportar proyectos",
     d: "Descarga el código completo en un archivo comprimido.",
     body: [
