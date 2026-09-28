@@ -2,7 +2,7 @@
 // con el formato de OpenAI. Las claves se guardan SOLO en este equipo (nunca vuelven a la pantalla). Cada motor sale
 // de la rueda cuando se agota su cuota, pide pago o rechaza la clave, y se vuelve a probar solo cuando toca.
 
-export type ProviderId = "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia";
+export type ProviderId = "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia" | "xai";
 
 export type Provider = {
   id: ProviderId;
@@ -72,7 +72,19 @@ export const PROVIDERS: Provider[] = [
     fallbackModels: ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite"],
     prefer: ["gemini-2\\.0-flash(?!-lite|-exp)", "gemini-2\\.0-flash-lite", "gemini-1\\.5-flash"],
   },
-  // 6. Groq: el MÁS RÁPIDO pero límite de ~8k tokens de entrada en el tier gratuito.
+  // 6. xAI Grok: API compatible con OpenAI, modelos grok-3-mini y grok-2 con nivel gratuito generoso.
+  // grok-3-mini es el más eficiente para tareas de código y razonamiento; grok-2 para texto largo.
+  // Clave gratuita en console.x.ai (sin tarjeta de crédito).
+  {
+    id: "xai",
+    name: "xAI Grok",
+    baseUrl: "https://api.x.ai/v1",
+    keyUrl: "https://console.x.ai/",
+    dataNote: "Nivel gratuito con créditos mensuales renovables (~25 USD/mes). Sin tarjeta. Revisa sus condiciones de uso.",
+    fallbackModels: ["grok-3-mini", "grok-2-1212", "grok-2"],
+    prefer: ["grok-3-mini", "grok-2"],
+  },
+  // 7. Groq: el MÁS RÁPIDO pero límite de ~8k tokens de entrada en el tier gratuito.
   // Va el último porque Autoconstrucción genera prompts largos que Groq rechaza; para chats normales es ideal.
   // (25/09/2026) nemotron-3-super (razonador) contestaba vacío → usar modelos de chat estables primero.
   { id: "groq", name: "Groq", baseUrl: "https://api.groq.com/openai/v1", keyUrl: "https://console.groq.com/keys", dataNote: "Gratis con límites por minuto y por día. No pases a su plan de pago." },
