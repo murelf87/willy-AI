@@ -30,24 +30,6 @@ async function tryOllama(messages: ChatMsg[]): Promise<string | null> {
   }
 }
 
-async function tryCloud(messages: ChatMsg[]): Promise<string | null> {
-  try {
-    const { askChatCloud } = await import("@/lib/chat-cloud");
-    const { readProfile } = await import("@/lib/profile");
-    const profile = readProfile();
-    let result = "";
-    await askChatCloud({
-      messages,
-      profile,
-      onDelta: (d) => { result += d; },
-      onDone: () => {},
-    });
-    return result.trim() || null;
-  } catch {
-    return null;
-  }
-}
-
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
@@ -63,15 +45,11 @@ export const Route = createFileRoute("/api/chat")({
         const messages: ChatMsg[] = Array.isArray(body.messages) ? body.messages : [];
         if (!messages.length) return Response.json({ error: "Falta el campo messages." }, { status: 400 });
 
-        // 1. Intentar Ollama local
+        // Intentar Ollama local
         const local = await tryOllama(messages);
         if (local) return Response.json({ content: local, model: "local" }, { headers: { "Cache-Control": "no-store" } });
 
-        // 2. Fallback a la nube
-        const cloud = await tryCloud(messages);
-        if (cloud) return Response.json({ content: cloud, model: "cloud" }, { headers: { "Cache-Control": "no-store" } });
-
-        return Response.json({ error: "No hay IA disponible ahora mismo. Comprueba que Ollama está arrancado o configura un motor en la nube en Ajustes." }, { status: 503 });
+        return Response.json({ error: "No hay IA disponible ahora mismo. Comprueba que Ollama está arrancado (IA de tu equipo)." }, { status: 503 });
       },
     },
   },
