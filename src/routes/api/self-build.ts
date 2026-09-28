@@ -330,6 +330,8 @@ export const Route = createFileRoute("/api/self-build")({
         // «apply-file»: aplica un paquete {name, files, patches, checks} guardado en disco (intercambio-front/ o
         // datos-privados/mejoras-pendientes/) con el mismo circuito de la Autoconstrucción. Pedido por «WILLY AI FRONT»
         // (regla 21 del COORDINACION-IAS): así FRONT puede dejar paquetes grandes en disco sin trocearlos por el navegador.
+        const deps = managerDeps();
+
         if (body.action === "apply-file") {
           try {
             const nodePath = await import("node:path");
@@ -372,7 +374,6 @@ export const Route = createFileRoute("/api/self-build")({
 
         // Autoconstrucción: estado (versiones, historial, copias y recuperación de lo que se quedó a medias), salud,
         // recuperación manual y vuelta atrás de la versión actual.
-        const deps = managerDeps();
         // Progreso real de la mejora en marcha (paso y estado de la versión candidata): solo lee, nunca cambia nada.
         if (body.action === "self-progress") {
           try {
