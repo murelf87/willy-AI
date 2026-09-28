@@ -5,7 +5,7 @@
 // la tabla que se usa de verdad, no una copia que se pueda quedar vieja. Solo datos: sin importaciones.
 
 /** Chat normal con «IA externa»: Groq primero (más rápido para conversaciones cortas), luego el resto. */
-export const CHAT_ORDER = ["groq", "gemini", "openrouter", "nvidia", "mistral", "cohere"];
+export const CHAT_ORDER = ["groq", "gemini", "xai", "openrouter", "nvidia", "mistral", "cohere"];
 
 /**
  * Autoconstrucción (y SUPER WILLY cuando construye): primero los que aguantan contextos largos (10k+ tokens).
@@ -18,7 +18,7 @@ export const CHAT_ORDER = ["groq", "gemini", "openrouter", "nvidia", "mistral", 
  * 28/09/2026: Groq eliminado de BUILD_ORDER — límite 8k tokens lo hace inútil para autoconstrucción.
  * 25/09/2026: Mistral (Codestral) subido para código; OpenRouter adelantado por Qwen3-Coder:free.
  */
-export const BUILD_ORDER = ["openrouter", "nvidia", "gemini", "mistral", "cohere"];
+export const BUILD_ORDER = ["openrouter", "xai", "nvidia", "gemini", "mistral", "cohere"];
 
 /**
  * «Plug and play»: orden por tipo de petición.
@@ -26,15 +26,15 @@ export const BUILD_ORDER = ["openrouter", "nvidia", "gemini", "mistral", "cohere
  * Para tareas que generan respuestas largas (razonamiento, investigación, escritura) no va primero.
  */
 export const KIND_CLOUD_ORDER: Record<string, string[]> = {
-  codigo:        ["openrouter", "nvidia", "gemini", "mistral", "groq", "cohere"],
-  web:           ["openrouter", "gemini", "nvidia", "mistral", "groq", "cohere"],
-  datos:         ["gemini", "openrouter", "nvidia", "mistral", "cohere", "groq"],
-  razonamiento:  ["openrouter", "nvidia", "gemini", "mistral", "cohere", "groq"],
-  investigacion: ["gemini", "openrouter", "cohere", "nvidia", "mistral", "groq"],
-  escritura:     ["gemini", "openrouter", "mistral", "cohere", "nvidia", "groq"],
-  traduccion:    ["gemini", "mistral", "openrouter", "cohere", "groq", "nvidia"],
+  codigo:        ["openrouter", "xai", "nvidia", "gemini", "mistral", "groq", "cohere"],
+  web:           ["openrouter", "gemini", "xai", "nvidia", "mistral", "groq", "cohere"],
+  datos:         ["gemini", "openrouter", "xai", "nvidia", "mistral", "cohere", "groq"],
+  razonamiento:  ["openrouter", "xai", "nvidia", "gemini", "mistral", "cohere", "groq"],
+  investigacion: ["gemini", "openrouter", "xai", "cohere", "nvidia", "mistral", "groq"],
+  escritura:     ["gemini", "openrouter", "xai", "mistral", "cohere", "nvidia", "groq"],
+  traduccion:    ["gemini", "mistral", "openrouter", "xai", "cohere", "groq", "nvidia"],
   vision:        ["gemini", "openrouter", "nvidia", "mistral", "cohere", "groq"],
-  general:       ["openrouter", "nvidia", "gemini", "mistral", "groq", "cohere"],
+  general:       ["openrouter", "xai", "nvidia", "gemini", "mistral", "groq", "cohere"],
 };
 
 /** Las IA externas de una lista que se pueden usar ahora mismo (con clave, activadas y sin agotar), en su orden. */
