@@ -13,8 +13,8 @@ export const SYSTEM_PROJECT_ID = "sistema-super-willy";
 export const SYSTEM_PROJECT_NAME = "SÚPER IA";
 export const SYSTEM_PROJECT_DESC = "Mesa principal de operaciones de WILLY: tus proyectos, su vista previa, su progreso y su reparación.";
 /** Revisión de WILLY que trae este plan (la misma que `APP_REVISION`) y cuándo se preparó. */
-export const SYSTEM_REVISION = 28;
-export const SYSTEM_REVISION_DATE = "2026-09-24T18:00:00.000Z";
+export const SYSTEM_REVISION = 30;
+export const SYSTEM_REVISION_DATE = "2026-09-28T18:00:00.000Z";
 
 type Item = [title: string, weight: number, rev: number | string | null];
 /**
@@ -103,6 +103,8 @@ const PLAN: Record<string, Item[]> = {
     ["IA Influencer funcionando (4 pasos: guion → voz → vídeo → montaje)", 3, "2026-09-28"],
     ["Pulgares 👍/👎 en el chat: aprendizaje de qué modelo funciona mejor", 1, "2026-09-28"],
     ["Montaje de vídeo influencer con ffmpeg (subtítulos + 9:16)", 2, "2026-09-28"],
+    ["Conectar Remotamente: código de emparejamiento visible y protocolo v2 (PC + móvil)", 2, "2026-09-28"],
+    ["Doblar vídeos: estudio de doblaje de 4 pasos (vídeo → transcripción → voz → montaje)", 2, "2026-09-28"],
     ["Vídeo IA de alta calidad: LivePortrait + MuseTalk pipeline completo", 3, null],
   ],
 };
@@ -145,6 +147,8 @@ const lastChecks = (): number => SYSTEM_HISTORY.find((h) => h.checks)?.checks ??
 
 /** Versiones de SÚPER IA: las revisiones del rediseño, con lo que trajo cada una y sus comprobaciones automáticas. */
 export const SYSTEM_HISTORY: ReadonlyArray<{ rev: number; title: string; checks: number | null }> = [
+  { rev: 30, title: "Conectar Remotamente: canal del PC separado con código de emparejamiento visible, protocolo v2 completo", checks: null },
+  { rev: 29, title: "Servidor WebSocket remoto (puerto 4040); acción apply-file en Autoconstrucción para paquetes guardados en disco; fallback a IA externa si Ollama no responde", checks: null },
   { rev: 28, title: "Pruebas automáticas de cada proyecto: WILLY las pasa solo (como una persona, en tu equipo) y repara lo que rompe un cambio", checks: 2488 },
   { rev: 27, title: "Librerías nuevas para los proyectos: WILLY las instala solo desde npm (sin npm), comprobando su huella", checks: 2306 },
   { rev: 26, title: "Mapa de pantallas: todas las pantallas del proyecto de un vistazo, con las que fallan, «Abrir» y «Reparar»", checks: 2117 },
