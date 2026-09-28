@@ -442,7 +442,7 @@ function MotoresTab() {
 // ═══════════════════════════════════════════════════════════════════
 
 function ModelosTab() {
-  const [selected, setSelected] = useState<ModelPreset>(MODEL_PRESETS[0]);
+  const [selected, setSelected] = useState<ModelPreset>(MODEL_PRESETS[0]!);
   const [customUrl, setCustomUrl] = useState("");
   const [customFolder, setCustomFolder] = useState<ModelFolder>("checkpoints");
   const [customFilename, setCustomFilename] = useState("");
@@ -479,7 +479,7 @@ function ModelosTab() {
             body: JSON.stringify({ action: "model-install-status", jobId: data.jobId }),
           });
           const d2 = await r2.json() as { status: string; progress?: number; downloaded?: number; total?: number; error?: string };
-          setInstall({ status: d2.status as InstallState["status"], progress: d2.progress ?? 0, downloaded: d2.downloaded ?? 0, total: d2.total ?? 0, error: d2.error });
+          setInstall({ status: d2.status as InstallState["status"], progress: d2.progress ?? 0, downloaded: d2.downloaded ?? 0, total: d2.total ?? 0, error: d2.error ?? "" });
           if (d2.status === "done" || d2.status === "error") stopPoll();
         } catch {}
       }, 1000);
