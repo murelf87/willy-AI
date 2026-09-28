@@ -35,26 +35,32 @@ const TAB_ICON = { vision: Gauge, roadmap: Activity, modulos: LayoutGrid, tareas
 
 export function SelfBuildTabs({ tab, onChange }: { tab: SelfBuildTab; onChange: (tab: SelfBuildTab) => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-    <div role="tablist" aria-label="Apartados de la Autoconstrucción" className="flex flex-1 flex-wrap gap-1 rounded-xl border border-border bg-background p-1">
-      {SELF_BUILD_TABS.filter((entry) => !entry.hidden).map(({ id, label, hint }) => {
-        const Icon = TAB_ICON[id];
-        return (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            title={hint}
-            onClick={() => onChange(id)}
-            className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${tab === id || (id === "vision" && tab === "salud") ? "bg-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
-          >
-            <Icon className="size-4" />{label}
-          </button>
-        );
-      })}
-    </div>
-    <Button className={`gap-2 ${tab === "mejorar" ? "shadow-glow" : ""}`} variant={tab === "mejorar" ? "primary" : "secondary"} aria-pressed={tab === "mejorar"} onClick={() => onChange("mejorar")}><Plus className="size-4" />Nueva mejora</Button>
+    <div className="flex items-center gap-2">
+      {/* Scroll horizontal en móvil, wrap en escritorio */}
+      <div className="min-w-0 flex-1 overflow-x-auto rounded-xl border border-border bg-background p-1 scrollbar-none">
+        <div role="tablist" aria-label="Apartados de la Autoconstrucción" className="flex gap-1 sm:flex-wrap">
+          {SELF_BUILD_TABS.filter((entry) => !entry.hidden).map(({ id, label, hint }) => {
+            const Icon = TAB_ICON[id];
+            const active = tab === id || (id === "vision" && tab === "salud");
+            return (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                title={hint}
+                onClick={() => onChange(id)}
+                className={`flex shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold transition-colors sm:px-3 ${active ? "bg-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+              >
+                <Icon className="size-4 shrink-0" />
+                {/* Label visible en sm+ o cuando está activo */}
+                <span className={`${active ? "inline" : "hidden sm:inline"}`}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <Button className={`shrink-0 gap-2 ${tab === "mejorar" ? "shadow-glow" : ""}`} variant={tab === "mejorar" ? "primary" : "secondary"} aria-pressed={tab === "mejorar"} onClick={() => onChange("mejorar")}><Plus className="size-4" /><span className="hidden sm:inline">Nueva mejora</span></Button>
     </div>
   );
 }
