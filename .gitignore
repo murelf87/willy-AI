@@ -45,3 +45,4 @@ app.zip
 *.exe
 *.log
 package-lock.json.bak
+.claude/worktrees/
