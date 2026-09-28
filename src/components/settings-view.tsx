@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Copy, Database, FolderOpen, HardDrive, Loader2, Monitor, Power, RefreshCw, RotateCw, ScrollText, Server, Smartphone,
   Stethoscope, Trash2, WifiOff, Wrench,
@@ -21,6 +21,7 @@ import { apiAuthService } from "@/services/api-auth-service";
 import { backendOn, health, listOrganizations, refreshData, useBackend, type Organization } from "@/services/backend";
 import type { Ping } from "@/types/domain";
 import { useRemoteConnection } from "@/hooks/use-remote-connection";
+import { requestBrowserNotifyPermission } from "@/lib/notifications";
 import { RemotePermissionDialog } from "@/components/remote-permission-dialog";
 
 // AJUSTES (revisión 20): lo que antes estaba repartido entre «Configuración», «Estado del sistema» y el «Workspace» global,
@@ -86,6 +87,29 @@ export function SettingsView({ ping }: { ping: Ping }) {
 
 function GeneralTab({ ping }: { ping: Ping }) {
   const [settings, update] = useSettings();
+  const [browserPerm, setBrowserPerm] = useState<NotificationPermission | null>(null);
+  const permChecked = useRef(false);
+
+  useEffect(() => {
+    if (permChecked.current) return;
+    permChecked.current = true;
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setBrowserPerm(Notification.permission);
+    }
+  }, []);
+
+  async function handleToggleNotify() {
+    const next = !settings.notify;
+    update({ notify: next });
+    ping(next ? "Notificaciones activadas." : "Notificaciones desactivadas.");
+    if (next && browserPerm === "default") {
+      const perm = await requestBrowserNotifyPermission();
+      setBrowserPerm(perm);
+      if (perm === "granted") ping("✅ Notificaciones del SO activadas: te avisaré aunque estés en otra pestaña.");
+      else if (perm === "denied") ping("El navegador bloqueó las notificaciones del SO. Puedes permitirlas desde el candado de la barra de direcciones.");
+    }
+  }
+
   return (
     <div className="space-y-3">
       <Card className="space-y-3">
@@ -93,9 +117,13 @@ function GeneralTab({ ping }: { ping: Ping }) {
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-sm">Notificaciones</p>
-            <p className="text-xs text-muted-foreground">Avisos en la campana cuando WILLY termina una tarea.</p>
+            <p className="text-xs text-muted-foreground">
+              {browserPerm === "granted"
+                ? "Avisos en la campana y en el SO aunque estés en otra pestaña."
+                : "Avisos en la campana cuando WILLY termina una tarea."}
+            </p>
           </div>
-          <Toggle on={settings.notify} label="Notificaciones" onClick={() => { update({ notify: !settings.notify }); ping(settings.notify ? "Notificaciones desactivadas." : "Notificaciones activadas."); }} />
+          <Toggle on={settings.notify} label="Notificaciones" onClick={handleToggleNotify} />
         </div>
         <div className={`flex items-center gap-3 ${settings.notify ? "" : "pointer-events-none opacity-50"}`}>
           <div className="min-w-0 flex-1">

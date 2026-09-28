@@ -82,7 +82,7 @@ const PLAN: Record<string, Item[]> = {
     ["Lo que estás viendo va con cada petición (contexto visual)", 2, 21],
   ],
   "segundo-plano": [
-    ["Aviso cuando termina si estás en otra pestaña", 2, 0],
+    ["Aviso cuando termina si estás en otra pestaña (notificación del SO con permiso)", 2, "2026-09-28"],
     ["Proyectos dice qué está haciendo WILLY ahora", 1, 23],
   ],
   e2e: [

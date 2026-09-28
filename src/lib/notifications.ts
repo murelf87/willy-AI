@@ -42,6 +42,35 @@ export function inferKind(text: string): NoticeKind {
   return "info";
 }
 
+/** Pide permiso para mostrar notificaciones del navegador (solo la primera vez o si fue denegado). */
+export async function requestBrowserNotifyPermission(): Promise<NotificationPermission> {
+  if (typeof window === "undefined" || !("Notification" in window)) return "denied";
+  if (Notification.permission === "granted") return "granted";
+  if (Notification.permission === "denied") return "denied";
+  return Notification.requestPermission();
+}
+
+/** Muestra una notificación del sistema operativo si la página está oculta y hay permiso. */
+function pushBrowserNotification(text: string, kind: NoticeKind) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  // Solo avisar cuando el usuario NO está mirando la pestaña
+  if (!document.hidden) return;
+  const icon = kind === "success" ? "✅" : kind === "warn" ? "⚠️" : "ℹ️";
+  try {
+    new Notification(`WILLY AI ${icon}`, {
+      body: text,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: "willy-notice", // sustituye la anterior para no apilar
+      renotify: kind !== "info",
+      silent: true, // el pitido ya lo hace beep()
+    });
+  } catch {
+    /* el navegador puede rechazar la notificación (p.ej., en contexto no seguro) */
+  }
+}
+
 /** Registra un aviso si el usuario tiene activadas las notificaciones. */
 export function pushNotice(text: string, kind: NoticeKind = inferKind(text)) {
   if (typeof window === "undefined") return;
@@ -59,6 +88,8 @@ export function pushNotice(text: string, kind: NoticeKind = inferKind(text)) {
   };
   write([notice, ...readNotices()].slice(0, MAX));
   if (settings.notifySound && kind !== "info") beep();
+  // Notificación del SO cuando la pestaña está en segundo plano
+  if (kind !== "info") pushBrowserNotification(text, kind);
 }
 
 /** Pitido corto generado en el propio navegador, sin archivos externos. */
