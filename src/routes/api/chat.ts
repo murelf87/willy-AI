@@ -1,8 +1,11 @@
 // Endpoint genérico de chat: recibe { messages, stream?, model? } y responde con la IA disponible.
-// Prueba primero Ollama local; si no está listo, usa la nube (chat-cloud). Devuelve { content, model }.
-// Usado por IA Influencer (paso 1, guion) y por cualquier componente que necesite IA sin manejar streaming.
+// Prueba primero Ollama local; si no está listo, prueba los motores externos (groq, gemini…) en CHAT_ORDER.
+// Devuelve { content, model }. Usado por IA Influencer (paso 1, guion) y otros componentes de texto.
 import { createFileRoute } from "@tanstack/react-router";
 import { blockForeignSite } from "@/lib/same-origin";
+import { CHAT_ORDER } from "@/lib/routing-table";
+import { engineAction } from "@/lib/engines-server";
+import nodePath from "node:path";
 
 const OLLAMA_URL = "http://127.0.0.1:11434";
 
@@ -30,6 +33,26 @@ async function tryOllama(messages: ChatMsg[]): Promise<string | null> {
   }
 }
 
+async function tryCloud(messages: ChatMsg[], root: string): Promise<{ content: string; model: string } | null> {
+  const dir = nodePath.join(root, "datos-privados");
+  for (const id of CHAT_ORDER) {
+    try {
+      const result = (await engineAction(dir, {
+        action: "cloud-chat",
+        id,
+        messages,
+        maxTokens: 4000,
+      })) as { ok?: boolean; data?: string; model?: string; error?: string };
+      if (result.ok && result.data) {
+        return { content: result.data.trim(), model: `${id} · ${result.model ?? id}` };
+      }
+    } catch {
+      // pasar al siguiente motor
+    }
+  }
+  return null;
+}
+
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
@@ -45,11 +68,20 @@ export const Route = createFileRoute("/api/chat")({
         const messages: ChatMsg[] = Array.isArray(body.messages) ? body.messages : [];
         if (!messages.length) return Response.json({ error: "Falta el campo messages." }, { status: 400 });
 
-        // Intentar Ollama local
+        // 1. Intentar Ollama local
         const local = await tryOllama(messages);
         if (local) return Response.json({ content: local, model: "local" }, { headers: { "Cache-Control": "no-store" } });
 
-        return Response.json({ error: "No hay IA disponible ahora mismo. Comprueba que Ollama está arrancado (IA de tu equipo)." }, { status: 503 });
+        // 2. Fallback: motores de nube en CHAT_ORDER
+        try {
+          const root = process.env["WILLY_ROOT"] ?? process.cwd();
+          const cloud = await tryCloud(messages, root);
+          if (cloud) return Response.json({ content: cloud.content, model: cloud.model }, { headers: { "Cache-Control": "no-store" } });
+        } catch {
+          // ningún motor de nube disponible
+        }
+
+        return Response.json({ error: "No hay IA disponible ahora mismo. Comprueba que Ollama está arrancado (IA de tu equipo) o que tienes algún motor de nube configurado." }, { status: 503 });
       },
     },
   },
