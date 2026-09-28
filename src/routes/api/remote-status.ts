@@ -14,8 +14,19 @@ export const Route = createFileRoute("/api/remote-status")({
             signal: AbortSignal.timeout(1500),
           });
           if (res.ok) {
-            const data = (await res.json()) as { ok: boolean; clients: number };
-            return Response.json({ running: true, clients: data.clients ?? 0 });
+            const data = (await res.json()) as { ok: boolean; clients: number; pcConnected?: boolean };
+            // Intentar obtener el código de emparejamiento (endpoint local)
+            let code: string | undefined;
+            let codeExpiresIn: number | undefined;
+            try {
+              const codeRes = await fetch("http://127.0.0.1:4040/code", { signal: AbortSignal.timeout(500) });
+              if (codeRes.ok) {
+                const codeData = (await codeRes.json()) as { code: string; expiresIn: number; mobileConnected: boolean };
+                code = codeData.code;
+                codeExpiresIn = codeData.expiresIn;
+              }
+            } catch { /* no crítico */ }
+            return Response.json({ running: true, clients: data.clients ?? 0, pcConnected: data.pcConnected ?? false, code, codeExpiresIn });
           }
         } catch {
           // No responde → no está corriendo

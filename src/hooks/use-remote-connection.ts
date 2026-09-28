@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RemoteAction } from "@/components/remote-permission-dialog";
 
 export type RemoteStatus = "idle" | "connecting" | "connected" | "error" | "disconnected";
@@ -7,6 +7,7 @@ export interface UseRemoteConnectionReturn {
   status: RemoteStatus;
   pendingAction: RemoteAction | null;
   pairCode: string | null;
+  mobileConnected: boolean;
   log: string[];
   connect: () => Promise<void>;
   disconnect: () => void;
@@ -15,50 +16,56 @@ export interface UseRemoteConnectionReturn {
 }
 
 /**
- * Hook que gestiona la sesión WebSocket cifrada para la conexión remota.
+ * Hook que gestiona el canal WebSocket del PC para la conexión remota.
+ *
+ * Protocolo v2:
+ *  - El PC (este hook, localhost) se conecta al servidor en :4040/remote.
+ *  - El servidor lo reconoce como canal del PC (localhost) y lo auto-autentica.
+ *  - El servidor envía PC_READY con el código de emparejamiento.
+ *  - El usuario introduce el código en el dispositivo remoto (móvil).
+ *  - El móvil envía ACTION_REQUESTs → el servidor los reenvía al PC.
+ *  - El PC aprueba (allowAction) o deniega (denyAction) cada acción.
  *
  * SEGURIDAD:
- * - Toda comunicación va por WSS (TLS obligatorio, nunca ws:// en producción).
- * - Cada acción llega al UI como RemoteAction y NO se ejecuta hasta que
- *   el usuario pulse «Permitir» → allowAction().
- * - Si el usuario pulsa «Denegar» → denyAction() envía DENY al servidor y
- *   la acción queda sin ejecutar.
- * - Al desconectar, el WebSocket se cierra limpiamente (código 1000).
+ *  - Toda comunicación va por WSS en producción (TLS obligatorio).
+ *  - Cada acción requiere aprobación explícita del usuario antes de ejecutarse.
+ *  - Las acciones pendientes se deniegan automáticamente al desconectar.
+ *  - Sin canal de PC conectado, el servidor deniega todas las acciones del móvil.
  */
 export function useRemoteConnection(): UseRemoteConnectionReturn {
   const [status, setStatus] = useState<RemoteStatus>("idle");
   const [pendingAction, setPendingAction] = useState<RemoteAction | null>(null);
   const [pairCode, setPairCode] = useState<string | null>(null);
+  const [mobileConnected, setMobileConnected] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
-  // Resolvers para la promesa de permiso actual
+  // id → { resolve } para la promesa de permiso actual
   const resolverRef = useRef<((granted: boolean) => void) | null>(null);
+  const pendingActionRef = useRef<RemoteAction | null>(null);
 
-  const addLog = (msg: string) =>
-    setLog((prev) => [...prev.slice(-49), `[${new Date().toLocaleTimeString()}] ${msg}`]);
+  // Sincronizar ref con state (necesario para callbacks estables)
+  useEffect(() => { pendingActionRef.current = pendingAction; }, [pendingAction]);
+
+  const addLog = useCallback((msg: string) =>
+    setLog((prev) => [...prev.slice(-49), `[${new Date().toLocaleTimeString()}] ${msg}`]), []);
 
   const connect = useCallback(async () => {
     if (wsRef.current) return;
     setStatus("connecting");
     setPairCode(null);
+    setMobileConnected(false);
     addLog("Iniciando servidor remoto...");
 
     // Arrancar el servidor remoto si no está corriendo
     try {
       const res = await fetch("/api/remote-status", { method: "POST" });
       const data = (await res.json()) as { ok: boolean; message?: string };
-      if (!data.ok && res.status !== 200) {
-        addLog(`Aviso: ${data.message ?? "No se pudo arrancar el servidor remoto."}`);
-        // Intentar conectar de todas formas por si ya está corriendo
-      } else {
-        addLog(data.message ?? "Servidor remoto activo.");
-      }
+      addLog(data.message ?? (data.ok ? "Servidor remoto activo." : "No se pudo arrancar el servidor remoto."));
     } catch {
       addLog("No se pudo verificar el servidor remoto. Intentando conectar...");
     }
 
-    // El servidor local de WILLY escucha en el puerto 4040 por WSS.
-    // En desarrollo se permite ws:// solo en localhost; en producción es siempre wss://.
+    // Conectar como canal de PC (localhost → auto-autenticado por el servidor)
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const host = window.location.hostname;
     const url = `${protocol}://${host}:4040/remote`;
@@ -75,14 +82,21 @@ export function useRemoteConnection(): UseRemoteConnectionReturn {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      setStatus("connected");
-      addLog("Conexión establecida (canal cifrado activo).");
-      // Protocolo de autenticación: el servidor enviará un challenge
-      ws.send(JSON.stringify({ type: "AUTH_REQUEST" }));
+      // No enviamos AUTH_REQUEST: el servidor nos reconoce como PC por la IP localhost.
+      // Esperamos el mensaje PC_READY con el código de emparejamiento.
+      addLog("Conexión establecida. Esperando código de emparejamiento...");
     };
 
     ws.onmessage = async (event: MessageEvent) => {
-      let msg: { type: string; action?: RemoteAction; token?: string; code?: string };
+      let msg: {
+        type: string;
+        code?: string;
+        expiresIn?: number;
+        mobileConnected?: boolean;
+        action?: RemoteAction;
+        id?: string;
+        reason?: string;
+      };
       try {
         msg = JSON.parse(event.data as string) as typeof msg;
       } catch {
@@ -90,46 +104,66 @@ export function useRemoteConnection(): UseRemoteConnectionReturn {
         return;
       }
 
-      if (msg.type === "PAIR_CODE" && msg.token) {
-        setPairCode(String(msg.token));
-        addLog(`Código de emparejamiento: ${String(msg.token)} (introduce este código en tu dispositivo remoto)`);
+      // PC_READY: el servidor confirma que somos el canal del PC y nos da el código
+      if (msg.type === "PC_READY") {
+        setStatus("connected");
+        if (msg.code) {
+          setPairCode(msg.code);
+          addLog(`Código de emparejamiento: ${msg.code} (introduce este código en tu dispositivo remoto)`);
+        }
+        if (msg.mobileConnected) {
+          setMobileConnected(true);
+          addLog("Dispositivo remoto ya conectado.");
+        }
         return;
       }
 
+      // PAIR_CODE: nuevo código (el servidor lo actualiza al autenticar el móvil)
       if (msg.type === "PAIR_CODE" && msg.code) {
-        setPairCode(String(msg.code));
-        addLog(`Código de emparejamiento: ${String(msg.code)} (introduce este código en tu dispositivo remoto)`);
+        setPairCode(msg.code);
+        addLog(`Nuevo código de emparejamiento: ${msg.code}`);
         return;
       }
 
-      if (msg.type === "AUTH_OK") {
-        addLog("Autenticación completada.");
+      // MOBILE_CONNECTED / MOBILE_DISCONNECTED
+      if (msg.type === "MOBILE_CONNECTED") {
+        setMobileConnected(true);
+        addLog("✅ Dispositivo remoto conectado.");
+        return;
+      }
+      if (msg.type === "MOBILE_DISCONNECTED") {
+        setMobileConnected(false);
+        addLog("Dispositivo remoto desconectado.");
         return;
       }
 
+      // ACTION_REQUEST: el móvil solicita ejecutar una acción → pedir permiso al usuario
       if (msg.type === "ACTION_REQUEST" && msg.action) {
         addLog(`Solicitud de acción: ${msg.action.description}`);
         setPendingAction(msg.action);
 
-        // Esperar la decisión del usuario (Promise resuelta por allow/deny)
+        // Esperar la decisión del usuario (Promise resuelta por allowAction/denyAction)
         const granted = await new Promise<boolean>((resolve) => {
           resolverRef.current = resolve;
         });
 
-        ws.send(JSON.stringify({
-          type: granted ? "ACTION_ALLOW" : "ACTION_DENY",
-          id: msg.action.id,
-        }));
+        const response = granted ? "ACTION_ALLOW" : "ACTION_DENY";
+        ws.send(JSON.stringify({ type: response, id: msg.action.id }));
 
-        addLog(granted ? `✅ Permitido: ${msg.action.description}` : `🚫 Denegado: ${msg.action.description}`);
+        addLog(granted
+          ? `✅ Permitido: ${msg.action.description}`
+          : `🚫 Denegado: ${msg.action.description}`);
         setPendingAction(null);
         resolverRef.current = null;
+        return;
       }
 
+      // AUTH_FAILED inesperado (no debería ocurrir desde localhost, pero por si acaso)
       if (msg.type === "AUTH_FAILED") {
-        addLog("Autenticación rechazada por el servidor.");
+        addLog(`Error de autenticación: ${msg.reason ?? "desconocido"}`);
         ws.close(1000);
         setStatus("error");
+        return;
       }
     };
 
@@ -147,10 +181,13 @@ export function useRemoteConnection(): UseRemoteConnectionReturn {
       }
       setPendingAction(null);
       setPairCode(null);
-      setStatus("disconnected");
-      addLog(`Conexión cerrada (código ${ev.code}).`);
+      setMobileConnected(false);
+      if (status !== "idle") {
+        setStatus("disconnected");
+        addLog(`Conexión cerrada (código ${ev.code}).`);
+      }
     };
-  }, []);
+  }, [addLog, status]);
 
   const disconnect = useCallback(() => {
     if (wsRef.current) {
@@ -159,20 +196,21 @@ export function useRemoteConnection(): UseRemoteConnectionReturn {
     }
     setStatus("idle");
     setPairCode(null);
+    setMobileConnected(false);
     addLog("Desconectado por el usuario.");
-  }, []);
+  }, [addLog]);
 
   const allowAction = useCallback((id: string) => {
-    if (resolverRef.current && pendingAction?.id === id) {
+    if (resolverRef.current && pendingActionRef.current?.id === id) {
       resolverRef.current(true);
     }
-  }, [pendingAction]);
+  }, []);
 
   const denyAction = useCallback((id: string) => {
-    if (resolverRef.current && pendingAction?.id === id) {
+    if (resolverRef.current && pendingActionRef.current?.id === id) {
       resolverRef.current(false);
     }
-  }, [pendingAction]);
+  }, []);
 
-  return { status, pendingAction, pairCode, log, connect, disconnect, allowAction, denyAction };
+  return { status, pendingAction, pairCode, mobileConnected, log, connect, disconnect, allowAction, denyAction };
 }

@@ -550,7 +550,7 @@ function AdvancedTab({ ping }: { ping: Ping }) {
 
 /** Conexión remota segura con permiso explícito por acción. */
 function RemoteConnectCard({ ping }: { ping: Ping }) {
-  const { status, pendingAction, log, connect, disconnect, allowAction, denyAction } = useRemoteConnection();
+  const { status, pendingAction, pairCode, mobileConnected, log, connect, disconnect, allowAction, denyAction } = useRemoteConnection();
 
   const isConnected = status === "connected";
   const isConnecting = status === "connecting";
@@ -603,6 +603,20 @@ function RemoteConnectCard({ ping }: { ping: Ping }) {
             </Button>
           )}
         </div>
+
+        {/* Código de emparejamiento: visible cuando el canal del PC está activo */}
+        {isConnected && pairCode && (
+          <div className={`rounded-xl border p-3 ${mobileConnected ? "border-emerald-500/40 bg-emerald-50/10 dark:bg-emerald-900/10" : "border-amber-500/30 bg-amber-50/10 dark:bg-amber-900/10"}`}>
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              {mobileConnected ? "✅ Dispositivo remoto conectado" : "Introduce este código en tu dispositivo remoto:"}
+            </p>
+            {!mobileConnected && (
+              <p className="text-center font-mono text-2xl font-bold tracking-[0.3em] text-amber-600 dark:text-amber-400 select-all">
+                {pairCode}
+              </p>
+            )}
+          </div>
+        )}
 
         {log.length > 0 && (
           <div className="max-h-28 overflow-y-auto rounded-lg border border-border bg-muted/30 p-2">
