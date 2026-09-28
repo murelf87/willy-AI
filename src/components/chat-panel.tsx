@@ -34,7 +34,7 @@ import { readSources } from "@/lib/data-sources-store";
 import { askWithFallback, classifyEngineError, explainEngineError } from "@/lib/model-health";
 import { readAttachmentText } from "@/lib/attachment-text";
 import { contextCap } from "@/lib/chat-context";
-import { askChatCloud, readChatPick } from "@/lib/chat-cloud";
+import { askChatCloud, readChatPick, CHAT_ORDER } from "@/lib/chat-cloud";
 import { cloudChat, engineStatus } from "@/lib/engines-client";
 import { ChatEngineChip, useExternalAi } from "@/components/chat-engine-chip";
 import { openView } from "@/lib/background-tasks";
@@ -127,6 +127,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
   const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [thumbs, setThumbs] = useState<Record<number, "up" | "down">>({});
+  const [retrying, setRetrying] = useState<Set<number>>(new Set());
   const activeSpeech = useRef<SpeechHandle | null>(null);
   const autoSpoken = useRef<Set<number>>(new Set());
   useEffect(() => () => activeSpeech.current?.stop(), []);
@@ -218,6 +219,62 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
 
   const updateLast = (fn: (m: MsgItem) => MsgItem) =>
     setMessages((prev) => prev.map((m, i) => (i === prev.length - 1 ? fn(m) : m)));
+
+  const updateAt = (idx: number, fn: (m: MsgItem) => MsgItem) =>
+    setMessages((prev) => prev.map((m, i) => (i === idx ? fn(m) : m)));
+
+  /** Reintenta la respuesta del mensaje en idx usando el siguiente motor externo disponible (función de 👎). */
+  const retryWithModel = async (idx: number, skipEngine: string) => {
+    if (busy) { ping("Espera a que termine la respuesta actual."); return; }
+    const userMsg = messages[idx - 1];
+    if (!userMsg || userMsg.who !== "you") { ping("No encuentro el mensaje original."); return; }
+    setRetrying((s) => new Set(s).add(idx));
+    setBusy(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    // Construir los mensajes igual que reply()
+    const history: ChatMsg[] = messages.slice(0, idx - 1).filter((m) => m.text.trim() && !m.projectAction && !m.generating).slice(-8).map((m) => ({
+      role: m.who === "you" ? "user" : "assistant",
+      content: m.vision ? `${m.text}\n\n${m.vision}` : m.text,
+    }));
+    while (history.at(-1)?.role === "user") history.pop();
+    const aiMessages: ChatMsg[] = [
+      { role: "system", content: [ownerSystem(), CHAT_PROMPT].join("\n\n") },
+      ...history,
+      { role: "user", content: userMsg.text },
+    ];
+    // Siguiente motor en CHAT_ORDER que no sea el que ya falló
+    const nextEngine = CHAT_ORDER.find((id) => !skipEngine.toLowerCase().includes(id));
+    updateAt(idx, (m) => ({ ...m, generating: true, text: nextEngine ? `⏳ Probando con ${nextEngine}…` : "⏳ Reintentando…" }));
+    try {
+      let newText = "";
+      if (nextEngine) {
+        const result = await cloudChat(nextEngine, aiMessages as Parameters<typeof cloudChat>[1], 8000);
+        if (result.ok) {
+          newText = result.data.trim();
+          updateAt(idx, (m) => ({ ...m, generating: false, text: newText, by: `${nextEngine} · ${result.model}` }));
+          setThumbs((t) => { const n = { ...t }; delete n[idx]; return n; });
+          ping(`↻ Respuesta de ${nextEngine}.`);
+        } else {
+          updateAt(idx, (m) => ({ ...m, generating: false, text: `⚠️ ${nextEngine} no ha podido responder: ${result.error}` }));
+          ping(`${nextEngine} no ha podido responder.`);
+        }
+      } else {
+        // Si no hay otro motor externo, usar local
+        let localText = "";
+        await chatLocalStream({ endpoint: settings.endpoint, model: settings.model, messages: aiMessages, onDelta: (d) => { localText += d; updateAt(idx, (m) => ({ ...m, text: localText })); }, signal: controller.signal });
+        updateAt(idx, (m) => ({ ...m, generating: false, text: localText.trim() || m.text, by: `Tu equipo · ${settings.model}` }));
+        setThumbs((t) => { const n = { ...t }; delete n[idx]; return n; });
+        ping("↻ Respuesta de tu IA local.");
+      }
+    } catch (e) {
+      updateAt(idx, (m) => ({ ...m, generating: false, text: `⚠️ No pude reintentar: ${e instanceof Error ? e.message : String(e)}` }));
+    } finally {
+      abortRef.current = null;
+      setBusy(false);
+      setRetrying((s) => { const n = new Set(s); n.delete(idx); return n; });
+    }
+  };
 
   /** Busca en internet, lee las mejores páginas y responde con el modelo local citando las fuentes. */
   const answerFromWeb = async (query: string, question: string, given?: AbortController, source?: { connector: string; params: Record<string, string> }) => {
@@ -620,7 +677,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
                       onClick={() => {
                         if (thumbs[i] === "down") return;
                         setThumbs((t) => ({ ...t, [i]: "down" }));
-                        ping("👎 Entendido. Prueba a pulsar «Repetir con otro modelo» para una nueva respuesta.");
+                        ping("👎 Entendido. Pulsa «↻ Otro modelo» para una nueva respuesta.");
                       }}
                       className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors ${thumbs[i] === "down" ? "text-rose-500" : "text-muted-foreground hover:text-rose-500"}`}
                       aria-label="Mala respuesta"
@@ -629,6 +686,16 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
                     >
                       <ThumbsDown className="size-3.5" />
                     </button>
+                    {thumbs[i] === "down" && (
+                      <button
+                        onClick={() => void retryWithModel(i, m.by ?? "")}
+                        disabled={retrying.has(i) || busy}
+                        className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border border-rose-400/50 bg-rose-500/10 px-2 text-[10px] font-medium text-rose-400 transition-colors hover:bg-rose-500/20 disabled:opacity-50"
+                        title="Volver a generar con otro modelo"
+                      >
+                        {retrying.has(i) ? "…" : "↻ Otro modelo"}
+                      </button>
+                    )}
                   </>
                 ) : null
               }
