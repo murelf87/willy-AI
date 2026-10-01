@@ -8,6 +8,7 @@
 // lib/ y services/ (proyectos, diferencias, contexto de archivos, encargos).
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { PanelCard as Card } from "@/components/panel-card";
 import {
   BookOpen, Brain, Check, ChevronDown, Columns2, Copy, Download, FileText, FolderKanban, FolderPlus, Hammer, Loader2, Mail, MessageSquare, Mic, Monitor, Phone,
@@ -247,6 +248,7 @@ export function SuperIAView() {
   const testsWatch = useRef<TestsWatch | null>(null);
   const lastTests = useRef(new Map<string, TestRun>());
   const [testsLine, setTestsLine] = useState<{ projectId: string; text: string; ok: boolean; at: number } | null>(null);
+  const [confirmSuperia, setConfirmSuperia] = useState<{ msg: string; action: () => void } | null>(null);
   const projectVersions = useVersions(session?.projectId);
   const wide = useWide();
   const visualRef = useRef<VisualContext | null>(null);
@@ -910,13 +912,14 @@ export function SuperIAView() {
       return;
     }
     const when = new Date(version.at).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-    if (!window.confirm(`¿Volver a «${version.label}» (${when})? Lo de ahora sigue guardado en su propia versión.`)) return;
-    const r = await projectService.restoreVersion(version.id);
-    const saved = persist(addTurn(base, "ia", r.ok ? `Hecho: he vuelto a «${version.label}» (${when}). Lo de antes sigue en Versiones por si lo quieres recuperar.` : `⚠️ No he podido volver a esa versión: ${r.error}`, "WILLY"));
-    sessionRef.current = saved;
-    setSession(saved);
-    pushNotice(r.ok ? `Proyecto de vuelta a «${version.label}».` : `⚠️ ${r.error}`, r.ok ? "success" : "warn");
-  };
+    setConfirmSuperia({ msg: `¿Volver a «${version.label}» (${when})? Lo de ahora sigue guardado en su propia versión.`, action: async () => {
+      const r = await projectService.restoreVersion(version.id);
+      const saved = persist(addTurn(base, "ia", r.ok ? `Hecho: he vuelto a «${version.label}» (${when}). Lo de antes sigue en Versiones por si lo quieres recuperar.` : `⚠️ No he podido volver a esa versión: ${r.error}`, "WILLY"));
+      sessionRef.current = saved;
+      setSession(saved);
+      pushNotice(r.ok ? `Proyecto de vuelta a «${version.label}».` : `⚠️ ${r.error}`, r.ok ? "success" : "warn");
+    } });
+    return;
 
   /**
    * Lo que se pide desde el taller (arreglar un error, añadir la vista previa…): se ejecuta en el chat del proyecto. Rev24: los
@@ -1650,6 +1653,21 @@ export function SuperIAView() {
 
   // ------------------------------------------------------------------ SIN PROYECTO ABIERTO (o en plena entrevista)
   return (
+    <>
+      {confirmSuperia && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmSuperia(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Restaurar versión?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmSuperia.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmSuperia(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { void (confirmSuperia.action as () => void)(); setConfirmSuperia(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
     <div className="mx-auto w-full max-w-5xl space-y-5">
       {restore && !session && (
@@ -1934,5 +1952,6 @@ export function SuperIAView() {
       </Card>
     </div>
     </div>
+    </>
   );
 }

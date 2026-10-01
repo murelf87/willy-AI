@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { engineCommand, engineStatus } from "@/lib/engines-client";
 import type { PublicEngine, PublicStatus } from "@/lib/engines-server";
@@ -24,6 +25,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [confirmEngine, setConfirmEngine] = useState<{ msg: string; action: () => void } | null>(null);
 
   const refresh = useCallback(async () => {
     setStatus(await engineStatus());
@@ -43,6 +45,21 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
   };
 
   return (
+    <>
+      {confirmEngine && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmEngine(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Quitar clave?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmEngine.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmEngine(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { confirmEngine.action(); setConfirmEngine(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <details className="rounded-lg border border-border bg-card p-4">
       <summary className="cursor-pointer text-sm font-semibold">Claves de IA externa (opcional): añadir, probar, desactivar o borrar</summary>
       {!status ? (
@@ -91,7 +108,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
                       <>
                         <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy === engine.id} onClick={() => void run(engine.id, "engines-test", { id: engine.id })}>Probar</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy === engine.id} onClick={() => void run(engine.id, "engines-enable", { id: engine.id, on: !engine.enabled }, engine.enabled ? "Desactivado." : "Activado.")}>{engine.enabled ? "Desactivar" : "Activar"}</Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={busy === engine.id} onClick={() => { if (window.confirm(`Se borrará la clave de ${engine.name} de este equipo. ¿Continuar?`)) void run(engine.id, "engines-remove-key", { id: engine.id }, "Clave borrada."); }}>Quitar</Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={busy === engine.id} onClick={() => setConfirmEngine({ msg: `Se borrará la clave de ${engine.name} de este equipo. ¿Continuar?`, action: () => void run(engine.id, "engines-remove-key", { id: engine.id }, "Clave borrada.") })}>Quitar</Button>
                       </>
                     )}
                   </div>
@@ -104,5 +121,6 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
         </div>
       )}
     </details>
+    </>
   );
 }

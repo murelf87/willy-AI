@@ -2,6 +2,7 @@
 // tal y como se imprimirá y, cuando la aceptas, lo exportas (PDF para imprimir, EPUB, HTML, Markdown).
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { BookOpen, Check, ChevronLeft, ChevronRight, Download, FileText, Image as ImageIcon, Loader2, Maximize2, Play, RefreshCw, Square, Trash2, Upload, Volume2, X } from "lucide-react";
 import { PanelCard as Card } from "@/components/panel-card";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,7 @@ export function BookView() {
   const [spread, setSpread] = useState(0);
   const [zoom, setZoom] = useState(0.7);
   const [speaking, setSpeaking] = useState(false);
+  const [confirmBook, setConfirmBook] = useState<{ msg: string; action: () => void } | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const abort = useRef<AbortController | null>(null);
   const speech = useRef<SpeechHandle | null>(null);
@@ -218,11 +220,11 @@ export function BookView() {
     local: (model, messages, o) => chatLocalStream({ endpoint: settings.endpoint, model, messages, temperature: o.temperature, maxOutputTokens: o.maxTokens, numCtx: 8192, signal, ...(o.onDelta ? { onDelta: o.onDelta } : {}) }),
   });
   const specForRun = (): BookSpec => ({ ...spec, idea: S.extras.length ? `${spec.idea}\nAdemás incluye: ${S.extras.join("; ")}` : spec.idea });
-  const write = async (fresh: boolean) => {
+  const write = async (fresh: boolean, confirmed = false) => {
     if (running) { abort.current?.abort(); return; }
     if (!spec.idea.trim() && !spec.title.trim()) { pushNotice("Escribe al menos el título o la idea del libro.", "warn"); return; }
     if (!plan.steps.length) { pushNotice("No hay ninguna IA disponible para escribir. Arranca Ollama o activa un motor externo.", "warn"); return; }
-    if (fresh && doc.chapters.length && !window.confirm("Esto borra el libro actual y empieza de cero. ¿Seguro?")) return;
+    if (fresh && doc.chapters.length && !confirmed) { setConfirmBook({ msg: "Esto borra el libro actual y empieza de cero. ¿Seguro?", action: () => void write(fresh, true) }); return; }
     const controller = new AbortController();
     abort.current = controller;
     setRunning(true); setLive(""); setProgress(null); setPreview(null);
@@ -303,6 +305,21 @@ export function BookView() {
   const pct = progress && progress.total ? Math.round(((progress.phase === "capitulo" ? progress.index - 1 : progress.index) / progress.total) * 100) : 0;
 
   return (
+    <>
+      {confirmBook && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmBook(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Empezar de cero?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmBook.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmBook(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { confirmBook.action(); setConfirmBook(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <div className="space-y-4">
       <Card>
         <p className="text-sm font-semibold"><BookOpen className="mr-2 inline size-4 text-primary" />Libro completo: escrito por capítulos, maquetado y listo para publicar</p>
@@ -521,5 +538,6 @@ export function BookView() {
         </Card>
       )}
     </div>
+    </>
   );
 }

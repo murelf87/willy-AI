@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Copy, Database, FolderOpen, HardDrive, Loader2, Monitor, Power, RefreshCw, RotateCw, ScrollText, Server, Smartphone,
   Stethoscope, Trash2, WifiOff, Wrench,
@@ -199,6 +200,7 @@ function SystemTab({ ping }: { ping: Ping }) {
   const [info, setInfo] = useState<SystemInfo | null>(null);
   const [status, setStatus] = useState<"cargando" | "ok" | "sin-respuesta">("cargando");
   const [phase, setPhase] = useState<"" | "reiniciando" | "confirmar-detener" | "deteniendo" | "detenido">("");
+  const [confirmSystem, setConfirmSystem] = useState<{ msg: string; action: () => void } | null>(null);
   const local = onThisComputer();
 
   const load = async (announce = false) => {
@@ -210,21 +212,22 @@ function SystemTab({ ping }: { ping: Ping }) {
   };
   useEffect(() => { void load(); }, []);
 
-  const restart = async () => {
-    if (!window.confirm("¿Reiniciar WILLY AI ahora? Tarda unos 10 segundos. Si una IA está escribiendo una respuesta, se cortará.")) return;
-    setPhase("reiniciando");
-    const result = await systemAction("reiniciar");
-    if (!result.ok) {
-      setPhase("");
-      ping(`⚠️ ${result.error ?? "No se pudo reiniciar."}`);
-      return;
-    }
-    ping(result.message ?? "WILLY AI se está reiniciando.");
-    if (await waitForRestart()) window.location.reload();
-    else {
-      setPhase("");
-      ping("⚠️ WILLY todavía no ha vuelto a responder. Espera un poco más o ábrelo con su acceso directo.");
-    }
+  const restart = () => {
+    setConfirmSystem({ msg: "¿Reiniciar WILLY AI ahora? Tarda unos 10 segundos. Si una IA está escribiendo una respuesta, se cortará.", action: async () => {
+      setPhase("reiniciando");
+      const result = await systemAction("reiniciar");
+      if (!result.ok) {
+        setPhase("");
+        ping(`⚠️ ${result.error ?? "No se pudo reiniciar."}`);
+        return;
+      }
+      ping(result.message ?? "WILLY AI se está reiniciando.");
+      if (await waitForRestart()) window.location.reload();
+      else {
+        setPhase("");
+        ping("⚠️ WILLY todavía no ha vuelto a responder. Espera un poco más o ábrelo con su acceso directo.");
+      }
+    } });
   };
 
   const stop = async () => {
@@ -250,6 +253,21 @@ function SystemTab({ ping }: { ping: Ping }) {
   const installed = info?.installed ?? false;
   const canControl = status === "ok" && installed && local && phase === "";
   return (
+    <>
+      {confirmSystem && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmSystem(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Reiniciar WILLY AI?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmSystem.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmSystem(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { void (confirmSystem.action as () => void)(); setConfirmSystem(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <div className="space-y-3">
       <Card>
         <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -296,6 +314,7 @@ function SystemTab({ ping }: { ping: Ping }) {
       <UpdateView info={info} />
       <MaintenanceCard ping={ping} />
     </div>
+    </>
   );
 }
 
@@ -364,6 +383,7 @@ function StorageTab({ ping }: { ping: Ping }) {
   const [report, setReport] = useState<StorageReport | null>(null);
   const [state, setState] = useState<"cargando" | "ok" | "error">("cargando");
   const [cleaning, setCleaning] = useState(false);
+  const [confirmStorage, setConfirmStorage] = useState<{ msg: string; action: () => void } | null>(null);
   const load = async () => {
     setState("cargando");
     const data = await fetchStorage();
@@ -372,19 +392,36 @@ function StorageTab({ ping }: { ping: Ping }) {
   };
   useEffect(() => { void load(); }, []);
 
-  const cleanBackups = async () => {
-    if (!report || !window.confirm(`¿Borrar ${report.removable.count} copia(s) antigua(s)? Se conservan siempre las más recientes y las que usa «Volver a la versión anterior».`)) return;
-    setCleaning(true);
-    const result = await systemAction("limpiar-copias");
-    setCleaning(false);
-    ping(result.ok ? result.message ?? "Copias antiguas borradas." : `⚠️ ${result.error ?? "No se pudieron borrar."}`);
-    await load();
+  const cleanBackups = () => {
+    if (!report) return;
+    setConfirmStorage({ msg: `¿Borrar ${report.removable.count} copia(s) antigua(s)? Se conservan siempre las más recientes y las que usa «Volver a la versión anterior».`, action: async () => {
+      setCleaning(true);
+      const result = await systemAction("limpiar-copias");
+      setCleaning(false);
+      ping(result.ok ? result.message ?? "Copias antiguas borradas." : `⚠️ ${result.error ?? "No se pudieron borrar."}`);
+      await load();
+    } });
   };
 
   if (state === "cargando" && !report) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Midiendo el espacio…</p>;
   if (!report) return <Card className="text-sm text-muted-foreground">No se pudo leer el almacenamiento: el servidor de WILLY no respondió. <Button size="sm" variant="secondary" className="ml-2" onClick={() => void load()}>Reintentar</Button></Card>;
 
   return (
+    <>
+      {confirmStorage && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmStorage(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Borrar copias antiguas?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmStorage.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmStorage(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { void (confirmStorage.action as () => void)(); setConfirmStorage(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <div className="space-y-3">
       {report.disk && (
         <Card>
@@ -438,6 +475,7 @@ function StorageTab({ ping }: { ping: Ping }) {
       </Card>
       <p className="text-xs text-muted-foreground">Medido a las {timeText(report.checkedAt)}.</p>
     </div>
+    </>
   );
 }
 

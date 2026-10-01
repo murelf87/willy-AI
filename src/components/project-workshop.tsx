@@ -16,6 +16,7 @@
 // que WILLY pasa solo, sin que se vea, después de cada cambio; con «Pasar las pruebas», «Arreglar lo que falla» y «Escribir».
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   AlertTriangle, ArrowLeft, ArrowLeftRight, ArrowRight, ChevronDown, Clock, Code2, Columns2, Copy, Download, FileCode2, FlaskConical, Folder, FolderKanban,
   LayoutGrid, Loader2, Maximize2, Monitor, MoreHorizontal, MousePointerClick, RotateCcw, RotateCw, Rocket, ScanEye, Share2, ShieldCheck, Smartphone,
@@ -241,6 +242,7 @@ export function ProjectWorkshop({ projectId, running, liveText, onAsk, focus, on
   const [hash, setHash] = useState<string | null>(route.hash);
   const [pageHistory, setPageHistory] = useState<{ stack: string[]; pos: number }>({ stack: [], pos: -1 });
   const [entries, setEntries] = useState<ConsoleEntry[]>([]);
+  const [confirmWorkshop, setConfirmWorkshop] = useState<{ msg: string; action: () => void } | null>(null);
   // Lo que llega a la consola se junta y se pinta de golpe cada poco (una página muy habladora no puede atascar WILLY).
   const pendingRef = useRef<ConsoleEntry[]>([]);
   const flushRef = useRef<number | null>(null);
@@ -694,8 +696,7 @@ export function ProjectWorkshop({ projectId, running, liveText, onAsk, focus, on
     addEntries([{ level: errs ? "error" : issues.length ? "warn" : "info", text: issues.length ? `Revisión del código: ${errs} error(es) y ${issues.length - errs} aviso(s).` : `Revisión del código: ${saved.length} archivo(s) sin problemas.`, at: Date.now(), source: "willy" }]);
   };
   const archive = () => {
-    if (!window.confirm(`¿Archivar «${name}»? No se borra nada: queda en Proyectos como archivado y puedes volver a activarlo.`)) return;
-    void projectService.setState(projectId, "Archivado").then((r) => pushNotice(r.ok ? `«${name}» archivado.` : `⚠️ ${r.error}`, r.ok ? "success" : "warn"));
+    setConfirmWorkshop({ msg: `¿Archivar «${name}»? No se borra nada: queda en Proyectos como archivado y puedes volver a activarlo.`, action: () => void projectService.setState(projectId, "Archivado").then((r) => pushNotice(r.ok ? `«${name}» archivado.` : `⚠️ ${r.error}`, r.ok ? "success" : "warn")) });
   };
 
   const tabs: Array<[WorkshopTab, string, typeof Monitor]> = [
@@ -732,6 +733,21 @@ export function ProjectWorkshop({ projectId, running, liveText, onAsk, focus, on
   const canForward = pageHistory.pos >= 0 && pageHistory.pos < pageHistory.stack.length - 1;
 
   return (
+    <>
+      {confirmWorkshop && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmWorkshop(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Archivar proyecto?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmWorkshop.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmWorkshop(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { confirmWorkshop.action(); setConfirmWorkshop(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-panel" aria-label="Taller del proyecto">
       <div className="flex h-11 shrink-0 items-center gap-1 border-b border-border bg-card px-2">
         <div role="tablist" aria-label="Taller del proyecto" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
@@ -971,6 +987,7 @@ export function ProjectWorkshop({ projectId, running, liveText, onAsk, focus, on
       {deploy && <DeployModal project={name} files={saved} onClose={() => setDeploy(false)} />}
       {libsOpen && <InstalledLibrariesDialog onClose={() => setLibsOpen(false)} onChanged={() => setLibsNonce((n) => n + 1)} />}
     </section>
+    </>
   );
 }
 
@@ -1413,16 +1430,33 @@ function FileDiff({ before, after }: { before: string; after: string }) {
 // --------------------------------------------------------------------------------------------------------- Versiones
 function VersionsTab({ versions, onCompare }: { versions: ProjectVersion[]; onCompare: (id: string) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirmVersion, setConfirmVersion] = useState<{ msg: string; action: () => void } | null>(null);
   if (!versions.length) return <Empty text="Todavía no hay versiones: cada vez que WILLY guarda archivos en el proyecto, queda una versión que puedes restaurar." />;
   const restore = (v: ProjectVersion) => {
-    if (!window.confirm(`¿Restaurar «${v.label}» (${fmtDate(v.at)})? Los archivos actuales del proyecto se sustituyen por los de esa versión (lo de ahora sigue en su propia versión).`)) return;
-    setBusy(v.id);
-    void projectService.restoreVersion(v.id).then((r) => {
-      setBusy(null);
-      pushNotice(r.ok ? `Versión «${v.label}» restaurada.` : `⚠️ ${r.error}`, r.ok ? "success" : "warn");
-    });
+    setConfirmVersion({ msg: `¿Restaurar «${v.label}» (${fmtDate(v.at)})? Los archivos actuales del proyecto se sustituyen por los de esa versión (lo de ahora sigue en su propia versión).`, action: () => {
+      setBusy(v.id);
+      void projectService.restoreVersion(v.id).then((r) => {
+        setBusy(null);
+        pushNotice(r.ok ? `Versión «${v.label}» restaurada.` : `⚠️ ${r.error}`, r.ok ? "success" : "warn");
+      });
+    } });
   };
   return (
+    <>
+      {confirmVersion && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmVersion(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Restaurar versión?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmVersion.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmVersion(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { confirmVersion.action(); setConfirmVersion(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
       <p className="mb-3 text-xs text-muted-foreground">Cada vez que WILLY guarda archivos del proyecto queda una versión (se conservan las 40 últimas). Puedes compararla con lo de ahora o volver a ella.</p>
       <ul className="space-y-2" aria-label="Versiones del proyecto">
@@ -1439,6 +1473,7 @@ function VersionsTab({ versions, onCompare }: { versions: ProjectVersion[]; onCo
         ))}
       </ul>
     </div>
+    </>
   );
 }
 

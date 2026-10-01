@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { AGENTS } from "@/lib/project-work";
 import { Activity, Bot, Check, Clock, Cloud, Cpu, Download, Gauge, LayoutDashboard, Loader2, MemoryStick, Play, RefreshCw, RotateCw, ScrollText, Settings2, Sparkles, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -510,15 +511,17 @@ function LocalEngineSection({ report, state, onRefresh, ping }: { report: Ollama
   const [settings, update] = useSettings();
   const [endpointDraft, setEndpointDraft] = useState(settings.endpoint);
   const [testing, setTesting] = useState(false);
+  const [confirmOllama, setConfirmOllama] = useState<{ msg: string; action: () => void } | null>(null);
   useEffect(() => { setEndpointDraft(settings.endpoint); }, [settings.endpoint]);
 
-  const restart = async () => {
-    if (!window.confirm("¿Reiniciar la IA de tu equipo (Ollama)? Si está contestando algo, se cortará. Tarda unos segundos.")) return;
-    setWorking("reiniciar");
-    const result = await systemAction("reiniciar-ollama");
-    setWorking("");
-    ping(result.ok ? result.message ?? "La IA de tu equipo se ha reiniciado." : `⚠️ ${result.error ?? "No se pudo reiniciar."}`);
-    onRefresh();
+  const restart = () => {
+    setConfirmOllama({ msg: "¿Reiniciar la IA de tu equipo (Ollama)? Si está contestando algo, se cortará. Tarda unos segundos.", action: async () => {
+      setWorking("reiniciar");
+      const result = await systemAction("reiniciar-ollama");
+      setWorking("");
+      ping(result.ok ? result.message ?? "La IA de tu equipo se ha reiniciado." : `⚠️ ${result.error ?? "No se pudo reiniciar."}`);
+      onRefresh();
+    } });
   };
   const start = async () => {
     setWorking("arrancar");
@@ -553,6 +556,21 @@ function LocalEngineSection({ report, state, onRefresh, ping }: { report: Ollama
   }
 
   return (
+    <>
+      {confirmOllama && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmOllama(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Reiniciar Ollama?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmOllama.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmOllama(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { void (confirmOllama.action as () => void)(); setConfirmOllama(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <div className="space-y-3">
       <Card>
         <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -640,6 +658,7 @@ function LocalEngineSection({ report, state, onRefresh, ping }: { report: Ollama
         </form>
       </details>
     </div>
+    </>
   );
 }
 
@@ -670,6 +689,7 @@ function ModelsTab({ ping, report, state, onRefresh, onChanged }: { ping: Ping; 
   const [catalogTag, setCatalogTag] = useState<CatalogTag>("Todos");
   const [pulls, setPulls] = useState<Record<string, PullProgress>>({});
   const pullControllers = useRef<Record<string, AbortController>>({});
+  const [confirmModel, setConfirmModel] = useState<{ msg: string; action: () => void } | null>(null);
 
   const checkModels = (announce = false) => {
     setEngineState("checking");
@@ -728,17 +748,33 @@ function ModelsTab({ ping, report, state, onRefresh, onChanged }: { ping: Ping; 
     for (const m of pending) await startPull(m);
     ping("Cola de descargas terminada.");
   };
-  const deleteModel = async (name: string) => {
-    if (!window.confirm(`¿Borrar «${name}» de tu equipo? Para volver a usarlo habrá que descargarlo otra vez.`)) return;
-    const result = await removeModel(settings.endpoint, name);
-    if (!result.ok) return ping(`⚠️ ${result.error}`);
-    ping(`${name} borrado del disco.`);
-    checkModels();
-    onChanged();
+  const deleteModel = (name: string) => {
+    setConfirmModel({ msg: `¿Borrar «${name}» de tu equipo? Para volver a usarlo habrá que descargarlo otra vez.`, action: async () => {
+      const result = await removeModel(settings.endpoint, name);
+      if (!result.ok) return ping(`⚠️ ${result.error}`);
+      ping(`${name} borrado del disco.`);
+      checkModels();
+      onChanged();
+    } });
   };
   const installed = (name: string) => engineState === "ok" && (engineModels?.some((n) => n === name || n === `${name}:latest`) ?? false);
 
   return (
+    <>
+      {confirmModel && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmModel(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Borrar modelo?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmModel.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmModel(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { void (confirmModel.action as () => void)(); setConfirmModel(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <div className="space-y-3">
       <LocalEngineSection report={report} state={state} onRefresh={onRefresh} ping={ping} />
 
@@ -857,6 +893,7 @@ function ModelsTab({ ping, report, state, onRefresh, onChanged }: { ping: Ping; 
         </p>
       )}
     </div>
+    </>
   );
 }
 

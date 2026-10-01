@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Cpu, Database, FolderKanban, HardDrive, MemoryStick, Power, Trash2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { advise, formatMB, isHighPerformance, type SystemSnapshot } from "@/lib/system-info";
@@ -145,6 +146,7 @@ async function act(action: string, extra: Record<string, unknown> = {}): Promise
 export function LiveTools({ ping }: { ping: (message: string) => void }) {
   const { snapshot: s } = useSystem();
   const [working, setWorking] = useState("");
+  const [confirmLive, setConfirmLive] = useState<{ msg: string; action: () => void } | null>(null);
 
   const run = async (label: string, job: () => Promise<void>) => {
     if (working) return;
@@ -170,22 +172,44 @@ export function LiveTools({ ping }: { ping: (message: string) => void }) {
       if (!preview.ok) return ping(`⚠️ ${preview.error}`);
       const count = (preview.removable ?? []).length;
       if (!count) return ping("No hay copias antiguas que borrar: solo quedan las más recientes.");
-      if (!window.confirm(`Se borrarán ${count} copia(s) antigua(s) de WILLY (${formatMB(preview.totalMB ?? 0)}). Se conservan siempre las más recientes, así que podrás seguir deshaciendo cambios. ¿Continuar?`)) return;
-      const done = await act("backups-clean");
-      ping(done.ok ? `✅ Copias antiguas borradas: ${done.removed ?? 0}. Espacio liberado: ${formatMB(done.freedMB ?? 0)}.` : `⚠️ ${done.error}`);
+      setConfirmLive({ msg: `Se borrarán ${count} copia(s) antigua(s) de WILLY (${formatMB(preview.totalMB ?? 0)}). Se conservan siempre las más recientes, así que podrás seguir deshaciendo cambios. ¿Continuar?`, action: async () => {
+        const done = await act("backups-clean");
+        ping(done.ok ? `✅ Copias antiguas borradas: ${done.removed ?? 0}. Espacio liberado: ${formatMB(done.freedMB ?? 0)}.` : `⚠️ ${done.error}`);
+      } });
     });
 
   const high = isHighPerformance(s?.power);
   const power = () =>
     run("power", async () => {
-      if (!high && !window.confirm("Se cambiará el plan de energía de Windows a «Alto rendimiento»: la IA irá más rápido y el equipo gastará más batería y hará más ruido. Podrás deshacerlo con el botón «Volver al plan anterior». ¿Continuar?")) return;
-      const result = await act(high ? "power-restore" : "power-high");
-      ping(result.ok ? (high ? "✅ Plan de energía anterior restaurado." : "✅ Plan «Alto rendimiento» activado.") : `⚠️ ${result.error}`);
+      if (!high) {
+        setConfirmLive({ msg: "Se cambiará el plan de energía de Windows a «Alto rendimiento»: la IA irá más rápido y el equipo gastará más batería y hará más ruido. Podrás deshacerlo con el botón «Volver al plan anterior». ¿Continuar?", action: async () => {
+          const result = await act("power-high");
+          ping(result.ok ? "✅ Plan «Alto rendimiento» activado." : `⚠️ ${result.error}`);
+        } });
+        return;
+      }
+      const result = await act("power-restore");
+      ping(result.ok ? "✅ Plan de energía anterior restaurado." : `⚠️ ${result.error}`);
     });
 
   if (!s) return null;
   const tips = advise(s as SystemSnapshot);
   return (
+    <>
+      {confirmLive && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmLive(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Confirmar acción?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmLive.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmLive(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { void (confirmLive.action as () => void)(); setConfirmLive(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <div className="mt-4 grid gap-3 lg:grid-cols-2">
       <Box>
         <p className="mb-3 text-sm font-semibold">Modelos de IA en memoria ahora</p>
@@ -248,5 +272,6 @@ export function LiveTools({ ping }: { ping: (message: string) => void }) {
         )}
       </Box>
     </div>
+    </>
   );
 }

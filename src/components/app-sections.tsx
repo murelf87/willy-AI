@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useLocalModels } from "@/lib/use-local-models";
 import { useEscapeToClose } from "@/hooks/use-escape-to-close";
 import type { GeneratedFile } from "@/lib/ai-standard";
@@ -93,9 +94,24 @@ function HistoryView({ ping }: { ping: Ping }) {
   const active = (settings.projectId ? projects.find((p) => p.id === settings.projectId) : undefined)
     ?? (settings.project ? projects.find((p) => p.name === settings.project) : undefined);
   const versions = useVersions(active?.id);
+  const [confirmHistory, setConfirmHistory] = useState<{ msg: string; action: () => void } | null>(null);
 
   return (
     <>
+      {confirmHistory && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setConfirmHistory(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Restaurar versión?</AlertDialogTitle>
+              <AlertDialogDescription>{confirmHistory.msg}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmHistory(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { confirmHistory.action(); setConfirmHistory(null); }}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
       <Head title="Historial de versiones" desc={active ? `Cada generación de «${active.name}» queda guardada aquí.` : "Crea o abre un proyecto para empezar."} />
       {!active && <p className="text-sm text-muted-foreground">No hay ningún proyecto activo todavía.</p>}
       {active && versions.length === 0 && (
@@ -109,7 +125,7 @@ function HistoryView({ ping }: { ping: Ping }) {
               <p className="truncate text-sm font-semibold">{v.label}</p>
               <p className="text-xs text-muted-foreground">{new Date(v.at).toLocaleString("es-ES")} · {v.fileCount ?? v.files.length} archivo(s)</p>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => { if (window.confirm(`¿Restaurar «${v.label}»? Se sustituirán los archivos actuales del proyecto.`)) void projectService.restoreVersion(v.id).then((r) => ping(r.ok ? `Versión «${v.label}» restaurada en «${r.data.name}».` : `⚠️ ${r.error}`)); }}>
+            <Button variant="secondary" size="sm" onClick={() => setConfirmHistory({ msg: `¿Restaurar «${v.label}»? Se sustituirán los archivos actuales del proyecto.`, action: () => void projectService.restoreVersion(v.id).then((r) => ping(r.ok ? `Versión «${v.label}» restaurada en «${r.data.name}».` : `⚠️ ${r.error}`)) })}>
               <RotateCcw className="size-3.5" />Restaurar
             </Button>
           </Card>
