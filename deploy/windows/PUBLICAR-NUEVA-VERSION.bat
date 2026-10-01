@@ -1,7 +1,24 @@
 @echo off
 chcp 65001 >nul
 title Publicar nueva version de WILLY AI en GitHub
+
+:: Ir a la raiz del repo (dos niveles arriba de deploy\windows\)
 cd /d "%~dp0..\.."
+if errorlevel 1 (
+  echo [ERROR] No se pudo ir a la raiz del repositorio.
+  echo Ruta del script: %~dp0
+  pause & exit /b 1
+)
+
+:: Verificar que estamos en el repo correcto
+if not exist "src\lib\version.ts" (
+  echo [ERROR] No encuentro src\lib\version.ts
+  echo Asegurate de que el .bat esta dentro de la carpeta deploy\windows\ del repo de WILLY AI.
+  echo Ruta actual: %CD%
+  pause & exit /b 1
+)
+
+echo Raiz del repo: %CD%
 
 echo.
 echo  ============================================================
