@@ -360,19 +360,48 @@ type ActionResult = { ok: boolean; message?: string; error?: string };
 
 const GITHUB_REPO = "murelf87/willy-AI";
 
-/** Descarga la última versión de GitHub Releases y lanza el instalador en segundo plano (solo Windows local). */
+const GITHUB_REPO_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+const UPDATE_LOG_FILE = "actualizacion-en-progreso.json";
+type UpdateLog = { startedAt: string; fromVersion: string; toVersion: string; backupDir: string; status: "running" | "ok" | "rollback" | "rollback-ok" | "rollback-fail"; error?: string };
+
+async function readUpdateLog(dataDir: string, path: Awaited<ReturnType<typeof nodeMods>>["path"], fs: Awaited<ReturnType<typeof nodeMods>>["fs"]): Promise<UpdateLog | null> {
+  try {
+    const raw = await fs.readFile(path.join(dataDir, UPDATE_LOG_FILE), "utf-8");
+    return JSON.parse(raw) as UpdateLog;
+  } catch {
+    return null;
+  }
+}
+
+async function writeUpdateLog(dataDir: string, log: UpdateLog, path: Awaited<ReturnType<typeof nodeMods>>["path"], fs: Awaited<ReturnType<typeof nodeMods>>["fs"]): Promise<void> {
+  try {
+    await fs.writeFile(path.join(dataDir, UPDATE_LOG_FILE), JSON.stringify(log, null, 2), "utf-8");
+  } catch { /* no interrumpir el proceso si el log falla */ }
+}
+
+/** Devuelve el estado del último intento de actualización, si existe. */
+export async function updateStatus(deps: MaintenanceDeps = {}): Promise<UpdateLog | null> {
+  const d = await resolveDeps(deps);
+  const { fs, path } = await nodeMods();
+  return readUpdateLog(path.join(d.root, "datos-privados"), path, fs);
+}
+
+/** Descarga la última versión de GitHub Releases, hace backup de datos-privados, lanza el instalador y
+ *  monitoriza el resultado. Si algo falla, intenta rollback automático y guarda el informe. Solo funciona desde localhost. */
 export async function installUpdate(deps: MaintenanceDeps = {}): Promise<ActionResult & { latestVersion?: string }> {
   const d = await resolveDeps(deps);
   if (d.platform !== "win32") return { ok: false, error: "La actualización automática solo funciona en Windows." };
   if (!(await d.installed().catch(() => false))) return { ok: false, error: "La actualización automática solo funciona en el programa instalado (no en la vista previa)." };
+
+  const { fs, path } = await nodeMods();
+  const dataDir = path.join(d.root, "datos-privados");
 
   // 1. Consultar la última versión en GitHub
   let latestTag = "";
   let downloadUrl = "";
   let fileName = "";
   try {
-    const api = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
-    const res = await d.fetchImpl(api, { headers: { "User-Agent": "WILLY-AI-Updater/1.0" } });
+    const res = await d.fetchImpl(GITHUB_REPO_API, { headers: { "User-Agent": "WILLY-AI-Updater/1.0" } });
     if (!res.ok) throw new Error(`GitHub respondió ${res.status}`);
     const data = await res.json() as { tag_name?: string; assets?: { name: string; browser_download_url: string }[] };
     latestTag = (data.tag_name ?? "").replace(/^v/, "");
@@ -394,8 +423,34 @@ export async function installUpdate(deps: MaintenanceDeps = {}): Promise<ActionR
     return { ok: true, message: `Ya tienes la versión más reciente (${APP_VERSION}).`, latestVersion: latestTag };
   }
 
-  // 3. Descargar el instalador a %TEMP%\willy-install\
-  const { fs, path } = await nodeMods();
+  // 3. Backup de datos-privados antes de instalar
+  const backupDir = path.join(d.tmpdir(), `willy-backup-${APP_VERSION}-${Date.now()}`);
+  const log: UpdateLog = { startedAt: new Date().toISOString(), fromVersion: APP_VERSION, toVersion: latestTag, backupDir, status: "running" };
+  await writeUpdateLog(dataDir, log, path, fs);
+  try {
+    await fs.mkdir(backupDir, { recursive: true });
+    // Copia recursiva de datos-privados al backup
+    const copyDir = async (src: string, dst: string): Promise<void> => {
+      await fs.mkdir(dst, { recursive: true });
+      const entries = await fs.readdir(src, { withFileTypes: true });
+      for (const entry of entries) {
+        const s = path.join(src, entry.name);
+        const d2 = path.join(dst, entry.name);
+        if (entry.isDirectory()) {
+          await copyDir(s, d2);
+        } else {
+          await fs.copyFile(s, d2);
+        }
+      }
+    };
+    await copyDir(dataDir, backupDir);
+  } catch (e) {
+    const errMsg = `No se pudo hacer el backup antes de actualizar: ${e instanceof Error ? e.message : String(e)}`;
+    await writeUpdateLog(dataDir, { ...log, status: "rollback", error: errMsg }, path, fs);
+    return { ok: false, error: errMsg };
+  }
+
+  // 4. Descargar el instalador
   const tmpDir = path.join(d.tmpdir(), "willy-install");
   const dest = path.join(tmpDir, fileName);
   try {
@@ -406,21 +461,53 @@ export async function installUpdate(deps: MaintenanceDeps = {}): Promise<ActionR
     if (buf.byteLength < 1024) throw new Error("El archivo descargado está vacío.");
     await fs.writeFile(dest, Buffer.from(buf));
   } catch (e) {
-    return { ok: false, error: `Error al descargar el instalador: ${e instanceof Error ? e.message : String(e)}` };
+    const errMsg = `Error al descargar el instalador: ${e instanceof Error ? e.message : String(e)}`;
+    await writeUpdateLog(dataDir, { ...log, status: "rollback", error: errMsg }, path, fs);
+    return { ok: false, error: errMsg };
   }
 
-  // 4. Lanzar el instalador en segundo plano (detached, sin ventana bloqueante)
+  // 5. Lanzar el instalador + watchdog de rollback en segundo plano
   try {
     const launched = await d.startDetached(`"${dest}"`);
     if (!launched) throw new Error("No se pudo lanzar el instalador.");
   } catch (e) {
-    return { ok: false, error: `No se pudo abrir el instalador: ${e instanceof Error ? e.message : String(e)}` };
+    const errMsg = `No se pudo abrir el instalador: ${e instanceof Error ? e.message : String(e)}`;
+    await writeUpdateLog(dataDir, { ...log, status: "rollback", error: errMsg }, path, fs);
+    return { ok: false, error: errMsg };
   }
+
+  // 6. Watchdog asíncrono: espera 3 minutos; si WILLY no levanta, hace rollback de datos y registra el fallo
+  void (async () => {
+    await d.sleep(180_000); // 3 minutos
+    // Si el log todavía dice "running", el instalador falló o no terminó
+    const current = await readUpdateLog(dataDir, path, fs);
+    if (!current || current.status !== "running") return;
+    // Intentar rollback de datos-privados
+    try {
+      const copyDir = async (src: string, dst: string): Promise<void> => {
+        await fs.mkdir(dst, { recursive: true });
+        const entries = await fs.readdir(src, { withFileTypes: true });
+        for (const entry of entries) {
+          const s = path.join(src, entry.name);
+          const d2 = path.join(dst, entry.name);
+          if (entry.isDirectory()) {
+            await copyDir(s, d2);
+          } else {
+            await fs.copyFile(s, d2);
+          }
+        }
+      };
+      await copyDir(backupDir, dataDir);
+      await writeUpdateLog(dataDir, { ...log, status: "rollback-ok", error: "La actualización no terminó en 3 minutos. Datos restaurados al backup." }, path, fs);
+    } catch (e2) {
+      await writeUpdateLog(dataDir, { ...log, status: "rollback-fail", error: `Rollback fallido: ${e2 instanceof Error ? e2.message : String(e2)}` }, path, fs);
+    }
+  })();
 
   return {
     ok: true,
     latestVersion: latestTag,
-    message: `Instalador de WILLY AI ${latestTag} descargado y en marcha. Sigue las instrucciones en pantalla. WILLY puede cerrarse durante la instalación y volver a abrirse solo.`,
+    message: `Backup de tus datos hecho. Instalador de WILLY AI ${latestTag} descargado y en marcha. Si algo falla, WILLY restaurará tus datos automáticamente. Sigue las instrucciones en pantalla.`,
   };
 }
 
