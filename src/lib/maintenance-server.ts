@@ -358,6 +358,72 @@ async function lastUpdateOf(d: Resolved): Promise<SystemInfo["lastUpdate"]> {
 
 type ActionResult = { ok: boolean; message?: string; error?: string };
 
+const GITHUB_REPO = "murelf87/willy-AI";
+
+/** Descarga la última versión de GitHub Releases y lanza el instalador en segundo plano (solo Windows local). */
+export async function installUpdate(deps: MaintenanceDeps = {}): Promise<ActionResult & { latestVersion?: string }> {
+  const d = await resolveDeps(deps);
+  if (d.platform !== "win32") return { ok: false, error: "La actualización automática solo funciona en Windows." };
+  if (!(await d.installed().catch(() => false))) return { ok: false, error: "La actualización automática solo funciona en el programa instalado (no en la vista previa)." };
+
+  // 1. Consultar la última versión en GitHub
+  let latestTag = "";
+  let downloadUrl = "";
+  let fileName = "";
+  try {
+    const api = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+    const res = await d.fetchImpl(api, { headers: { "User-Agent": "WILLY-AI-Updater/1.0" } });
+    if (!res.ok) throw new Error(`GitHub respondió ${res.status}`);
+    const data = await res.json() as { tag_name?: string; assets?: { name: string; browser_download_url: string }[] };
+    latestTag = (data.tag_name ?? "").replace(/^v/, "");
+    if (!latestTag) throw new Error("No se encontró el número de versión en GitHub.");
+    const asset = (data.assets ?? []).find((a) => /WillyAI-Setup.*\.exe$/i.test(a.name));
+    if (asset) {
+      downloadUrl = asset.browser_download_url;
+      fileName = asset.name;
+    } else {
+      downloadUrl = `https://github.com/${GITHUB_REPO}/releases/download/v${latestTag}/WillyAI-Setup-${latestTag}.exe`;
+      fileName = `WillyAI-Setup-${latestTag}.exe`;
+    }
+  } catch (e) {
+    return { ok: false, error: `No se pudo consultar GitHub: ${e instanceof Error ? e.message : String(e)}` };
+  }
+
+  // 2. Comprobar si ya tenemos esa versión
+  if (latestTag === APP_VERSION) {
+    return { ok: true, message: `Ya tienes la versión más reciente (${APP_VERSION}).`, latestVersion: latestTag };
+  }
+
+  // 3. Descargar el instalador a %TEMP%\willy-install\
+  const { fs, path } = await nodeMods();
+  const tmpDir = path.join(d.tmpdir(), "willy-install");
+  const dest = path.join(tmpDir, fileName);
+  try {
+    await fs.mkdir(tmpDir, { recursive: true });
+    const res = await d.fetchImpl(downloadUrl, { headers: { "User-Agent": "WILLY-AI-Updater/1.0" } });
+    if (!res.ok) throw new Error(`No se pudo descargar el instalador (${res.status}).`);
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength < 1024) throw new Error("El archivo descargado está vacío.");
+    await fs.writeFile(dest, Buffer.from(buf));
+  } catch (e) {
+    return { ok: false, error: `Error al descargar el instalador: ${e instanceof Error ? e.message : String(e)}` };
+  }
+
+  // 4. Lanzar el instalador en segundo plano (detached, sin ventana bloqueante)
+  try {
+    const launched = await d.startDetached(`"${dest}"`);
+    if (!launched) throw new Error("No se pudo lanzar el instalador.");
+  } catch (e) {
+    return { ok: false, error: `No se pudo abrir el instalador: ${e instanceof Error ? e.message : String(e)}` };
+  }
+
+  return {
+    ok: true,
+    latestVersion: latestTag,
+    message: `Instalador de WILLY AI ${latestTag} descargado y en marcha. Sigue las instrucciones en pantalla. WILLY puede cerrarse durante la instalación y volver a abrirse solo.`,
+  };
+}
+
 /** Reinicia WILLY de verdad: cierra este servidor y arranca el programa instalado (en unos segundos vuelve a responder). */
 export async function restartServer(deps: MaintenanceDeps = {}): Promise<ActionResult> {
   const d = await resolveDeps(deps);

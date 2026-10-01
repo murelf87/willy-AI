@@ -4,7 +4,7 @@
 
 import { blockForeignSite } from "@/lib/same-origin";
 import {
-  cachePreview, cleanCache, cleanOldBackups, dependencyCheck, diagnose, ollamaReport, readLogs, restartOllama, restartServer,
+  cachePreview, cleanCache, cleanOldBackups, dependencyCheck, diagnose, installUpdate, ollamaReport, readLogs, restartOllama, restartServer,
   stopServer, storageReport, systemInfo, type MaintenanceDeps,
 } from "@/lib/maintenance-server";
 
@@ -47,8 +47,8 @@ export async function sistemaGet(request: Request, deps: MaintenanceDeps = {}): 
   }
 }
 
-const ACTIONS = new Set(["diagnostico", "limpiar-cache", "limpiar-copias", "limpiar-navegador", "reiniciar", "detener", "reiniciar-ollama"]);
-const LOCAL_ONLY = new Set(["reiniciar", "detener"]);
+const ACTIONS = new Set(["diagnostico", "limpiar-cache", "limpiar-copias", "limpiar-navegador", "reiniciar", "detener", "reiniciar-ollama", "instalar-actualizacion"]);
+const LOCAL_ONLY = new Set(["reiniciar", "detener", "instalar-actualizacion"]);
 
 export async function sistemaPost(request: Request, deps: MaintenanceDeps = {}): Promise<Response> {
   const foreign = blockForeignSite(request);
@@ -85,6 +85,8 @@ export async function sistemaPost(request: Request, deps: MaintenanceDeps = {}):
         return reply(await stopServer(deps));
       case "reiniciar-ollama":
         return reply(await restartOllama(deps));
+      case "instalar-actualizacion":
+        return reply(await installUpdate(deps));
       default:
         return reply({ ok: false, error: "Acción no reconocida." }, 400);
     }
