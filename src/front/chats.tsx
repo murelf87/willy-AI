@@ -1,7 +1,7 @@
 // CHATS (diseño de las maquetas de 24/09): cabecera con la mascota y «Nuevo chat», lista de conversaciones a la izquierda
 // (búsqueda, Todos / Recientes / Favoritos, etiqueta y acciones) y la conversación a la derecha. La conversación en sí es
 // el ChatPanel de siempre (motor del chat de «WILLY AI»): aquí solo se le pone la pantalla alrededor.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Lightbulb, MessageSquare, MoreHorizontal, Pencil, Plus, Search, Star, Tag, Trash2, Briefcase, X } from "lucide-react";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
 import { CHAT_EVENT, deleteThread, listThreads, renameThread, type ChatThread } from "@/lib/chat-history";
@@ -12,6 +12,10 @@ import { CHAT_TAGS, updateChatMeta, useChatMeta, type ChatTag } from "@/front/ch
 import { WillyMascot } from "@/front/mascot";
 import { aiPolicyOf, useAiPick } from "@/front/status";
 import { useExternalAi } from "@/components/chat-engine-chip";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Filter = "todos" | "recientes" | "favoritos";
 const FILTERS: Array<[Filter, string]> = [["todos", "Todos"], ["recientes", "Recientes"], ["favoritos", "Favoritos"]];
@@ -39,6 +43,57 @@ const snippetOf = (t: ChatThread): string => {
   return text.length > 70 ? `${text.slice(0, 70)}…` : text || "Sin mensajes todavía";
 };
 
+/** Diálogo de confirmación para borrar una conversación. */
+function DeleteDialog({ thread, onConfirm, onCancel }: { thread: ChatThread; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <AlertDialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Borrar conversación?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Se eliminará permanentemente «<strong>{thread.title}</strong>». Esta acción no se puede deshacer.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onCancel}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Borrar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/** Diálogo inline para renombrar una conversación. */
+function RenameDialog({ thread, onConfirm, onCancel }: { thread: ChatThread; onConfirm: (title: string) => void; onCancel: () => void }) {
+  const [value, setValue] = useState(thread.title);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.select(); }, []);
+  const submit = () => { const v = value.trim(); if (v && v !== thread.title) onConfirm(v); else onCancel(); };
+  return (
+    <AlertDialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Renombrar conversación</AlertDialogTitle>
+          <AlertDialogDescription>Escribe el nuevo nombre para esta conversación.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } if (e.key === "Escape") onCancel(); }}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+          maxLength={80}
+          aria-label="Nuevo nombre"
+        />
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onCancel}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={submit} disabled={!value.trim()}>Guardar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 export function ChatsScreen({ threadId, onOpenThread, onNewChat, ping, children }: {
   threadId: string; onOpenThread: (id: string) => void; onNewChat: () => void; ping: Ping; children: ReactNode;
 }) {
@@ -51,6 +106,10 @@ export function ChatsScreen({ threadId, onOpenThread, onNewChat, ping, children 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(t); }, []);
 
+  // Dialog state
+  const [deleteTarget, setDeleteTarget] = useState<ChatThread | null>(null);
+  const [renameTarget, setRenameTarget] = useState<ChatThread | null>(null);
+
   const q = query.trim().toLowerCase();
   const visible = useMemo(() => threads
     .filter((t) => !q || `${t.title} ${snippetOf(t)}`.toLowerCase().includes(q))
@@ -59,15 +118,14 @@ export function ChatsScreen({ threadId, onOpenThread, onNewChat, ping, children 
   const current = threads.find((t) => t.id === threadId) ?? null;
   const currentMeta = meta[threadId] ?? {};
 
-  const rename = (t: ChatThread) => {
-    const title = window.prompt("Nuevo nombre de la conversación:", t.title);
-    if (!title || title.trim() === t.title) return;
-    renameThread(t.id, title.trim());
+  const confirmRename = (t: ChatThread, newTitle: string) => {
+    renameThread(t.id, newTitle);
+    setRenameTarget(null);
     ping("Conversación renombrada.");
   };
-  const remove = (t: ChatThread) => {
-    if (!window.confirm(`¿Borrar la conversación «${t.title}»? No se puede deshacer.`)) return;
+  const confirmDelete = (t: ChatThread) => {
     deleteThread(t.id);
+    setDeleteTarget(null);
     if (t.id === threadId) onNewChat();
     ping("Conversación borrada.");
   };
@@ -78,18 +136,34 @@ export function ChatsScreen({ threadId, onOpenThread, onNewChat, ping, children 
     <>
       <MenuLabel>{t.title}</MenuLabel>
       <MenuItem onClick={() => { close(); toggleFavorite(t.id); }}><Star className={`size-4 ${meta[t.id]?.favorite ? "fill-current text-warning" : ""}`} />{meta[t.id]?.favorite ? "Quitar de favoritos" : "Marcar como favorito"}</MenuItem>
-      <MenuItem onClick={() => { close(); rename(t); }}><Pencil className="size-4" />Renombrar</MenuItem>
+      <MenuItem onClick={() => { close(); setRenameTarget(t); }}><Pencil className="size-4" />Renombrar</MenuItem>
       <MenuLabel>Etiqueta</MenuLabel>
       {CHAT_TAGS.map((tag) => (
         <MenuItem key={tag} active={meta[t.id]?.tag === tag} onClick={() => { close(); setTag(t.id, meta[t.id]?.tag === tag ? undefined : tag); }}><Tag className="size-4" />{tag}</MenuItem>
       ))}
       <div className="my-1 h-px bg-border" />
-      <MenuItem danger onClick={() => { close(); remove(t); }}><Trash2 className="size-4" />Borrar conversación</MenuItem>
+      <MenuItem danger onClick={() => { close(); setDeleteTarget(t); }}><Trash2 className="size-4" />Borrar conversación</MenuItem>
     </>
   );
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-background" aria-label="Chats">
+      {/* Dialogs */}
+      {deleteTarget && (
+        <DeleteDialog
+          thread={deleteTarget}
+          onConfirm={() => confirmDelete(deleteTarget)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+      {renameTarget && (
+        <RenameDialog
+          thread={renameTarget}
+          onConfirm={(title) => confirmRename(renameTarget, title)}
+          onCancel={() => setRenameTarget(null)}
+        />
+      )}
+
       <div className="mx-auto flex w-full max-w-[1400px] min-h-0 flex-1 flex-col px-4 pt-4 sm:px-5">
         {/* Cabecera */}
         <div className="mb-3 flex shrink-0 items-center justify-between gap-4">
@@ -102,7 +176,7 @@ export function ChatsScreen({ threadId, onOpenThread, onNewChat, ping, children 
           </div>
           <div className="hidden items-center gap-3 xl:flex">
             <WillyMascot className="h-20 w-auto" />
-            <p className="max-w-[190px] font-display text-[13px] font-semibold leading-snug text-primary">“Aquí estoy para escuchar tus ideas, resolver tus dudas y ayudarte a pensar.”</p>
+            <p className="max-w-[190px] font-display text-[13px] font-semibold leading-snug text-primary">"Aquí estoy para escuchar tus ideas, resolver tus dudas y ayudarte a pensar."</p>
           </div>
           <button type="button" onClick={onNewChat} className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-glow hover:bg-primary/90"><Plus className="size-4" />Nuevo chat</button>
         </div>
