@@ -2,10 +2,14 @@
 // Si un cliente deja de pagar, suspendes la licencia y su instalación deja
 // de funcionar hasta que se reactive.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PanelCard as Card } from "@/components/panel-card";
 import { BadgeCheck, Ban, CalendarClock, Check, Copy, KeyRound, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DEFAULT_ADMIN, readAdmin, saveAdmin } from "@/services/auth-service";
 import { pushNotice } from "@/lib/notifications";
 import {
@@ -31,6 +35,10 @@ export function LicensesView() {
   const [adminPass, setAdminPass] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [guardFor, setGuardFor] = useState<string | null>(null);
+  const [editDomainFor, setEditDomainFor] = useState<License | null>(null);
+  const [editDomainValue, setEditDomainValue] = useState("");
+  const [deleteLicenseFor, setDeleteLicenseFor] = useState<License | null>(null);
+  const domainInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = () => setItems(listLicenses());
   useEffect(() => { refresh(); setAdmin(readAdmin()); }, []);
@@ -75,6 +83,49 @@ export function LicensesView() {
   const activeCount = items.filter((l) => l.state === "activa" && !isOverdue(l)).length;
 
   return (
+    <>
+      {/* Dialog: editar dominio */}
+      {editDomainFor && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setEditDomainFor(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Editar dominio</AlertDialogTitle>
+              <AlertDialogDescription>Nuevo dominio para la licencia de «{editDomainFor.client}».</AlertDialogDescription>
+            </AlertDialogHeader>
+            <input
+              ref={domainInputRef}
+              value={editDomainValue}
+              onChange={(e) => setEditDomainValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); updateLicense(editDomainFor.id, { domain: editDomainValue }); refresh(); setEditDomainFor(null); }
+                if (e.key === "Escape") setEditDomainFor(null);
+              }}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+              placeholder="ejemplo.com"
+              aria-label="Nuevo dominio"
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setEditDomainFor(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { updateLicense(editDomainFor.id, { domain: editDomainValue }); refresh(); setEditDomainFor(null); }}>Guardar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      {/* Dialog: eliminar licencia */}
+      {deleteLicenseFor && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setDeleteLicenseFor(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar licencia?</AlertDialogTitle>
+              <AlertDialogDescription>Se eliminará la licencia de «<strong>{deleteLicenseFor.client}</strong>». Esta acción no se puede deshacer.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteLicenseFor(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { removeLicense(deleteLicenseFor.id); refresh(); setDeleteLicenseFor(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Eliminar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     <div className="mx-auto w-full max-w-5xl space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -233,11 +284,11 @@ export function LicensesView() {
                 size="sm"
                 variant="outline"
                 className="gap-2"
-                onClick={() => { const v = window.prompt(`Nuevo dominio para ${l.client}:`, l.domain); if (v !== null) { updateLicense(l.id, { domain: v }); refresh(); } }}
+                onClick={() => { setEditDomainValue(l.domain); setEditDomainFor(l); setTimeout(() => domainInputRef.current?.select(), 80); }}
               >
                 Editar
               </Button>
-              <Button size="sm" variant="outline" className="gap-2" onClick={() => { if (window.confirm(`¿Eliminar la licencia de ${l.client}?`)) { removeLicense(l.id); refresh(); } }}>
+              <Button size="sm" variant="outline" className="gap-2" onClick={() => setDeleteLicenseFor(l)}>
                 <Trash2 className="size-4" />
               </Button>
             </div>
@@ -266,5 +317,6 @@ export function LicensesView() {
         );
       })}
     </div>
+    </>
   );
 }
