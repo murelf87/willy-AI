@@ -7,13 +7,17 @@
 //   (Continuar, Abrir, Resolver, Reanudar). Sin plan: «Progreso no calculado» y «Analizar proyecto» (nunca un % inventado).
 // - Al pulsar la barra: el progreso por hitos y «qué falta», donde puedes marcar tareas o añadir alcance.
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle, Archive, ArchiveRestore, ArrowRight, Check, Circle, CircleDot, Database, Download, FolderKanban, Gauge,
   LayoutGrid, List, ListChecks, Loader2, MoreHorizontal, Pause, Play, Plus, RotateCcw, Search, Server, Sparkles, Terminal,
   Trash2, Wand2, Wrench, X, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
 import { SectionHead as Head } from "@/components/section-ui";
 import { PanelCard as Card } from "@/components/panel-card";
@@ -87,6 +91,11 @@ export function ProjectsView({ ping, onNewProject, onOpenProject }: { ping: Ping
   const [detail, setDetail] = useState<Detail>(null);
   const [system, setSystem] = useState<SystemInfo>({ updatedAt: null, errors: null, lastErrors: [] });
   const [now, setNow] = useState(() => Date.now());
+  // Dialogs para renombrar y eliminar proyecto
+  const [renameProject, setRenameProject] = useState<Project | null>(null);
+  const [destroyProject, setDestroyProject] = useState<Project | null>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   // «Hace 5 min» se mantiene al día sin recargar nada.
   useEffect(() => {
@@ -136,17 +145,27 @@ export function ProjectsView({ ping, onNewProject, onOpenProject }: { ping: Ping
 
   // ----------------------------------------------------------------------------------------------- acciones
   const doRename = (p: Project) => {
-    const name = window.prompt("Nuevo nombre del proyecto:", p.name);
-    if (!name || name.trim() === p.name) return;
-    void projectService.rename(p.id, name).then((r) => ping(r.ok ? `Proyecto renombrado a «${r.data.name}».` : `⚠️ ${r.error}`));
+    setRenameValue(p.name);
+    setRenameProject(p);
+    setTimeout(() => { renameInputRef.current?.select(); }, 80);
+  };
+  const confirmRename = () => {
+    if (!renameProject) return;
+    const name = renameValue.trim();
+    if (name && name !== renameProject.name) {
+      void projectService.rename(renameProject.id, name).then((r) => ping(r.ok ? `Proyecto renombrado a «${r.data.name}».` : `⚠️ ${r.error}`));
+    }
+    setRenameProject(null);
   };
   const doDuplicate = (p: Project) => void projectService.duplicate(p.id).then((r) => ping(r.ok ? `Copia creada: «${r.data.name}».` : `⚠️ ${r.error}`));
   const doState = (p: Project, state: ProjectState, text: string) => void projectService.setState(p.id, state).then((r) => ping(r.ok ? `«${p.name}» ${text}.` : `⚠️ ${r.error}`));
   const doSoftDelete = (p: Project) => void projectService.softDelete(p.id).then((r) => ping(r.ok ? `«${p.name}» se ha movido a la papelera.` : `⚠️ ${r.error}`));
   const doRestore = (p: Project) => void projectService.restore(p.id).then((r) => ping(r.ok ? `«${p.name}» restaurado.` : `⚠️ ${r.error}`));
-  const doDestroy = (p: Project) => {
-    if (!window.confirm(`¿Eliminar definitivamente «${p.name}» y sus versiones? Esta acción no se puede deshacer.`)) return;
-    void projectService.destroy(p.id).then((r) => ping(r.ok ? `«${p.name}» eliminado definitivamente.` : `⚠️ ${r.error}`));
+  const doDestroy = (p: Project) => { setDestroyProject(p); };
+  const confirmDestroy = () => {
+    if (!destroyProject) return;
+    void projectService.destroy(destroyProject.id).then((r) => ping(r.ok ? `«${destroyProject.name}» eliminado definitivamente.` : `⚠️ ${r.error}`));
+    setDestroyProject(null);
   };
   const doExport = (p: Project) => void projectService.get(p.id).then(async (full) => {
     if (!full?.files.length) { ping("Este proyecto todavía no tiene archivos que exportar."); return; }
@@ -186,6 +205,48 @@ export function ProjectsView({ ping, onNewProject, onOpenProject }: { ping: Ping
 
   return (
     <>
+      {/* Dialog: renombrar proyecto */}
+      {renameProject && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setRenameProject(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Renombrar proyecto</AlertDialogTitle>
+              <AlertDialogDescription>Escribe el nuevo nombre para «{renameProject.name}».</AlertDialogDescription>
+            </AlertDialogHeader>
+            <input
+              ref={renameInputRef}
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmRename(); } if (e.key === "Escape") setRenameProject(null); }}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+              maxLength={80}
+              aria-label="Nuevo nombre"
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setRenameProject(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmRename} disabled={!renameValue.trim()}>Guardar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      {/* Dialog: eliminar proyecto */}
+      {destroyProject && (
+        <AlertDialog open onOpenChange={(o) => { if (!o) setDestroyProject(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar proyecto definitivamente?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se eliminarán «<strong>{destroyProject.name}</strong>» y todas sus versiones. Esta acción no se puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDestroyProject(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDestroy} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Eliminar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
       <Head
         title="Proyectos"
         desc="Todo lo que WILLY está construyendo y manteniendo, guardado en tu propio disco."
