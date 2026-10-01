@@ -17,15 +17,15 @@ import { Route as MovilRouteImport } from './routes/movil'
 import { Route as ApiActualizacionRouteImport } from './routes/api/actualizacion'
 import { Route as ApiAvatarRouteImport } from './routes/api/avatar'
 import { Route as ApiBuildInstallerRouteImport } from './routes/api/build-installer'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiEngineRouteImport } from './routes/api/engine'
 import { Route as ApiFabricaRouteImport } from './routes/api/fabrica'
 import { Route as ApiFetchUrlRouteImport } from './routes/api/fetch-url'
 import { Route as ApiIphoneRouteImport } from './routes/api/iphone'
 import { Route as ApiLanRouteImport } from './routes/api/lan'
-import { Route as ApiChatRouteImport } from './routes/api/chat'
-import { Route as ApiRemoteStatusRouteImport } from './routes/api/remote-status'
 import { Route as ApiLocalAiRouteImport } from './routes/api/local-ai'
 import { Route as ApiProyectosRouteImport } from './routes/api/proyectos'
+import { Route as ApiRemoteStatusRouteImport } from './routes/api/remote-status'
 import { Route as ApiSelfAuditRouteImport } from './routes/api/self-audit'
 import { Route as ApiSelfBuildRouteImport } from './routes/api/self-build'
 import { Route as ApiSistemaRouteImport } from './routes/api/sistema'
@@ -73,6 +73,11 @@ const ApiBuildInstallerRoute = ApiBuildInstallerRouteImport.update({
   path: '/api/build-installer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiEngineRoute = ApiEngineRouteImport.update({
   id: '/api/engine',
   path: '/api/engine',
@@ -98,16 +103,6 @@ const ApiLanRoute = ApiLanRouteImport.update({
   path: '/api/lan',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiChatRoute = ApiChatRouteImport.update({
-  id: '/api/chat',
-  path: '/api/chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiRemoteStatusRoute = ApiRemoteStatusRouteImport.update({
-  id: '/api/remote-status',
-  path: '/api/remote-status',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiLocalAiRoute = ApiLocalAiRouteImport.update({
   id: '/api/local-ai',
   path: '/api/local-ai',
@@ -116,6 +111,11 @@ const ApiLocalAiRoute = ApiLocalAiRouteImport.update({
 const ApiProyectosRoute = ApiProyectosRouteImport.update({
   id: '/api/proyectos',
   path: '/api/proyectos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRemoteStatusRoute = ApiRemoteStatusRouteImport.update({
+  id: '/api/remote-status',
+  path: '/api/remote-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSelfAuditRoute = ApiSelfAuditRouteImport.update({
@@ -157,16 +157,16 @@ export interface FileRoutesByFullPath {
   '/movil': typeof MovilRoute
   '/api/actualizacion': typeof ApiActualizacionRoute
   '/api/avatar': typeof ApiAvatarRoute
-  '/api/chat': typeof ApiChatRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/engine': typeof ApiEngineRoute
   '/api/fabrica': typeof ApiFabricaRoute
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
   '/api/lan': typeof ApiLanRoute
-  '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
+  '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
   '/api/sistema': typeof ApiSistemaRoute
@@ -182,16 +182,16 @@ export interface FileRoutesByTo {
   '/movil': typeof MovilRoute
   '/api/actualizacion': typeof ApiActualizacionRoute
   '/api/avatar': typeof ApiAvatarRoute
-  '/api/chat': typeof ApiChatRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/engine': typeof ApiEngineRoute
   '/api/fabrica': typeof ApiFabricaRoute
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
   '/api/lan': typeof ApiLanRoute
-  '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
+  '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
   '/api/sistema': typeof ApiSistemaRoute
@@ -208,16 +208,16 @@ export interface FileRoutesById {
   '/movil': typeof MovilRoute
   '/api/actualizacion': typeof ApiActualizacionRoute
   '/api/avatar': typeof ApiAvatarRoute
-  '/api/chat': typeof ApiChatRoute
   '/api/build-installer': typeof ApiBuildInstallerRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/engine': typeof ApiEngineRoute
   '/api/fabrica': typeof ApiFabricaRoute
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
   '/api/lan': typeof ApiLanRoute
-  '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
+  '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
   '/api/sistema': typeof ApiSistemaRoute
@@ -235,16 +235,16 @@ export interface FileRouteTypes {
     | '/movil'
     | '/api/actualizacion'
     | '/api/avatar'
-    | '/api/chat'
     | '/api/build-installer'
+    | '/api/chat'
     | '/api/engine'
     | '/api/fabrica'
     | '/api/fetch-url'
     | '/api/iphone'
     | '/api/lan'
-    | '/api/remote-status'
     | '/api/local-ai'
     | '/api/proyectos'
+    | '/api/remote-status'
     | '/api/self-audit'
     | '/api/self-build'
     | '/api/sistema'
@@ -260,16 +260,16 @@ export interface FileRouteTypes {
     | '/movil'
     | '/api/actualizacion'
     | '/api/avatar'
-    | '/api/chat'
     | '/api/build-installer'
+    | '/api/chat'
     | '/api/engine'
     | '/api/fabrica'
     | '/api/fetch-url'
     | '/api/iphone'
     | '/api/lan'
-    | '/api/remote-status'
     | '/api/local-ai'
     | '/api/proyectos'
+    | '/api/remote-status'
     | '/api/self-audit'
     | '/api/self-build'
     | '/api/sistema'
@@ -285,16 +285,16 @@ export interface FileRouteTypes {
     | '/movil'
     | '/api/actualizacion'
     | '/api/avatar'
-    | '/api/chat'
     | '/api/build-installer'
+    | '/api/chat'
     | '/api/engine'
     | '/api/fabrica'
     | '/api/fetch-url'
     | '/api/iphone'
     | '/api/lan'
-    | '/api/remote-status'
     | '/api/local-ai'
     | '/api/proyectos'
+    | '/api/remote-status'
     | '/api/self-audit'
     | '/api/self-build'
     | '/api/sistema'
@@ -311,16 +311,16 @@ export interface RootRouteChildren {
   MovilRoute: typeof MovilRoute
   ApiActualizacionRoute: typeof ApiActualizacionRoute
   ApiAvatarRoute: typeof ApiAvatarRoute
-  ApiChatRoute: typeof ApiChatRoute
   ApiBuildInstallerRoute: typeof ApiBuildInstallerRoute
+  ApiChatRoute: typeof ApiChatRoute
   ApiEngineRoute: typeof ApiEngineRoute
   ApiFabricaRoute: typeof ApiFabricaRoute
   ApiFetchUrlRoute: typeof ApiFetchUrlRoute
   ApiIphoneRoute: typeof ApiIphoneRoute
   ApiLanRoute: typeof ApiLanRoute
-  ApiRemoteStatusRoute: typeof ApiRemoteStatusRoute
   ApiLocalAiRoute: typeof ApiLocalAiRoute
   ApiProyectosRoute: typeof ApiProyectosRoute
+  ApiRemoteStatusRoute: typeof ApiRemoteStatusRoute
   ApiSelfAuditRoute: typeof ApiSelfAuditRoute
   ApiSelfBuildRoute: typeof ApiSelfBuildRoute
   ApiSistemaRoute: typeof ApiSistemaRoute
@@ -380,18 +380,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAvatarRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/chat': {
-      id: '/api/chat'
-      path: '/api/chat'
-      fullPath: '/api/chat'
-      preLoaderRoute: typeof ApiChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/build-installer': {
       id: '/api/build-installer'
       path: '/api/build-installer'
       fullPath: '/api/build-installer'
       preLoaderRoute: typeof ApiBuildInstallerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/engine': {
@@ -429,13 +429,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLanRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/remote-status': {
-      id: '/api/remote-status'
-      path: '/api/remote-status'
-      fullPath: '/api/remote-status'
-      preLoaderRoute: typeof ApiRemoteStatusRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/local-ai': {
       id: '/api/local-ai'
       path: '/api/local-ai'
@@ -448,6 +441,13 @@ declare module '@tanstack/react-router' {
       path: '/api/proyectos'
       fullPath: '/api/proyectos'
       preLoaderRoute: typeof ApiProyectosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/remote-status': {
+      id: '/api/remote-status'
+      path: '/api/remote-status'
+      fullPath: '/api/remote-status'
+      preLoaderRoute: typeof ApiRemoteStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/self-audit': {
@@ -503,16 +503,16 @@ const rootRouteChildren: RootRouteChildren = {
   MovilRoute: MovilRoute,
   ApiActualizacionRoute: ApiActualizacionRoute,
   ApiAvatarRoute: ApiAvatarRoute,
-  ApiChatRoute: ApiChatRoute,
   ApiBuildInstallerRoute: ApiBuildInstallerRoute,
+  ApiChatRoute: ApiChatRoute,
   ApiEngineRoute: ApiEngineRoute,
   ApiFabricaRoute: ApiFabricaRoute,
   ApiFetchUrlRoute: ApiFetchUrlRoute,
   ApiIphoneRoute: ApiIphoneRoute,
   ApiLanRoute: ApiLanRoute,
-  ApiRemoteStatusRoute: ApiRemoteStatusRoute,
   ApiLocalAiRoute: ApiLocalAiRoute,
   ApiProyectosRoute: ApiProyectosRoute,
+  ApiRemoteStatusRoute: ApiRemoteStatusRoute,
   ApiSelfAuditRoute: ApiSelfAuditRoute,
   ApiSelfBuildRoute: ApiSelfBuildRoute,
   ApiSistemaRoute: ApiSistemaRoute,
