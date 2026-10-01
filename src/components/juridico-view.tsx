@@ -73,6 +73,43 @@ ESTRUCTURA DE TUS RESPUESTAS:
 
 AVISO IMPORTANTE: Tus análisis son orientativos. Para actuaciones judiciales formales, el usuario debe consultar con un abogado colegiado que pueda asumir responsabilidad profesional.`;
 
+// ─── Plantillas de caso ───────────────────────────────────────────────────────
+
+type Plantilla = { id: string; nombre: string; descripcion: string; preguntaInicial: string };
+
+const PLANTILLAS: Plantilla[] = [
+  {
+    id: "recurso-administrativo",
+    nombre: "Recurso administrativo",
+    descripcion: "Resoluciones de la Administración, oposiciones, sanciones, expedientes",
+    preguntaInicial: "Analiza el expediente adjunto e indícame:\n1. Fundamentos jurídicos para recurrir\n2. Plazo para interponer el recurso\n3. Argumentos más sólidos y más débiles\n4. Legislación aplicable (LRJAPyPAC / LPAC, normativa sectorial)\n5. Estrategia recomendada y posibilidades reales de éxito",
+  },
+  {
+    id: "contrato",
+    nombre: "Revisión de contrato",
+    descripcion: "Contratos de compraventa, arrendamiento, servicios, trabajo…",
+    preguntaInicial: "Revisa el contrato adjunto y señala:\n1. Cláusulas abusivas o nulas de pleno derecho\n2. Vacíos legales o ambigüedades que me perjudiquen\n3. Derechos que no se están reconociendo\n4. Recomendaciones de modificación antes de firmar",
+  },
+  {
+    id: "laboral",
+    nombre: "Derecho laboral",
+    descripcion: "Despidos, sanciones, ERE/ERTE, nóminas, convenios colectivos",
+    preguntaInicial: "Analiza la situación laboral descrita en los documentos adjuntos:\n1. ¿Es procedente o improcedente el despido/sanción?\n2. Indemnización que correspondería\n3. Plazos para reclamar (20 días hábiles para impugnar despido)\n4. Convenio colectivo aplicable y condiciones mínimas\n5. Pasos concretos a seguir",
+  },
+  {
+    id: "propiedad",
+    nombre: "Propiedad e inmuebles",
+    descripcion: "Compraventa, arrendamientos, comunidades de propietarios, herencias",
+    preguntaInicial: "Analiza la situación inmobiliaria con los documentos adjuntos:\n1. Derechos y obligaciones de cada parte\n2. Cláusulas problemáticas\n3. Plazos y requisitos formales (escritura pública, registro)\n4. Responsabilidades y posibles reclamaciones",
+  },
+  {
+    id: "proteccion-datos",
+    nombre: "Protección de datos (RGPD)",
+    descripcion: "Brechas de seguridad, uso indebido de datos, derechos ARCO-POL",
+    preguntaInicial: "Analiza el caso de protección de datos:\n1. ¿Qué derechos ARCO-POL puedo ejercer y cómo?\n2. ¿Se ha producido una brecha del RGPD o la LOPDGDD?\n3. Cómo presentar una reclamación ante la AEPD\n4. Posibles sanciones para el responsable del tratamiento",
+  },
+];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const uid = () => Math.random().toString(36).slice(2);
@@ -250,19 +287,20 @@ export function JuridicoView({ ping }: { ping: Ping }) {
     setCasos((prev) => prev.map((c) => (c.id === id ? updater(c) : c)));
   }, []);
 
-  // Nuevo caso
-  const newCaso = () => {
+  // Nuevo caso (opcionalmente con plantilla)
+  const newCaso = (plantilla?: Plantilla) => {
     const c: CasoJuridico = {
       id: uid(),
-      nombre: `Caso ${new Date().toLocaleDateString("es-ES")}`,
+      nombre: plantilla ? plantilla.nombre : `Caso ${new Date().toLocaleDateString("es-ES")}`,
       docs: [],
       messages: [],
       createdAt: Date.now(),
     };
     setCasos((prev) => [c, ...prev]);
     setCasoId(c.id);
-    setInput("");
+    setInput(plantilla ? plantilla.preguntaInicial : "");
     setError("");
+    if (plantilla) setTimeout(() => textareaRef.current?.focus(), 100);
   };
 
   // Subir documentos
@@ -343,7 +381,7 @@ export function JuridicoView({ ping }: { ping: Ping }) {
         title="Análisis Jurídico"
         desc="Sube documentos legales y consulta con la IA especializada en derecho español y europeo."
         action={
-          <Button className="gap-2" onClick={newCaso}>
+          <Button className="gap-2" onClick={() => newCaso()}>
             <Plus className="size-4" />Nuevo caso
           </Button>
         }
@@ -383,10 +421,29 @@ export function JuridicoView({ ping }: { ping: Ping }) {
 
         {/* ─── Área principal ─── */}
         {!caso ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border py-16">
-            <Gavel className="size-10 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">Crea un nuevo caso para empezar</p>
-            <Button onClick={newCaso} className="gap-2"><Plus className="size-4" />Nuevo caso</Button>
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 overflow-y-auto">
+            <div className="flex size-14 items-center justify-center rounded-full bg-primary/10">
+              <Gavel className="size-8 text-primary" />
+            </div>
+            <div className="text-center">
+              <p className="text-base font-semibold">Análisis Jurídico de Alto Nivel</p>
+              <p className="mt-1 text-sm text-muted-foreground">Elige una plantilla o crea un caso en blanco</p>
+            </div>
+            <div className="grid grid-cols-1 gap-2 w-full max-w-lg sm:grid-cols-2">
+              {PLANTILLAS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => newCaso(p)}
+                  className="rounded-lg border border-border bg-background p-3 text-left hover:bg-accent/60 hover:border-primary/40 transition-colors"
+                >
+                  <p className="text-sm font-semibold">{p.nombre}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground leading-4">{p.descripcion}</p>
+                </button>
+              ))}
+            </div>
+            <Button variant="outline" onClick={() => newCaso()} className="gap-2 mt-2">
+              <Plus className="size-4" />Caso en blanco
+            </Button>
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3">
