@@ -66,12 +66,26 @@ jobs:
             Copy-Item "willy-ai.bat" "nsis-stage\willy-ai.bat"
           }
 
-      - name: Descargar node.exe portátil para incluir en el instalador
+      - name: Descargar node.exe y willy-ai.exe para el instalador
         shell: pwsh
         run: |
           $nodeUrl = "https://nodejs.org/dist/v20.18.0/win-x64/node.exe"
           New-Item -ItemType Directory -Force -Path "nsis-stage\tools"
           Invoke-WebRequest -Uri $nodeUrl -OutFile "nsis-stage\tools\node.exe" -UseBasicParsing
+
+          # Descargar willy-ai.exe del ultimo release publicado (si existe)
+          try {
+            $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/murelf87/willy-AI/releases/latest" -UseBasicParsing
+            $asset = $rel.assets | Where-Object { $_.name -like "willy-ai.exe" } | Select-Object -First 1
+            if ($asset) {
+              Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "nsis-stage\willy-ai.exe" -UseBasicParsing
+              Write-Host "willy-ai.exe descargado del release anterior."
+            } else {
+              Write-Host "willy-ai.exe no encontrado en el release anterior, se omite."
+            }
+          } catch {
+            Write-Host "No se pudo descargar willy-ai.exe: $_"
+          }
 
       - name: Copiar node_modules al staging
         shell: pwsh
