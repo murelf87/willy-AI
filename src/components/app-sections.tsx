@@ -249,6 +249,18 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
     ],
   },
   {
+    t: "Análisis Jurídico",
+    d: "Consultas de derecho español y europeo con un asistente de nivel abogado senior.",
+    body: [
+      "En Desarrollo → Análisis Jurídico tienes un espacio especializado en derecho con un system prompt de máximo nivel: cita artículos, sentencias y jurisprudencia del TS, TC, TJUE y TEDH.",
+      "Puedes subir documentos del caso (PDF, Word, ODT…) y la IA los lee todos antes de responder. También puedes pegar texto directamente en el chat.",
+      "Al empezar, elige una plantilla (Recurso administrativo, Revisión de contrato, Derecho laboral, Propiedad o RGPD) o abre un caso en blanco. La pregunta inicial ya viene redactada con los puntos clave de cada área.",
+      "Cada caso guarda el historial de mensajes y los documentos adjuntos en tu equipo. Puedes exportar cualquier análisis como un archivo Markdown (.md) con el botón «Exportar» de la cabecera del caso.",
+      "Para análisis complejos WILLY usa el orden «razonamiento» (OpenRouter, xAI, NVIDIA, Gemini…), que da respuestas más largas y detalladas. Si no tienes IA externa configurada, usa la IA de tu equipo.",
+      "Aviso legal: los análisis son orientativos. Para actuaciones judiciales formales consulta con un abogado colegiado.",
+    ],
+  },
+  {
     t: "Exportar proyectos",
     d: "Descarga el código completo en un archivo comprimido.",
     body: [
