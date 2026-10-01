@@ -792,7 +792,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
 
       <div className="safe-modal shrink-0 border-t border-border bg-card p-2.5 sm:p-3">
         <div className="mx-auto max-w-3xl">
-          {!draft.trim() && (
+          {!draft.trim() && messages.length === 0 && (
             <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="Ideas para empezar">
               {STARTERS.map((s) => (
                 <Chip key={s.label} icon={s.icon} label={s.label} onClick={() => { setDraft(s.text); window.setTimeout(() => draftRef.current?.focus(), 0); }} />
