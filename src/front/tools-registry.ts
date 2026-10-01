@@ -4,7 +4,7 @@
 // (claude/avatar-ai-capacidades-para-front.md) y las fuentes de datos en tiempo real (lib/data-catalog.ts).
 import {
   BookOpen, Bot, Cloud, Code2, Database, FileSearch, FileText, Github, Globe, Headphones, Image as ImageIcon, KeyRound, Languages,
-  Mic, PenLine, Presentation, Puzzle, ScanText, Search, Sparkles, Subtitles, UserRound, Video, Volume2, Wand2, Zap, Clapperboard, AudioLines,
+  Mic, PenLine, Presentation, Puzzle, Scale, ScanText, Search, Sparkles, Subtitles, UserRound, Video, Volume2, Wand2, Zap, Clapperboard, AudioLines,
   type LucideIcon,
 } from "lucide-react";
 import { CATALOG } from "@/lib/data-catalog";
@@ -61,6 +61,7 @@ const dataSourceTools: Tool[] = CATALOG.map((c) => ({
 
 export const TOOLS: Tool[] = [
   // ── Documentos y texto
+  { id: "juridico", name: "Análisis Jurídico", desc: "Analiza expedientes, contratos y leyes; redacta escritos y recursos con legislación española y europea", categories: ["documentos"], icon: Scale, availability: "disponible", action: { kind: "view", view: "juridico" }, owner: "WILLY AI" },
   { id: "ocr", name: "OCR", desc: "Extrae texto de imágenes, escaneos y PDFs escaneados, en tu equipo", categories: ["documentos"], icon: ScanText, availability: "disponible", action: { kind: "view", view: "ocr" }, owner: "WILLY AI" },
   { id: "lectura", name: "Lectura", desc: "Lee y resume documentos (PDF, Word, LibreOffice, PowerPoint, Excel) en voz alta", categories: ["documentos", "audio"], icon: BookOpen, availability: "disponible", action: { kind: "view", view: "lectura" }, owner: "WILLY AI" },
   { id: "resumir", name: "Resumir un texto", desc: "Pega un texto o adjunta un documento en el Chat y WILLY lo resume", categories: ["documentos"], icon: FileSearch, availability: "disponible", action: { kind: "chat", text: "Resume este texto en pocos puntos claros:\n\n" }, owner: "WILLY AI" },
