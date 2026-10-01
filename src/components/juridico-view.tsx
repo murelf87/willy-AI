@@ -103,49 +103,34 @@ async function extractText(file: File): Promise<string> {
 }
 
 async function askJuridico(messages: Message[], docs: DocFile[], signal: AbortSignal): Promise<string> {
-  // Contexto de documentos
+  // Contexto de documentos: se inyecta como primer mensaje de sistema
   const docsContext = docs.length > 0
     ? `\n\n=== DOCUMENTOS ADJUNTOS AL CASO (${docs.length}) ===\n` +
       docs.map((d, i) => `\n--- Documento ${i + 1}: ${d.name} ---\n${d.text}`).join("\n") +
       "\n=== FIN DE DOCUMENTOS ==="
     : "";
 
-  const payload = {
-    system: JURIDICO_SYSTEM + docsContext,
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    stream: true,
-  };
+  // El endpoint /api/chat espera { messages } donde el system prompt va como primer mensaje con role "system"
+  const apiMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
+    { role: "system", content: JURIDICO_SYSTEM + docsContext },
+    ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+  ];
 
   const resp = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ messages: apiMessages, kind: "razonamiento" }),
     signal,
   });
 
-  if (!resp.ok || !resp.body) throw new Error(`Error ${resp.status}`);
-
-  const reader = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let result = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    for (const line of chunk.split("\n")) {
-      if (line.startsWith("data: ")) {
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") break;
-        try {
-          const parsed = JSON.parse(data) as { choices?: { delta?: { content?: string } }[] };
-          const token = parsed.choices?.[0]?.delta?.content ?? "";
-          result += token;
-        } catch { /* ignorar líneas malformadas */ }
-      }
-    }
+  if (!resp.ok) {
+    const err = (await resp.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Error ${resp.status}`);
   }
-  return result || "(Sin respuesta del modelo)";
+
+  const data = (await resp.json()) as { content?: string; error?: string };
+  if (data.error) throw new Error(data.error);
+  return data.content?.trim() || "(Sin respuesta del modelo)";
 }
 
 // ─── Renderizador Markdown simple (sin deps externas) ────────────────────────

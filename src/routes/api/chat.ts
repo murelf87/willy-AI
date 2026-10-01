@@ -1,9 +1,10 @@
-// Endpoint genérico de chat: recibe { messages, stream?, model? } y responde con la IA disponible.
-// Prueba primero Ollama local; si no está listo, prueba los motores externos (groq, gemini…) en CHAT_ORDER.
-// Devuelve { content, model }. Usado por IA Influencer (paso 1, guion) y otros componentes de texto.
+// Endpoint genérico de chat: recibe { messages, stream?, model?, kind? } y responde con la IA disponible.
+// Prueba primero Ollama local; si no está listo, prueba los motores externos en el orden adecuado al tipo.
+// kind: "razonamiento" | "codigo" | "investigacion" | ... (ver routing-table.ts KIND_CLOUD_ORDER)
+// Devuelve { content, model }. Usado por IA Influencer, Análisis Jurídico y otros componentes de texto.
 import { createFileRoute } from "@tanstack/react-router";
 import { blockForeignSite } from "@/lib/same-origin";
-import { CHAT_ORDER } from "@/lib/routing-table";
+import { CHAT_ORDER, KIND_CLOUD_ORDER } from "@/lib/routing-table";
 import { engineAction } from "@/lib/engines-server";
 import nodePath from "node:path";
 
@@ -33,9 +34,10 @@ async function tryOllama(messages: ChatMsg[]): Promise<string | null> {
   }
 }
 
-async function tryCloud(messages: ChatMsg[], root: string): Promise<{ content: string; model: string } | null> {
+async function tryCloud(messages: ChatMsg[], root: string, kind?: string): Promise<{ content: string; model: string } | null> {
+  const order = (kind && KIND_CLOUD_ORDER[kind]) ? KIND_CLOUD_ORDER[kind]! : CHAT_ORDER;
   const dir = nodePath.join(root, "datos-privados");
-  for (const id of CHAT_ORDER) {
+  for (const id of order) {
     try {
       const result = (await engineAction(dir, {
         action: "cloud-chat",
@@ -59,7 +61,7 @@ export const Route = createFileRoute("/api/chat")({
       POST: async ({ request }) => {
         const blocked = blockForeignSite(request);
         if (blocked) return blocked;
-        let body: { messages?: ChatMsg[]; stream?: boolean; model?: string };
+        let body: { messages?: ChatMsg[]; stream?: boolean; model?: string; kind?: string };
         try {
           body = (await request.json()) as typeof body;
         } catch {
@@ -75,7 +77,7 @@ export const Route = createFileRoute("/api/chat")({
         // 2. Fallback: motores de nube en CHAT_ORDER
         try {
           const root = process.env["WILLY_ROOT"] ?? process.cwd();
-          const cloud = await tryCloud(messages, root);
+          const cloud = await tryCloud(messages, root, body.kind);
           if (cloud) return Response.json({ content: cloud.content, model: cloud.model }, { headers: { "Cache-Control": "no-store" } });
         } catch {
           // ningún motor de nube disponible
