@@ -56,12 +56,40 @@ export function newThreadId(): string {
   return `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/**
+ * Genera un título legible a partir del primer mensaje del usuario.
+ * Limpia markdown, URLs y caracteres de control; corta por frase o palabra completa.
+ */
+function makeThreadTitle(raw: string): string {
+  const clean = raw
+    .replace(/```[\s\S]*?```/g, "")          // bloques de código
+    .replace(/`[^`]*`/g, "")                  // código inline
+    .replace(/\*\*([^*]+)\*\*/g, "$1")        // negrita
+    .replace(/\*([^*]+)\*/g, "$1")            // cursiva
+    .replace(/#+\s*/g, "")                    // encabezados
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // enlaces markdown
+    .replace(/https?:\/\/\S+/g, "")           // URLs sueltas
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return "Nueva conversación";
+  // Intentar cortar por frase (punto, interrogación, exclamación) dentro de los primeros 70 chars.
+  const SHORT = clean.slice(0, 70);
+  const dotIdx = SHORT.search(/[.?!,;]/);
+  if (dotIdx > 8) return clean.slice(0, dotIdx).trim();
+  // Si no hay frase corta, cortar por palabra completa en 60 chars.
+  if (clean.length <= 60) return clean;
+  const cut = clean.slice(0, 60);
+  const spaceIdx = cut.lastIndexOf(" ");
+  const title = spaceIdx > 10 ? cut.slice(0, spaceIdx) : cut;
+  return title + "…";
+}
+
 /** Guarda (o actualiza) un chat. Si no tiene título, usa el primer mensaje del dueño. */
 export function saveThread(id: string, messages: StoredMsg[]) {
   const all = readAll();
   const prev = all[id];
   const firstUser = messages.find((m) => m.who === "you" && m.text.trim());
-  const title = (firstUser?.text.trim().slice(0, 60) || prev?.title || "Nueva conversación");
+  const title = (firstUser ? makeThreadTitle(firstUser.text) : prev?.title || "Nueva conversación");
   // Abrir una conversación también la vuelve a guardar: si no ha cambiado nada, se deja como estaba (antes subía la primera en
   // «Recientes» y parecía nueva solo por abrirla).
   if (prev && prev.title === title && JSON.stringify(prev.messages) === JSON.stringify(messages)) return;
