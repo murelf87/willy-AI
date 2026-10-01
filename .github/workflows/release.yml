@@ -1,0 +1,114 @@
+name: Publicar instalador de WILLY AI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Extraer versión del tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Compilar la aplicación web
+        run: npm run build
+
+      - name: Preparar carpeta de fuente para el instalador
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version.outputs.VERSION }}"
+          # Carpeta de staging para el instalador NSIS
+          New-Item -ItemType Directory -Force -Path "nsis-stage\source"
+          New-Item -ItemType Directory -Force -Path "nsis-stage\app"
+          New-Item -ItemType Directory -Force -Path "nsis-stage\updates"
+
+          # Copiar la build web
+          Copy-Item -Recurse ".output" "nsis-stage\app\.output"
+
+          # Copiar fuentes necesarias
+          Copy-Item -Recurse "src"          "nsis-stage\source\src"
+          Copy-Item -Recurse "public"       "nsis-stage\source\public"
+          Copy-Item "package.json"          "nsis-stage\source\package.json"
+          Copy-Item "vite.config.ts"        "nsis-stage\source\vite.config.ts"
+          Copy-Item "vite.config.local.ts"  "nsis-stage\source\vite.config.local.ts" -ErrorAction SilentlyContinue
+          Copy-Item "tsconfig.json"         "nsis-stage\source\tsconfig.json"
+
+          # Copiar otros archivos del instalador
+          Copy-Item "icon.ico"              "nsis-stage\icon.ico"
+          Copy-Item "willy.vbs"             "nsis-stage\willy.vbs" -ErrorAction SilentlyContinue
+          Copy-Item "crear-accesos.ps1"     "nsis-stage\crear-accesos.ps1"
+          Copy-Item "willy.nsi"             "nsis-stage\willy.nsi"
+
+          # Escribir version.txt
+          Set-Content -Path "nsis-stage\updates\version.txt" -Value $ver
+
+          # willy-ai.bat de arranque
+          if (Test-Path "willy-ai.bat") {
+            Copy-Item "willy-ai.bat" "nsis-stage\willy-ai.bat"
+          }
+
+      - name: Descargar node.exe portátil para incluir en el instalador
+        shell: pwsh
+        run: |
+          $nodeUrl = "https://nodejs.org/dist/v20.18.0/win-x64/node.exe"
+          New-Item -ItemType Directory -Force -Path "nsis-stage\tools"
+          Invoke-WebRequest -Uri $nodeUrl -OutFile "nsis-stage\tools\node.exe" -UseBasicParsing
+
+      - name: Copiar node_modules al staging
+        shell: pwsh
+        run: |
+          Copy-Item -Recurse "node_modules" "nsis-stage\source\node_modules"
+
+      - name: Instalar NSIS
+        shell: pwsh
+        run: |
+          choco install nsis --no-progress -y
+
+      - name: Compilar el instalador .exe con NSIS
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version.outputs.VERSION }}"
+          $outFile = "WillyAI-Setup-$ver.exe"
+          Set-Location "nsis-stage"
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /DVERSION=$ver /DOUTFILE=$outFile willy.nsi
+          if ($LASTEXITCODE -ne 0) { throw "NSIS falló con código $LASTEXITCODE" }
+          Move-Item $outFile "..\$outFile"
+
+      - name: Crear Release en GitHub y subir el .exe
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "WILLY AI ${{ github.ref_name }}"
+          body: |
+            ## WILLY AI ${{ github.ref_name }}
+
+            ### Instalación / Actualización
+            1. Descarga `WillyAI-Setup-${{ steps.version.outputs.VERSION }}.exe`
+            2. Ejecútalo — se cierra la versión anterior, se instalan los nuevos archivos y se abre WILLY AI.
+            3. Tus datos, conversaciones y modelos descargados se conservan.
+
+            ### Actualización automática desde WILLY
+            Desde Ajustes → Sistema → Actualizaciones, pulsa **Comprobar actualización** y luego **Actualizar**.
+            WILLY descargará e instalará esta versión automáticamente.
+          files: WillyAI-Setup-${{ steps.version.outputs.VERSION }}.exe
+          draft: false
+          prerelease: false
