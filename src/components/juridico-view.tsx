@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertCircle, BookOpen, ChevronDown, ChevronUp, FileText, Gavel, Loader2,
+  AlertCircle, BookOpen, Check, ChevronDown, ChevronUp, Copy, Download, FileText, Gavel, Loader2,
   Paperclip, Plus, Scale, Send, Trash2, Upload, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -89,9 +89,8 @@ async function extractText(file: File): Promise<string> {
   if (file.type === "application/pdf") {
     try {
       const { extractAnyText } = await import("@/lib/pdf-text");
-      const ab = await file.arrayBuffer();
-      const result = await extractAnyText(new Uint8Array(ab), file.name);
-      return result.text ?? `[PDF: ${file.name} — ${fmt(file.size)}]`;
+      const text = await extractAnyText(file);
+      return text ?? `[PDF: ${file.name} — ${fmt(file.size)}]`;
     } catch {
       return `[PDF adjunto: ${file.name} — ${fmt(file.size)}. No se pudo extraer el texto automáticamente. Describe su contenido en el chat.]`;
     }
@@ -149,6 +148,51 @@ async function askJuridico(messages: Message[], docs: DocFile[], signal: AbortSi
   return result || "(Sin respuesta del modelo)";
 }
 
+// ─── Renderizador Markdown simple (sin deps externas) ────────────────────────
+
+function renderMarkdown(text: string): React.ReactNode[] {
+  const lines = text.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let i = 0;
+
+  const inlineFormat = (s: string, key: string): React.ReactNode => {
+    // Negrita **...**
+    const parts = s.split(/(\*\*[^*]+\*\*)/g);
+    if (parts.length === 1) return <span key={key}>{s}</span>;
+    return (
+      <span key={key}>
+        {parts.map((p, pi) =>
+          p.startsWith("**") && p.endsWith("**")
+            ? <strong key={pi}>{p.slice(2, -2)}</strong>
+            : <span key={pi}>{p}</span>
+        )}
+      </span>
+    );
+  };
+
+  while (i < lines.length) {
+    const line = lines[i] ?? "";
+    if (line.startsWith("### ")) {
+      nodes.push(<h3 key={i} className="mt-3 mb-1 font-bold text-sm">{line.slice(4)}</h3>);
+    } else if (line.startsWith("## ")) {
+      nodes.push(<h2 key={i} className="mt-4 mb-1.5 font-bold text-base border-b border-border pb-1">{line.slice(3)}</h2>);
+    } else if (line.startsWith("# ")) {
+      nodes.push(<h1 key={i} className="mt-4 mb-2 font-bold text-lg">{line.slice(2)}</h1>);
+    } else if (line.startsWith("- ") || line.startsWith("* ")) {
+      nodes.push(<li key={i} className="ml-4 list-disc text-sm leading-6">{inlineFormat(line.slice(2), `li-${i}`)}</li>);
+    } else if (/^\d+\. /.test(line)) {
+      const content = line.replace(/^\d+\. /, "");
+      nodes.push(<li key={i} className="ml-4 list-decimal text-sm leading-6">{inlineFormat(content, `ol-${i}`)}</li>);
+    } else if (line.trim() === "") {
+      nodes.push(<div key={i} className="h-2" />);
+    } else {
+      nodes.push(<p key={i} className="text-sm leading-6">{inlineFormat(line, `p-${i}`)}</p>);
+    }
+    i++;
+  }
+  return nodes;
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 const STORAGE_KEY = "willy-juridico-casos";
@@ -172,10 +216,40 @@ export function JuridicoView({ ping }: { ping: Ping }) {
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [docsOpen, setDocsOpen] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const copyMessage = (id: string, content: string) => {
+    void navigator.clipboard.writeText(content).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  const exportCaso = () => {
+    if (!caso) return;
+    const lines: string[] = [`# ${caso.nombre}`, `Exportado: ${new Date().toLocaleString("es-ES")}`, ""];
+    if (caso.docs.length > 0) {
+      lines.push(`## Documentos adjuntos (${caso.docs.length})`, "");
+      caso.docs.forEach((d) => lines.push(`- ${d.name}`));
+      lines.push("");
+    }
+    lines.push("## Conversación", "");
+    caso.messages.forEach((m) => {
+      lines.push(`### ${m.role === "user" ? "Consulta" : "Análisis WILLY JURÍDICO"}`, "");
+      lines.push(m.content, "");
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `analisis-juridico-${caso.nombre.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const caso = casos.find((c) => c.id === casoId) ?? null;
 
@@ -332,7 +406,7 @@ export function JuridicoView({ ping }: { ping: Ping }) {
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3">
 
-            {/* Nombre del caso editable */}
+            {/* Nombre del caso editable + exportar */}
             <div className="flex items-center gap-2">
               <Scale className="size-4 text-primary shrink-0" />
               <input
@@ -341,6 +415,17 @@ export function JuridicoView({ ping }: { ping: Ping }) {
                 className="flex-1 bg-transparent text-sm font-semibold outline-none border-b border-transparent focus:border-border"
                 aria-label="Nombre del caso"
               />
+              {caso.messages.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs shrink-0"
+                  onClick={exportCaso}
+                  title="Exportar análisis como Markdown"
+                >
+                  <Download className="size-3" />Exportar
+                </Button>
+              )}
             </div>
 
             {/* Panel de documentos */}
@@ -436,18 +521,31 @@ export function JuridicoView({ ping }: { ping: Ping }) {
                           <Scale className="size-4 text-primary" />
                         </div>
                       )}
-                      <div
-                        className={`max-w-[85%] rounded-xl px-3 py-2.5 text-sm leading-6 whitespace-pre-wrap ${
-                          m.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-card border border-border"
-                        }`}
-                      >
-                        {m.content || (m.role === "assistant" && sending ? (
-                          <span className="flex items-center gap-1.5 text-muted-foreground">
-                            <Loader2 className="size-3.5 animate-spin" />Analizando…
-                          </span>
-                        ) : "")}
+                      <div className={`group relative max-w-[85%] rounded-xl px-3 py-2.5 text-sm ${
+                        m.role === "user"
+                          ? "bg-primary text-primary-foreground leading-6 whitespace-pre-wrap"
+                          : "bg-card border border-border"
+                      }`}>
+                        {m.role === "assistant" ? (
+                          m.content ? (
+                            <>
+                              <div>{renderMarkdown(m.content)}</div>
+                              <button
+                                onClick={() => copyMessage(m.id, m.content)}
+                                className="absolute top-2 right-2 hidden group-hover:flex size-6 items-center justify-center rounded border border-border bg-background/80 text-muted-foreground hover:text-foreground"
+                                title="Copiar análisis"
+                              >
+                                {copiedId === m.id ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3" />}
+                              </button>
+                            </>
+                          ) : sending ? (
+                            <span className="flex items-center gap-1.5 text-muted-foreground">
+                              <Loader2 className="size-3.5 animate-spin" />Analizando…
+                            </span>
+                          ) : ""
+                        ) : (
+                          <span className="leading-6 whitespace-pre-wrap">{m.content}</span>
+                        )}
                       </div>
                     </div>
                   ))}
