@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle, ArrowRight, BookOpen, Check, ChevronRight, FolderKanban, FolderOpen, Hammer, Image as ImageIcon, Languages,
-  LayoutGrid, Loader2, MessageSquare, Mic, MoreHorizontal, Paperclip, Pause, Play, Plus, RotateCcw, ScanText, Send, Sparkles, Square,
+  LayoutGrid, Loader2, MessageSquare, Mic, MoreHorizontal, Paperclip, Pause, Play, Plus, RotateCcw, Scale, ScanText, Send, Sparkles, Square,
   Trash2, UserRound, Video, Wand2, X,
 } from "lucide-react";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
@@ -262,6 +262,7 @@ export function InicioScreen({ ping, onNav, onNewProject, onOpenProject, onAskWi
     { icon: UserRound, title: "IA Influencer", desc: "Crea contenido con IA", onClick: () => onNav("influencer") },
     { icon: Video, title: "Vídeo IA", desc: "Dobla vídeos con tu voz", onClick: () => onNav("doblaje") },
     { icon: BookOpen, title: "Lectura", desc: "Lee y resume documentos", onClick: () => onNav("lectura") },
+    { icon: Scale, title: "Análisis Jurídico", desc: "Contratos, leyes y escritos legales", onClick: () => onNav("juridico") },
     { icon: MoreHorizontal, title: "Más herramientas", desc: "Explora todas las capacidades", onClick: () => onNav("herramientas") },
   ];
 
