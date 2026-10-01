@@ -16,9 +16,9 @@ import { useExternalAi } from "@/components/chat-engine-chip";
 type Filter = "todos" | "recientes" | "favoritos";
 const FILTERS: Array<[Filter, string]> = [["todos", "Todos"], ["recientes", "Recientes"], ["favoritos", "Favoritos"]];
 const TAG_STYLE: Record<ChatTag, string> = {
-  Ideas: "bg-warning/25 text-amber-800 dark:text-amber-200",
+  Ideas: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
   General: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
-  Trabajo: "bg-warning/25 text-amber-800 dark:text-amber-200",
+  Trabajo: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
 };
 const TAG_ICON: Record<ChatTag, typeof Lightbulb> = { Ideas: Lightbulb, General: MessageSquare, Trabajo: Briefcase };
 
