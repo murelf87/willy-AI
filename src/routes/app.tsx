@@ -4,7 +4,7 @@ import { useDarkTheme } from "@/hooks/use-dark-theme";
 import {
   BookOpen, Brain, ChevronDown, Clock, FileCode2, FileText, FolderKanban, Github, Home, LayoutGrid, Menu as MenuIcon,
   MessageSquare, Moon, PanelLeftClose, PanelLeftOpen, Plus, Presentation, Settings, Sparkles, Sun, Trash2, Wrench, X,
-  Zap, KeyRound, Headphones, ScanText, Video, Languages, Puzzle, Hammer,
+  Zap, KeyRound, Headphones, ScanText, Video, Languages, Puzzle, Hammer, Scale,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
@@ -84,6 +84,7 @@ const NAV_GROUPS: { title?: string; items: { icon: typeof Home; label: string; a
     title: "Desarrollo",
     items: [
       { icon: FolderKanban, label: "Proyectos" },
+      { icon: Scale, label: "Análisis Jurídico" },
       { icon: Wrench, label: "Herramientas" },
       { icon: Github, label: "GitHub" },
     ],
@@ -417,6 +418,7 @@ const NAV_VIEW: Record<string, View> = {
   GitHub: "github", "Acceso directo": "instalacion", Demo: "demo", Licencias: "licencias",
   Lectura: "lectura", OCR: "ocr", "Mi yo en IA": "avatar", Traducir: "traducir",
   "Nuevas funciones": "extras", Libros: "libros", Transcribir: "transcribir",
+  "Análisis Jurídico": "juridico",
 };
 
 function Sidebar({ open, onClose, view, onNav, onNewProject, onOpenProject, activeProject, collapsed, onToggle, projects, threadId, onOpenThread, onNewChat }: {

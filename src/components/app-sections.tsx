@@ -28,6 +28,7 @@ import { ExtrasView } from "@/components/extras-view";
 import { BookView } from "@/components/book-view";
 import { SuperIAView } from "@/components/superia-view";
 import { ProjectsView } from "@/components/projects-view";
+import { JuridicoView } from "@/components/juridico-view";
 import { SelfBuildView } from "@/components/self-build-view";
 import { SettingsView } from "@/components/settings-view";
 import { IntelligenceCenter } from "@/components/intelligence-center";
@@ -46,7 +47,8 @@ export type View =
   | "chat" | "inicio" | "superia" | "inteligencia" | "autoconstruccion" | "proyectos" | "historial"
   | "herramientas" | "documentacion" | "ajustes" | "cuenta"
   | "github" | "instalacion" | "demo" | "licencias"
-  | "lectura" | "ocr" | "avatar" | "personaje" | "influencer" | "traducir" | "extras" | "libros" | "transcribir" | "doblaje";
+  | "lectura" | "ocr" | "avatar" | "personaje" | "influencer" | "traducir" | "extras" | "libros" | "transcribir" | "doblaje"
+  | "juridico";
 
 export const VIEW_TITLES: Record<View, string> = {
   chat: "Chats",
@@ -74,6 +76,7 @@ export const VIEW_TITLES: Record<View, string> = {
   github: "GitHub",
   instalacion: "Acceso directo",
   demo: "Demo para cliente",
+  juridico: "Análisis Jurídico",
 };
 
 /** Traduce la clave de icono de cada proyecto a su icono real. */
@@ -399,6 +402,7 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
         {view === "extras" && <ExtrasView />}
         {view === "libros" && <BookView />}
         {view === "demo" && <DemoView ping={ping} />}
+        {view === "juridico" && <JuridicoView ping={ping} />}
 
         {view === "cuenta" && <AccountView ping={ping} onLogout={onLogout} agentCount={settings.agents.length} />}
 
