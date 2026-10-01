@@ -116,27 +116,14 @@ const uid = () => Math.random().toString(36).slice(2);
 const fmt = (n: number) => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 
 async function extractText(file: File): Promise<string> {
-  if (file.type === "text/plain" || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
-    return file.text();
+  // extractAnyText maneja: PDF, DOCX, ODT, EPUB, PPTX, XLSX, HTML, RTF, TXT, MD, CSV, JSON y más.
+  try {
+    const { extractAnyText } = await import("@/lib/pdf-text");
+    const text = await extractAnyText(file);
+    return text?.trim() || `[Archivo adjunto: ${file.name} — ${fmt(file.size)}]`;
+  } catch {
+    return `[Archivo adjunto: ${file.name} — ${fmt(file.size)}. No se pudo extraer el texto. Describe su contenido en el chat.]`;
   }
-  if (file.type === "application/json" || file.name.endsWith(".json")) {
-    return file.text();
-  }
-  // Para PDF intentamos leer como texto plano (en producción se podría usar pdf-text)
-  if (file.type === "application/pdf") {
-    try {
-      const { extractAnyText } = await import("@/lib/pdf-text");
-      const text = await extractAnyText(file);
-      return text ?? `[PDF: ${file.name} — ${fmt(file.size)}]`;
-    } catch {
-      return `[PDF adjunto: ${file.name} — ${fmt(file.size)}. No se pudo extraer el texto automáticamente. Describe su contenido en el chat.]`;
-    }
-  }
-  // DOC/DOCX/ODT/RTF: intento básico
-  if (file.name.match(/\.(docx?|odt|rtf)$/i)) {
-    return `[Documento adjunto: ${file.name} — ${fmt(file.size)}. Adjunta una versión en PDF o TXT para que la IA pueda leerlo.]`;
-  }
-  return `[Archivo adjunto: ${file.name} — ${fmt(file.size)}]`;
 }
 
 async function askJuridico(messages: Message[], docs: DocFile[], signal: AbortSignal): Promise<string> {
