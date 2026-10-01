@@ -100,7 +100,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
               );
             })}
           </ul>
-          <p className="text-xs leading-5 text-muted-foreground">Estos motores no están probados con tus claves reales: pulsa «Probar» tras guardar cada clave. ChatGPT, Claude y Perplexity no tienen API gratuita: se usan con «Usar otra IA» en cada mejora.</p>
+          <p className="text-xs leading-5 text-muted-foreground">Estos motores no están probados con tus claves reales: pulsa «Probar» tras guardar cada clave. OpenRouter, Gemini, Groq, Mistral, Cohere, NVIDIA y xAI Grok tienen nivel gratuito con su clave. ChatGPT, Claude (Anthropic) y Perplexity no tienen API gratuita y se usan desde el botón «Usar otra IA» en cada mejora de Autoconstrucción.</p>
         </div>
       )}
     </details>

@@ -25,7 +25,8 @@ import { detectSuggestions, readDismissed, type Suggestion } from "@/lib/capabil
 import { MODEL_CATALOG } from "@/services/model-catalog";
 import { OWNER_POLICY, TASK_LABELS, detectTask, planChain, recordWin } from "@/services/orchestrator";
 import { learnFromOwner, ownerRules } from "@/lib/owner-brain";
-import { loadThread, saveThread, type StoredProjectAction } from "@/lib/chat-history";
+import { loadThread, saveThread, updateThreadMeta, type StoredProjectAction } from "@/lib/chat-history";
+import type { ChatTag } from "@/lib/chat-history";
 import { readProfile } from "@/lib/profile";
 import { startDictation, voiceSupported, type VoiceSession } from "@/lib/voice-input";
 import { ClarifyButton } from "@/components/clarify-button";
@@ -64,6 +65,19 @@ const CHAT_PROMPT = `Eres WILLY AI en la pestaña Chat: una conversación para p
 - Responde en español claro, directo y bien ordenado; usa listas o pasos cuando ayuden.
 - Si pones código, en bloques con su lenguaje (\`\`\`ts, \`\`\`python…) y completo para lo que se pregunta.
 - Construir o cambiar un proyecto entero (una web, una app, un programa) se hace en SUPER WILLY, que tiene la vista previa, los archivos, las versiones y la conversación del proyecto: si te lo piden aquí, puedes orientar y dar ejemplos, y recuerda que en SUPER WILLY se construye y se guarda.`;
+
+/** Clasifica el texto de la primera pregunta del usuario para asignar una etiqueta automática al hilo.
+ * Usa solo heurísticas de palabras clave: no llama a la IA para no añadir latencia. */
+function autoTagThread(threadId: string, firstUserText: string): void {
+  const t = firstUserText.toLowerCase();
+  const IDEAS_KW = ["idea", "brainstorm", "qué piensas", "propuesta", "sugerencia", "opinión", "me gustaría", "cómo podría", "se me ocurre", "¿y si"];
+  const TRABAJO_KW = ["proyecto", "código", "programa", "script", "función", "api", "deploy", "servidor", "informe", "reunión", "presupuesto", "cliente", "contrato", "factura", "empresa", "trabajo", "email", "correo", "análisis", "base de datos", "sql", "python", "javascript", "typescript", "react", "node", "docker", "aws", "excel", "datos", "web", "app", "aplicación", "marketing", "estrategia", "campaña", "legal", "jurídico", "contrato", "demanda"];
+  let tag: ChatTag | undefined;
+  if (IDEAS_KW.some((kw) => t.includes(kw))) tag = "Ideas";
+  else if (TRABAJO_KW.some((kw) => t.includes(kw))) tag = "Trabajo";
+  else tag = "General";
+  try { updateThreadMeta(threadId, { tag }); } catch { /* no crítico */ }
+}
 
 /** Ideas para empezar (maqueta de Chats): el principio de cuatro peticiones habituales; se escriben en el cuadro, no se envían. */
 const STARTERS: Array<{ icon: typeof Plus; label: string; text: string }> = [
@@ -522,6 +536,13 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
       // Si trae archivos, se ven y se descargan en el propio mensaje: el Chat no los guarda en ningún proyecto (eso es SUPER WILLY).
       updateLast((m) => ({ ...m, by, generating: false, text: m.text.trimEnd() || full }));
       ping(cloudFull !== null ? `Respuesta completada con ${cloudBy || "la IA externa que elegiste"}.` : "Respuesta completada con tu IA local.");
+      // Etiqueta automática: solo si el hilo no tiene etiqueta aún y el usuario acaba de enviar el primer mensaje.
+      try {
+        const thread = loadThread(threadId);
+        if (thread && !thread.tag && thread.messages.filter((m) => m.who === "you").length === 1) {
+          autoTagThread(threadId, sent);
+        }
+      } catch { /* no crítico */ }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       if (stopped()) {
