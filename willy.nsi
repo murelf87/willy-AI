@@ -53,7 +53,7 @@ Function SkipDirectory
 FunctionEnd
 
 Function LaunchApp
-  ExecShell "open" "$INSTDIR\willy-ai.exe"
+  ExecShell "open" "$INSTDIR\willy.vbs"
 FunctionEnd
 
 Section "WILLY AI" SecMain
@@ -117,8 +117,8 @@ Section "WILLY AI" SecMain
   Delete "$DESKTOP\willy-ai-vs*.lnk"
   Delete "$SMPROGRAMS\WILLY AI\*.lnk"
   CreateDirectory "$SMPROGRAMS\WILLY AI"
-  CreateShortcut "$SMPROGRAMS\WILLY AI\willy-ai-vs${VERSION}.lnk" "$INSTDIR\willy-ai.exe" "" "$INSTDIR\icon.ico" 0 SW_SHOWNORMAL "" "WILLY AI ${VERSION} - Tu IA local"
-  CreateShortcut "$DESKTOP\willy-ai-vs${VERSION}.lnk" "$INSTDIR\willy-ai.exe" "" "$INSTDIR\icon.ico" 0 SW_SHOWNORMAL "" "WILLY AI ${VERSION} - Tu IA local"
+  CreateShortcut "$SMPROGRAMS\WILLY AI\willy-ai-vs${VERSION}.lnk" "$WINDIR\System32\wscript.exe" '"$INSTDIR\willy.vbs"' "$INSTDIR\icon.ico" 0 SW_SHOWNORMAL "" "WILLY AI ${VERSION} - Tu IA local"
+  CreateShortcut "$DESKTOP\willy-ai-vs${VERSION}.lnk" "$WINDIR\System32\wscript.exe" '"$INSTDIR\willy.vbs"' "$INSTDIR\icon.ico" 0 SW_SHOWNORMAL "" "WILLY AI ${VERSION} - Tu IA local"
 
   ; Refuerzo: script que recrea los accesos con el nombre de la version
 
