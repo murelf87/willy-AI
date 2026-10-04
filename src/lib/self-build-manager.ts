@@ -21,7 +21,7 @@ import { changeItems, cleanChecks, describeFailures, evidenceMarkdown, failures,
 import { backupFiles, copyProgram, readManifest, restoreFiles, sha256Of, treeDigest, verifyFileBackup, writeFileDurable, writeManifest, type BackupFile, type BackupManifest, type ProgramCopy } from "@/lib/self-build-backup";
 import { CANDIDATE_STATE, SB_DIR, appendEvent, clearMarker, opId, readJournal, readMarker, readMarkerState, serverStartedAt, summarizeOperations, writeMarker, type JournalStep, type Marker, type OperationKind, type OperationSummary, type Verdict } from "@/lib/self-build-journal";
 import { changelogFor, confirmHealth, labelOf, loadRegistry, protectedBackups, recordPromotion, recordRollback, writeRegistry, type Registry, type VersionEntry } from "@/lib/self-build-versions";
-import { RESTART_REPORT, UPDATE_LOCK, type RestartInfo } from "@/lib/self-build-ops";
+import { RESTART_REPORT, UPDATE_LOCK, isSourceRuntime, runtimeOutputPath, runtimeSiblingPath, type RestartInfo } from "@/lib/self-build-ops";
 import { candidatePath, createCandidate, diffSnapshots, generatedChanges, removeCandidate, snapshotSources, writeIntoCandidate } from "@/lib/self-build-candidate";
 import { describeDiagnostics, newDiagnostics, type TypecheckResult } from "@/lib/self-build-typecheck";
 
@@ -144,7 +144,7 @@ async function hashFileOrNull(target: string): Promise<string | null> {
 /** Huella del programa instalado (null si no hay programa completo en app/.output). */
 async function liveDigest(root: string): Promise<string | null> {
   const { path } = await node();
-  const live = path.join(root, "app", ".output");
+  const live = await runtimeOutputPath(root);
   if (!(await exists(path.join(live, "server", "index.mjs")))) return null;
   return (await treeDigest(live)).sha256;
 }
@@ -259,8 +259,8 @@ async function ensureProgram(root: string, deps: ManagerDeps, copyDir: string, e
   const { fs, path } = await node();
   try {
     if ((await liveDigest(root)) === expected) return "";
-    const live = path.join(root, "app", ".output");
-    const aside = path.join(root, "app", ".output-anterior");
+    const live = await runtimeOutputPath(root);
+    const aside = await runtimeSiblingPath(root, "anterior");
     const liveMissing = async () => !(await exists(path.join(live, "server", "index.mjs")));
     // 1) Si el programa que funcionaba quedó apartado intacto (intercambio a medias), se vuelve a poner tal cual.
     if ((await liveMissing()) && (await dirDigest(aside)) === expected) {
@@ -311,7 +311,8 @@ function typesEvidence(types: { verdict: Verdict; note: string }): EvidenceItem 
 /** ¿Falta el programa instalado? (para decirlo claro: entonces WILLY no puede volver a abrirse hasta reponerlo) */
 async function programMissing(root: string): Promise<boolean> {
   const { path } = await node();
-  return !(await exists(path.join(root, "app", ".output", "server", "index.mjs")));
+  const live = await runtimeOutputPath(root);
+  return !(await exists(path.join(live, "server", "index.mjs")));
 }
 
 /**
@@ -327,7 +328,7 @@ async function runningFromCopy(root: string): Promise<string | null> {
     const dir = path.dirname(path.dirname(fileURLToPath(main)));
     const norm = (p: string) => (process.platform === "win32" ? path.resolve(p).toLowerCase() : path.resolve(p));
     const base = `${norm(root)}${path.sep}`;
-    if (norm(dir) === norm(path.join(root, "app", ".output")) || !norm(dir).startsWith(base)) return null;
+    if (norm(dir) === norm(await runtimeOutputPath(root)) || !norm(dir).startsWith(base)) return null;
     return dir;
   } catch {
     return null;
@@ -384,7 +385,7 @@ async function applyLocked(input: ApplyInput, deps: ManagerDeps): Promise<Outcom
   const op = await uniqueOp(root, opId(now(), objective));
   busy = op;
   const backup = path.join(root, SB_DIR, op);
-  const liveOutput = path.join(root, "app", ".output");
+  const liveOutput = await runtimeOutputPath(root);
   const rootPrefix = `${path.resolve(root)}${path.sep}`;
   let marker: Marker | null = null;
   // La marca va PRIMERO (es lo que permite recuperar); el diario, después y sin romper nada si falla.
@@ -1065,8 +1066,9 @@ async function revertLocked(root: string, versionId: string, deps: ManagerDeps):
     const copied = await backupFiles(root, safetyDir, old.files);
     const problems = [...copied.problems, ...(await verifyFileBackup(safetyDir, copied.entries))];
     let program: ProgramCopy | undefined;
-    if (installed && (await exists(path.join(root, "app", ".output")))) {
-      const saved = await copyProgram(path.join(root, "app", ".output"), path.join(safetyDir, "app", ".output"));
+    const currentProgram = await runtimeOutputPath(root);
+    if (installed && (await exists(currentProgram))) {
+      const saved = await copyProgram(currentProgram, path.join(safetyDir, "app", ".output"));
       problems.push(...saved.problems);
       program = saved.copy;
     }
@@ -1304,13 +1306,15 @@ export async function selfBuildHealth(root: string, deps: ManagerDeps, probes: H
   add("servidor", "WILLY AI", "ok", `Funcionando · versión ${active?.label ?? labelOf(deps.appVersion, 0)} · encendido hace ${Math.round(process.uptime() / 60)} min.`);
 
   if (installed) {
-    const server = await exists(path.join(root, "app", ".output", "server", "index.mjs"));
-    const front = await exists(path.join(root, "app", ".output", "public"));
-    add("backend", "Servidor de WILLY", server ? "ok" : "fallo", server ? "Programa instalado completo." : "Falta el servidor del programa instalado (app/.output/server): NO cierres WILLY y pulsa «Recuperar ahora» en Historial.");
-    add("frontend", "Pantallas (frontend)", front ? "ok" : "fallo", front ? "Archivos de la interfaz presentes." : "Faltan los archivos de la interfaz (app/.output/public).");
+    const live = await runtimeOutputPath(root);
+    const server = await exists(path.join(live, "server", "index.mjs"));
+    const front = await exists(path.join(live, "public"));
+    const sourceMode = isSourceRuntime();
+    add("backend", "Servidor de WILLY", server ? "ok" : "fallo", server ? (sourceMode ? "Programa local de GitHub completo y reemplazable por Autoconstrucción." : "Programa instalado completo.") : `Falta el servidor del programa activo (${path.relative(root, live)}/server): NO cierres WILLY y pulsa «Recuperar ahora» en Historial.`);
+    add("frontend", "Pantallas (frontend)", front ? "ok" : "fallo", front ? "Archivos de la interfaz presentes." : `Faltan los archivos de la interfaz (${path.relative(root, live)}/public).`);
     // Supervisor: arranque seguro dentro del programa + «Recuperar WILLY AI» fuera de él (funciona aunque WILLY no abra).
     const copy = await runningFromCopy(root);
-    const guarded = (await exists(path.join(root, "app", ".output", "server", "willy.mjs"))) && (await exists(path.join(root, "supervisor", "respaldo.mjs")));
+    const guarded = !sourceMode && (await exists(path.join(live, "server", "willy.mjs"))) && (await exists(path.join(root, "supervisor", "respaldo.mjs")));
     const rescue = (await exists(path.join(root, "RECUPERAR_WILLY.bat"))) && (await exists(path.join(root, "supervisor", "recuperar.mjs")));
     if (copy) add("arranque", "Arranque seguro", "aviso", `WILLY está funcionando con una copia buena (${await relativeCopy(root, copy)}) porque el programa instalado no arrancaba; esa copia ya queda puesta para la próxima vez.`);
     else if (guarded && rescue) add("arranque", "Arranque seguro y recuperación", "ok", "Si el programa no pudiera arrancar, WILLY arranca solo con la última copia buena. Y si algún día no abre: menú Inicio → «Recuperar WILLY AI».");

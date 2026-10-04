@@ -46,9 +46,28 @@ export async function withRetry<T>(fn: () => Promise<T>, attempts = 6): Promise<
   }
 }
 
-/** ¿Es la instalación de Windows con el programa compilado (willy-ai.exe)? Si no, es la vista previa o el entorno de desarrollo. */
+/** WILLY arrancado directamente por INICIAR-WILLY.bat desde la copia de GitHub. */
+export function isSourceRuntime(): boolean {
+  return process.env["WILLY_RUNTIME_MODE"] === "source";
+}
+
+/** Carpeta del programa que está ejecutándose y que Autoconstrucción debe sustituir. */
+export async function runtimeOutputPath(root: string): Promise<string> {
+  const path = await import("node:path");
+  return isSourceRuntime() ? path.join(root, ".output") : path.join(root, "app", ".output");
+}
+
+/** Carpeta hermana de la salida activa (.output-nueva, .output-anterior, .output-fallida...). */
+export async function runtimeSiblingPath(root: string, suffix: string): Promise<string> {
+  const path = await import("node:path");
+  const live = await runtimeOutputPath(root);
+  return path.join(path.dirname(live), `.output-${suffix}`);
+}
+
+/** ¿Hay un programa local completo que podamos reemplazar y reiniciar con seguridad? */
 export async function isInstalled(root: string): Promise<boolean> {
   const path = await import("node:path");
+  if (isSourceRuntime()) return exists(path.join(root, ".output", "server", "index.mjs"));
   return exists(path.join(root, "willy-ai.exe"));
 }
 
@@ -138,9 +157,9 @@ export async function deployCompiledApp(root: string, source?: string): Promise<
   const path = await import("node:path");
   if (!(await isInstalled(root))) return { installed: false, detail: "Vista previa actualizada." };
   const built = source ?? path.join(root, ".output");
-  const live = path.join(root, "app", ".output");
-  const replacement = path.join(root, "app", ".output-nueva");
-  const previous = path.join(root, "app", ".output-anterior");
+  const live = await runtimeOutputPath(root);
+  const replacement = await runtimeSiblingPath(root, "nueva");
+  const previous = await runtimeSiblingPath(root, "anterior");
   const complete = (dir: string) => exists(path.join(dir, "server", "index.mjs"));
   if (!(await complete(built))) throw new Error("La compilación no generó el servidor esperado (.output/server/index.mjs).");
   if (!(await complete(live)) && (await complete(previous))) {
@@ -174,7 +193,7 @@ export async function deployCompiledApp(root: string, source?: string): Promise<
     throw error;
   }
   await fs.rm(previous, { recursive: true, force: true }).catch(() => undefined);
-  return { installed: true, detail: "Programa recompilado y preparado para reiniciarse." };
+  return { installed: true, detail: isSourceRuntime() ? "Programa local recompilado y preparado para reiniciarse." : "Programa recompilado y preparado para reiniciarse." };
 }
 
 /** Programa anterior al que volver si el nuevo no arranca tras reiniciar, y a qué operación se refiere. */
@@ -184,6 +203,7 @@ export type RestartPlan = {
   parentPid: number;
   execPath: string;
   root: string;
+  live: string;
   entry: string;
   port: number;
   killAfterMs: number;
@@ -237,8 +257,8 @@ const healthy = async (child) => {
   let detail = "El programa nuevo no respondió al arrancar.";
   try { process.kill(child.pid); } catch {}
   await sleep(1500);
-  const live = path.join(O.root, "app", ".output");
-  const failed = path.join(O.root, "app", ".output-fallida");
+  const live = O.live;
+  const failed = path.join(path.dirname(live), ".output-fallida");
   try { fs.rmSync(failed, { recursive: true, force: true }); } catch {}
   try { fs.renameSync(live, failed); } catch { try { fs.rmSync(live, { recursive: true, force: true }); } catch {} }
   let restored = true;
@@ -269,11 +289,13 @@ export function restartArgs(plan: RestartPlan): string[] {
 export async function scheduleInstalledRestart(root: string, info: RestartInfo = {}): Promise<void> {
   const path = await import("node:path");
   const { spawn } = await import("node:child_process");
+  const live = await runtimeOutputPath(root);
   const args = restartArgs({
     parentPid: process.pid,
     execPath: process.execPath,
     root,
-    entry: path.join(root, "app", ".output", "server", "index.mjs"),
+    live,
+    entry: path.join(live, "server", "index.mjs"),
     port: 3000,
     killAfterMs: 3500,
     startAfterMs: 1200,

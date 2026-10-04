@@ -70,12 +70,12 @@ const NAV_GROUPS: { title?: string; items: { icon: typeof Home; label: string; a
     items: [
       { icon: Home, label: "Inicio" },
       { icon: MessageSquare, label: "Chats", active: true },
+      { icon: Sparkles, label: "SÚPER IA" },
     ],
   },
   {
     title: "Inteligencia",
     items: [
-      { icon: Sparkles, label: "Súper IA" },
       { icon: Brain, label: "Centro de Inteligencia" },
       { icon: Hammer, label: "Autoconstrucción" },
     ],
@@ -413,7 +413,7 @@ function TopBar({ dark, toggleTheme, onMenu, ping, onNav, settings, updateSettin
 }
 
 const NAV_VIEW: Record<string, View> = {
-  Inicio: "inicio", "Súper IA": "superia", "Centro de Inteligencia": "inteligencia", Autoconstrucción: "autoconstruccion",
+  Inicio: "inicio", "SÚPER IA": "superia", "Súper IA": "superia", "Centro de Inteligencia": "inteligencia", Autoconstrucción: "autoconstruccion",
   Proyectos: "proyectos", Chats: "chat", Herramientas: "herramientas", Historial: "historial", Ajustes: "ajustes",
   GitHub: "github", "Acceso directo": "instalacion", Demo: "demo", Licencias: "licencias",
   Lectura: "lectura", OCR: "ocr", "Mi yo en IA": "avatar", Traducir: "traducir",
