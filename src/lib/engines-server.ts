@@ -61,7 +61,7 @@ export const PROVIDERS: Provider[] = [
     dataNote: "Gratis y sin tarjeta (cuenta de NVIDIA Developer): unas 40 peticiones por minuto. Revisa sus condiciones sobre el uso de datos.",
     fallbackModels: ["deepseek-ai/deepseek-v4.1-flash", "meta/llama-3.3-70b-instruct", "qwen/qwen3-235b-a22b", "mistralai/mistral-large-2-instruct", "deepseek-ai/deepseek-r1"],
     prefer: ["deepseek-v4[.\\d]*-flash", "llama-3\\.3-70b-instruct", "qwen3-235b", "qwen[^/]*coder", "deepseek-r1(?!.*lite)", "mistral-large-2", "deepseek-v4", "glm-5"],
-    timeoutMs: 90_000,
+    timeoutMs: 45_000,
   },
   // 3. Mistral: nivel gratuito estable, bueno para código y contextos medianos.
   { id: "mistral", name: "Mistral", baseUrl: "https://api.mistral.ai/v1", keyUrl: "https://console.mistral.ai/api-keys", dataNote: "Nivel gratuito con límites. Revisa sus condiciones sobre el uso de datos.", timeoutMs: 120_000 },

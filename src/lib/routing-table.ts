@@ -12,13 +12,13 @@ export const CHAT_ORDER = ["groq", "gemini", "xai", "openrouter", "nvidia", "mis
  * Groq NO está aquí: su límite de 8k tokens hace que rechace siempre los prompts de autoconstrucción,
  * ralentizando el proceso sin aportar nada. Para chats cortos sigue disponible en CHAT_ORDER.
  *
- * Orden: OpenAI (solo si el dueño ha guardado su clave; API de pago) → OpenRouter → xAI → NVIDIA →
- *        Gemini → Mistral → Cohere. Si OpenAI no está configurado, el comportamiento gratuito sigue como antes.
+ * Orden: OpenAI (solo si el dueño ha guardado su clave; API de pago) → OpenRouter → Gemini → xAI →
+ *        Mistral → Cohere → NVIDIA. NVIDIA queda al final porque puede tardar mucho aun con peticiones pequeñas.
  *
  * 28/09/2026: Groq eliminado de BUILD_ORDER — límite 8k tokens lo hace inútil para autoconstrucción.
  * 25/09/2026: Mistral (Codestral) subido para código; OpenRouter adelantado por Qwen3-Coder:free.
  */
-export const BUILD_ORDER = ["openai", "openrouter", "xai", "nvidia", "gemini", "mistral", "cohere"];
+export const BUILD_ORDER = ["openai", "openrouter", "gemini", "xai", "mistral", "cohere", "nvidia"];
 
 /**
  * «Plug and play»: orden por tipo de petición.
