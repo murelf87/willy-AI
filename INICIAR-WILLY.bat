@@ -20,12 +20,32 @@ function Refresh-Path {
   $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User') + ';' + $env:Path
 }
 
-# IMPORTANTE: no se redirige la salida de error de git.
-# git escribe mensajes normales (como "From https://github.com/...") en stderr y,
-# si se redirigen con 2>&1, PowerShell los convierte en errores fatales.
+# Git escribe mensajes normales (por ejemplo "From https://github.com/...") en stderr.
+# Con ErrorActionPreference=Stop, Windows PowerShell 5.1 puede convertirlos en errores
+# terminantes aunque git haya finalizado correctamente. Ejecutamos git temporalmente
+# con Continue y usamos el codigo de salida real como unica fuente de verdad.
 function Run-Git {
-  $out = & git @args
-  if ($LASTEXITCODE -ne 0) { throw "Git ha fallado: git $($args -join ' ')" }
+  $tmpErr = [System.IO.Path]::GetTempFileName()
+  $oldErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $out = & git @args 2>$tmpErr
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $oldErrorActionPreference
+  }
+  $errText = ''
+  if (Test-Path $tmpErr) {
+    $errText = Get-Content -LiteralPath $tmpErr -Raw -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $tmpErr -Force -ErrorAction SilentlyContinue
+  }
+  if ($exitCode -ne 0) {
+    $detalle = if ($errText -and $errText.Trim()) { "`n$($errText.Trim())" } else { '' }
+    throw "Git ha fallado ($exitCode): git $($args -join ' ')$detalle"
+  }
+  if ($errText -and $errText.Trim()) {
+    Write-Host $errText.Trim() -ForegroundColor DarkGray
+  }
   return $out
 }
 
