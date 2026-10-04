@@ -70,8 +70,9 @@ function Show-Log($titulo, $ruta) {
 }
 
 try {
-  try { $locked = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $locked = $true }
-  if (-not $locked) { throw 'Ya hay otro lanzador de WILLY abierto. Cierra su ventana antes de volver a abrirlo.' }
+  # Espera unos segundos por si la ventana anterior se esta cerrando todavia.
+  try { $locked = $mutex.WaitOne(5000) } catch [System.Threading.AbandonedMutexException] { $locked = $true }
+  if (-not $locked) { throw 'Ya hay otra ventana de WILLY abierta. Cierrala (mira en la barra de tareas: "WILLY AI - Actualizar e iniciar") y vuelve a abrir este archivo.' }
 
   New-Item -ItemType Directory -Force -Path $root | Out-Null
   $log = Join-Path $root ('inicio-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
@@ -251,6 +252,13 @@ try {
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
   }
 } catch {
+  # Se libera el bloqueo ANTES de esperar al usuario: si no, una ventana parada
+  # en "Pulsa ENTER" impide abrir el lanzador otra vez.
+  if ($locked) {
+    try { $mutex.ReleaseMutex() } catch { }
+    $locked = $false
+  }
+  if ($logging) { try { Stop-Transcript | Out-Null } catch { }; $logging = $false }
   Write-Host ''
   Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
   Write-Host "Registros en: $root" -ForegroundColor Yellow
@@ -258,6 +266,6 @@ try {
   exit 1
 } finally {
   if ($logging) { try { Stop-Transcript | Out-Null } catch { } }
-  if ($locked) { $mutex.ReleaseMutex() }
+  if ($locked) { try { $mutex.ReleaseMutex() } catch { } }
   $mutex.Dispose()
 }
