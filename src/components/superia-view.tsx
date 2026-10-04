@@ -920,6 +920,7 @@ export function SuperIAView() {
       pushNotice(r.ok ? `Proyecto de vuelta a «${version.label}».` : `⚠️ ${r.error}`, r.ok ? "success" : "warn");
     } });
     return;
+  };
 
   /**
    * Lo que se pide desde el taller (arreglar un error, añadir la vista previa…): se ejecuta en el chat del proyecto. Rev24: los
@@ -1954,5 +1955,4 @@ export function SuperIAView() {
     </div>
     </>
   );
-}
 }

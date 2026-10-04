@@ -15,6 +15,9 @@ $repoUrl = 'https://github.com/murelf87/willy-AI.git'
 $mutex = New-Object System.Threading.Mutex($false, 'Local\WillyAI-GitHub-Launcher')
 $locked = $false
 $logging = $false
+$previousHead = $null
+$buildBackup = $null
+$updatedThisRun = $false
 
 function Refresh-Path {
   $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User') + ';' + $env:Path
@@ -102,6 +105,13 @@ try {
 
   Set-Location -LiteralPath $repo
 
+  # Punto de restauracion de codigo: si la nueva version no compila o no arranca,
+  # se vuelve automaticamente al commit que funcionaba antes de actualizar.
+  try {
+    $previousHead = (& git rev-parse HEAD 2>$null).Trim()
+    if (-not $previousHead) { $previousHead = $null }
+  } catch { $previousHead = $null }
+
   # Corrige la direccion del repositorio si quedo apuntando a la antigua
   $urlActual = & git remote get-url origin
   if ($LASTEXITCODE -ne 0 -or -not $urlActual) {
@@ -128,7 +138,9 @@ try {
   # node_modules y .output no se tocan, asi no hay que recompilar desde cero.
   Run-Git reset --hard origin/main | Out-Null
   $head = (Run-Git rev-parse HEAD).Trim()
+  $updatedThisRun = [bool]($previousHead -and $previousHead -ne $head)
   Write-Host "Version actual: $head" -ForegroundColor Green
+  if ($updatedThisRun) { Write-Host "Punto de rollback: $previousHead" -ForegroundColor DarkGray }
 
   # ---- Puerto libre ----
   $listener = New-Object System.Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 3000)
@@ -151,10 +163,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Ha fallado npm ci. Revisa el error que aparece encima.' }
 
     Write-Host '[3/4] Compilando WILLY AI para Windows...'
-    $backup = $null
+    $buildBackup = $null
     if (Test-Path '.output') {
-      $backup = Join-Path $root ('build-anterior-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-      Move-Item -LiteralPath '.output' -Destination $backup
+      $buildBackup = Join-Path $root ('build-anterior-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+      Move-Item -LiteralPath '.output' -Destination $buildBackup
+      Write-Host "Copia de seguridad de la build: $buildBackup" -ForegroundColor DarkGray
     }
     try {
       if (Test-Path 'vite.config.local.ts') {
@@ -167,7 +180,10 @@ try {
       Set-Content -LiteralPath $marker -Value $buildKey -Encoding ASCII
     } catch {
       if (Test-Path '.output') { Move-Item -LiteralPath '.output' -Destination (Join-Path $root ('build-fallida-' + [guid]::NewGuid().ToString('N'))) }
-      if ($backup) { Move-Item -LiteralPath $backup -Destination (Join-Path $repo '.output') }
+      if ($buildBackup -and (Test-Path $buildBackup)) {
+        Move-Item -LiteralPath $buildBackup -Destination (Join-Path $repo '.output')
+        $buildBackup = $null
+      }
       throw
     }
   } else {
@@ -253,6 +269,31 @@ try {
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
   }
 } catch {
+  $originalError = $_.Exception.Message
+
+  # Rollback automatico: si esta ejecucion acababa de cambiar de commit y algo fallo
+  # al compilar o arrancar, restaura tanto el codigo como la ultima build conocida.
+  if ($updatedThisRun -and $previousHead -and (Test-Path (Join-Path $repo '.git'))) {
+    Write-Host ''
+    Write-Host 'La actualización no ha quedado operativa. Restaurando la versión anterior...' -ForegroundColor Yellow
+    try {
+      Set-Location -LiteralPath $repo
+      if ($buildBackup -and (Test-Path $buildBackup)) {
+        if (Test-Path '.output') {
+          Move-Item -LiteralPath '.output' -Destination (Join-Path $root ('build-fallida-' + (Get-Date -Format 'yyyyMMdd-HHmmss')))
+        }
+        Move-Item -LiteralPath $buildBackup -Destination (Join-Path $repo '.output')
+        $buildBackup = $null
+      }
+      Run-Git reset --hard $previousHead | Out-Null
+      $markerRollback = Join-Path $root 'build-correcta.txt'
+      if (Test-Path $markerRollback) { Remove-Item -LiteralPath $markerRollback -Force -ErrorAction SilentlyContinue }
+      Write-Host "Rollback completado: $previousHead" -ForegroundColor Green
+    } catch {
+      Write-Host "ATENCION: el rollback automatico no se pudo completar: $($_.Exception.Message)" -ForegroundColor Red
+    }
+  }
+
   # Se libera el bloqueo ANTES de esperar al usuario: si no, una ventana parada
   # en "Pulsa ENTER" impide abrir el lanzador otra vez.
   if ($locked) {
@@ -261,7 +302,7 @@ try {
   }
   if ($logging) { try { Stop-Transcript | Out-Null } catch { }; $logging = $false }
   Write-Host ''
-  Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+  Write-Host "ERROR: $originalError" -ForegroundColor Red
   Write-Host "Registros en: $root" -ForegroundColor Yellow
   Read-Host 'Pulsa ENTER para cerrar' | Out-Null
   exit 1
