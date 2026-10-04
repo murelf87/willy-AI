@@ -198,6 +198,8 @@ try {
   $env:HOST = '0.0.0.0'
   $env:NITRO_HOST = '0.0.0.0'
   $env:NODE_ENV = 'production'
+  # Esta copia es editable: Autoconstrucción puede promover una candidata a la .output que está ejecutándose.
+  $env:WILLY_RUNTIME_MODE = 'source'
 
   Write-Host '[4/4] Iniciando WILLY en http://localhost:3000 ...'
   $outLog = Join-Path $root 'servidor.log'
