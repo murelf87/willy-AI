@@ -504,6 +504,9 @@ async function markFailure(dir: string, id: string, failure: Failure, now: numbe
   if (!engine) return;
   engine.cooldownUntil = failure.cooldownMs > 0 ? now + failure.cooldownMs : 0;
   engine.reason = failure.message;
+  // Una clave que el proveedor rechaza no debe gastar intentos cada día. Se conserva, pero queda
+  // desactivada hasta que el dueño guarde una nueva; guardar una clave nueva la reactiva automáticamente.
+  if (failure.kind === "auth") engine.enabled = false;
   if (clearModel) { delete engine.model; delete engine.maxRequest; }
   if (dropAlt || clearModel) delete engine.alt;
   if (maxRequest !== undefined) engine.maxRequest = maxRequest;
@@ -774,7 +777,7 @@ export async function engineAction(dir: string, body: Body, env: Partial<Env> = 
     if (action === "engines-save-key") {
       const key = String(body["key"] ?? "").trim();
       if (key.length < 10 || key.length > 400 || /\s/.test(key)) return { ok: false, error: "La clave no parece válida (no debe llevar espacios)." };
-      state.engines[id] = { ...blank(), ...(state.engines[id] ?? {}), key, cooldownUntil: 0, reason: "" };
+      state.engines[id] = { ...blank(), ...(state.engines[id] ?? {}), key, enabled: true, cooldownUntil: 0, reason: "" };
       delete state.engines[id]!.model;
       await saveState(dir, state);
       return { ok: true, status: publicStatus(state, now, providers) };
