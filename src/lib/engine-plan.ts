@@ -26,7 +26,9 @@ export function buildSequence(status: PublicStatus | null, localModels: string[]
 /** Con motores en la nube hay más margen: si uno falla por su cuenta no debe gastar un intento «de verdad». */
 export function maxAttemptsFor(base: number, steps: Step[]): number {
   const clouds = steps.filter((step) => step.kind === "cloud").length;
-  return Math.min(8, base + clouds);
+  // Una mejora compleja no debe terminar antes de haber dado oportunidad real a los motores externos buenos
+  // y, si hace falta, a varios modelos locales. El límite sigue siendo finito para evitar bucles.
+  return Math.min(12, base + clouds + (clouds > 0 ? 1 : 0));
 }
 
 /**

@@ -67,7 +67,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
       ) : (
         <div className="mt-3 space-y-3">
           <p className="text-xs leading-5 text-muted-foreground">
-            Solo servicios oficiales con nivel gratuito. Cuando a uno se le acaba la cuota, pide pago o rechaza la clave, WILLY pasa al siguiente y lo vuelve a probar cuando toca; los cambios los aplica WILLY, así que cada motor continúa desde donde lo dejó el anterior. Las claves se guardan solo en este equipo y nunca vuelven a mostrarse.
+            Servicios oficiales. Los motores gratuitos siguen funcionando como hasta ahora; OpenAI es opcional y se factura por uso con tu propia clave. Cuando un motor se agota, falla o rechaza la clave, WILLY pasa al siguiente; los cambios los aplica y valida WILLY. Las claves se guardan solo en este equipo y nunca vuelven a mostrarse.
           </p>
           <label className="flex items-start gap-2 rounded-md border border-border bg-background p-3 text-xs leading-5">
             <input type="checkbox" className="mt-0.5" checked={status.master} onChange={(event) => void run("master", "engines-master", { on: event.target.checked })} />
@@ -76,7 +76,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
             </span>
           </label>
           <p className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs leading-5">
-            <span className="font-semibold">Orden en la Autoconstrucción:</span> siempre prueba primero la IA externa gratuita que mejor vaya (con clave, activada y disponible) y deja tu equipo como último recurso. Es así siempre, no depende de ningún ajuste.
+            <span className="font-semibold">Orden en la Autoconstrucción:</span> si has configurado OpenAI, se prueba primero para tareas de código; después siguen los motores externos disponibles y tu equipo queda como último recurso. Cada candidata debe compilar y superar las comprobaciones antes de sustituir WILLY.
           </p>
           <p className="text-xs text-muted-foreground">Límite de seguridad: {status.dailyCap} peticiones al día por motor.</p>
           <ul className="space-y-2">
@@ -92,7 +92,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
                   <p className="mt-1 leading-5 text-muted-foreground">{engine.dataNote}</p>
                   {engine.hasKey && engine.reason && engine.enabled && !engine.available && <p className="mt-1 leading-5 text-amber-600">{engine.reason}</p>}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <a href={engine.keyUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border border-border px-2 py-1 font-semibold hover:bg-muted">Conseguir clave gratis</a>
+                    <a href={engine.keyUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border border-border px-2 py-1 font-semibold hover:bg-muted">Conseguir clave</a>
                     <input
                       type="password"
                       autoComplete="off"
@@ -117,7 +117,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
               );
             })}
           </ul>
-          <p className="text-xs leading-5 text-muted-foreground">Estos motores no están probados con tus claves reales: pulsa «Probar» tras guardar cada clave. OpenRouter, Gemini, Groq, Mistral, Cohere, NVIDIA y xAI Grok tienen nivel gratuito con su clave. ChatGPT, Claude (Anthropic) y Perplexity no tienen API gratuita y se usan desde el botón «Usar otra IA» en cada mejora de Autoconstrucción.</p>
+          <p className="text-xs leading-5 text-muted-foreground">Pulsa «Probar» después de guardar cada clave. OpenRouter, Gemini, Groq, Mistral, Cohere, NVIDIA y xAI Grok pueden ofrecer nivel gratuito. OpenAI usa la Responses API oficial y se factura por uso; el plan ChatGPT no incluye esos consumos de API. Claude y Perplexity siguen disponibles mediante «Usar otra IA» si no configuras sus APIs.</p>
         </div>
       )}
     </details>

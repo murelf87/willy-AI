@@ -1,8 +1,8 @@
-// Motores de IA en la nube (opcionales) para la Autoconstrucción. Solo APIs oficiales con nivel gratuito y compatibles
-// con el formato de OpenAI. Las claves se guardan SOLO en este equipo (nunca vuelven a la pantalla). Cada motor sale
+// Motores de IA en la nube (opcionales) para la Autoconstrucción. APIs oficiales: la mayoría con nivel gratuito y
+// OpenAI opcional de pago por uso. Las claves se guardan SOLO en este equipo (nunca vuelven a la pantalla). Cada motor sale
 // de la rueda cuando se agota su cuota, pide pago o rechaza la clave, y se vuelve a probar solo cuando toca.
 
-export type ProviderId = "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia" | "xai";
+export type ProviderId = "openai" | "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia" | "xai";
 
 export type Provider = {
   id: ProviderId;
@@ -24,6 +24,18 @@ export type Provider = {
 // Groq es el más rápido pero tiene límite de 8k tokens en el tier gratuito → va el último.
 // Gemini va penúltimo porque el modelo por defecto puede quedar inválido: se ha corregido a gemini-2.0-flash.
 export const PROVIDERS: Provider[] = [
+  // OpenAI: opcional y de pago. Se usa especialmente para Autoconstrucción cuando el dueño configura su propia clave.
+  // La llamada se hace con Responses API (no con Assistants) y la clave permanece solo en datos-privados de este equipo.
+  {
+    id: "openai",
+    name: "OpenAI",
+    baseUrl: "https://api.openai.com/v1",
+    keyUrl: "https://platform.openai.com/api-keys",
+    dataNote: "API oficial de OpenAI. Es de pago por uso y no está incluida con ChatGPT Plus. La clave se guarda solo en este equipo.",
+    fallbackModels: ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-5.3-codex", "gpt-6-luna"],
+    prefer: ["^gpt-6-astra$", "^gpt-6\\.1-sol$", "^gpt-6-sol$", "^gpt-5\\.3-codex$", "^gpt-6-luna$"],
+    maxOutput: 12000,
+  },
   // 1. OpenRouter: múltiples modelos :free, contexto grande (hasta 128k), mejor para código largo.
   // Orden de preferencia: Qwen3-Coder (especializado en código) > DeepSeek-R1 (razonador) > Llama 3.3 70B > Gemma > otros.
   {
@@ -340,6 +352,97 @@ const scrub = (text: string, key: string | undefined): string => {
   return out.replace(/\s+/g, " ").trim().slice(0, 300);
 };
 
+type OpenAIChangeSet = {
+  files: Array<{ path: string; lang: string; content: string }>;
+  patches: Array<{ path: string; search: string; replace: string }>;
+  summary: string;
+};
+
+export const OPENAI_CHANGE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    files: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          path: { type: "string" },
+          lang: { type: "string" },
+          content: { type: "string" },
+        },
+        required: ["path", "lang", "content"],
+      },
+    },
+    patches: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          path: { type: "string" },
+          search: { type: "string" },
+          replace: { type: "string" },
+        },
+        required: ["path", "search", "replace"],
+      },
+    },
+    summary: { type: "string" },
+  },
+  required: ["files", "patches", "summary"],
+} as const;
+
+function openAIChangesToLegacyText(value: OpenAIChangeSet): string {
+  const blocks: string[] = [];
+  for (const file of value.files ?? []) {
+    if (!file?.path || !file.content) continue;
+    blocks.push(`\`\`\`${file.lang || "text"} ${file.path}\n${file.content.replace(/\s+$/, "")}\n\`\`\``);
+  }
+  for (const patch of value.patches ?? []) {
+    if (!patch?.path || !patch.search) continue;
+    blocks.push(
+      `\`\`\`replace ${patch.path}\n<<<<<<< SEARCH\n${patch.search}\n=======\n${patch.replace}\n>>>>>>> REPLACE\n\`\`\``,
+    );
+  }
+  return blocks.join("\n\n");
+}
+
+/** Texto útil de Responses API. Si viene del esquema estricto de Autoconstrucción,
+ * se convierte al contrato histórico que ya entiende el parser de WILLY. */
+export function openAIResponseText(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as {
+      output_text?: unknown;
+      output?: Array<{ type?: unknown; content?: Array<{ type?: unknown; text?: unknown }> }>;
+    };
+    const text = typeof parsed.output_text === "string" && parsed.output_text.trim()
+      ? parsed.output_text
+      : (parsed.output ?? [])
+          .flatMap((item) => item.content ?? [])
+          .filter((part) => part.type === "output_text" && typeof part.text === "string")
+          .map((part) => String(part.text))
+          .join("\n")
+          .trim();
+    if (!text) return "";
+    try {
+      const structured = JSON.parse(text) as Partial<OpenAIChangeSet>;
+      if (Array.isArray(structured.files) && Array.isArray(structured.patches)) {
+        return openAIChangesToLegacyText({
+          files: structured.files as OpenAIChangeSet["files"],
+          patches: structured.patches as OpenAIChangeSet["patches"],
+          summary: typeof structured.summary === "string" ? structured.summary : "",
+        });
+      }
+    } catch {
+      // Compatibilidad: si OpenAI devuelve texto normal, se conserva tal cual.
+    }
+    return text;
+  } catch {
+    return "";
+  }
+}
+
 async function listModels(provider: Provider, key: string, fetchImpl: FetchLike): Promise<{ ok: true; ids: string[] } | { ok: false; status: number; body: string; retryAfter: string | null }> {
   try {
     const res = await fetchImpl(`${provider.baseUrl}/models`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(30_000) });
@@ -433,7 +536,7 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
     }
     const picked = pickModel(provider, listed.ids.filter((m) => !(engine.bad ?? []).includes(m.replace(/^models\//, ""))));
     if (!picked) {
-      const failure: Failure = { kind: "model", cooldownMs: 10 * 60_000, message: "No hay ningún modelo gratuito de conversación disponible con esta clave." };
+      const failure: Failure = { kind: "model", cooldownMs: 10 * 60_000, message: "No hay ningún modelo de conversación disponible con esta clave." };
       await markFailure(env.dir, id, failure, now, false);
       return { ok: false, kind: "model", error: failure.message, retryAt: now + failure.cooldownMs };
     }
@@ -461,16 +564,42 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
     if (room >= 1500) wanted = room;
     else {
       void logCall(env.dir, { at: new Date(now).toISOString(), id, model: model ?? "", promptTokens, maxTokens: wanted, ms: 0, ok: false, kind: "too-large", error: `no cabe: admite ${cap}` });
-      return { ok: false, kind: "too-large", error: `La petición (unos ${promptTokens.toLocaleString("es-ES")} tokens) no cabe en ${provider.name}: en su nivel gratuito admite unos ${cap.toLocaleString("es-ES")} por petición. WILLY pasa a otro motor.` };
+      return { ok: false, kind: "too-large", error: `La petición (unos ${promptTokens.toLocaleString("es-ES")} tokens) no cabe en ${provider.name}: admite unos ${cap.toLocaleString("es-ES")} por petición. WILLY pasa a otro motor.` };
     }
   }
   let sent = messages;
   const request = async (maxTokens: number) => {
     try {
-      const res = await fetchImpl(`${provider.baseUrl}/chat/completions`, {
+      const isOpenAI = provider.id === "openai";
+      const system = sent.filter((message) => message.role === "system").map((message) => message.content).join("\n\n");
+      const input = sent
+        .filter((message) => message.role !== "system")
+        .map((message) => ({ role: message.role, content: message.content }));
+      const res = await fetchImpl(isOpenAI ? `${provider.baseUrl}/responses` : `${provider.baseUrl}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...(provider.id === "openrouter" ? { "HTTP-Referer": "http://localhost:3000", "X-Title": "WILLY AI" } : {}) },
-        body: JSON.stringify({ model, messages: sent, max_tokens: maxTokens, temperature: opts.temperature ?? 0.2, stream: false }),
+        body: JSON.stringify(isOpenAI
+          ? {
+              model,
+              instructions: [
+                system,
+                "La respuesta está limitada por un JSON Schema estricto. Devuelve cambios mínimos y correctos. Usa patches para cambios localizados y files solo cuando sea imprescindible reemplazar un archivo completo. No inventes rutas ni texto SEARCH.",
+              ].filter(Boolean).join("\n\n"),
+              input,
+              max_output_tokens: maxTokens,
+              store: false,
+              reasoning: { effort: "high" },
+              text: {
+                verbosity: "low",
+                format: {
+                  type: "json_schema",
+                  name: "willy_autoconstruccion",
+                  strict: true,
+                  schema: OPENAI_CHANGE_SCHEMA,
+                },
+              },
+            }
+          : { model, messages: sent, max_tokens: maxTokens, temperature: opts.temperature ?? 0.2, stream: false }),
         signal: AbortSignal.timeout(280_000),
       });
       status = res.status;
@@ -520,9 +649,13 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   if (status >= 200 && status < 300) {
     let content = "";
     try {
-      const parsed = JSON.parse(body) as { choices?: Array<{ message?: { content?: unknown } }> };
-      const raw = parsed.choices?.[0]?.message?.content;
-      content = typeof raw === "string" ? raw : "";
+      if (provider.id === "openai") {
+        content = openAIResponseText(body);
+      } else {
+        const parsed = JSON.parse(body) as { choices?: Array<{ message?: { content?: unknown } }> };
+        const raw = parsed.choices?.[0]?.message?.content;
+        content = typeof raw === "string" ? raw : "";
+      }
     } catch {
       /* respuesta ilegible */
     }
@@ -582,7 +715,7 @@ export async function testEngine(env: Env, id: string): Promise<{ ok: true; mode
     return { ok: false, error: `${failure.message} (${scrub(listed.body, key)})` };
   }
   const model = pickModel(provider, listed.ids);
-  if (!model) return { ok: false, error: "La clave es válida, pero no hay ningún modelo gratuito de conversación disponible." };
+  if (!model) return { ok: false, error: "La clave es válida, pero no hay ningún modelo de conversación disponible." };
   const fresh = await loadState(env.dir);
   if (fresh.engines[id]) {
     fresh.engines[id]!.model = model;

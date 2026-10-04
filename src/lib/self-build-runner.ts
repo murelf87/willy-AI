@@ -230,7 +230,9 @@ ${input.sourceContext}`;
 
 /** Un motor de la nube como si fuera un modelo más: mismo resultado {ok, data | error}. */
 async function callCloud(id: string, messages: ChatMsg[]): Promise<{ ok: true; data: string } | { ok: false; error: string }> {
-  const res = await cloudChat(id, messages.map((entry) => ({ role: entry.role, content: entry.content })), 6000);
+  // OpenAI/Codex puede entregar parches más largos sin obligar a trocear una mejora grande.
+  const maxTokens = id === "openai" ? 10_000 : 6_000;
+  const res = await cloudChat(id, messages.map((entry) => ({ role: entry.role, content: entry.content })), maxTokens);
   return res.ok ? { ok: true, data: res.data } : { ok: false, error: res.error };
 }
 
@@ -529,7 +531,7 @@ async function runImprovement(
     const rules = [base.instructions, lessonsSection(ownerLessons())].filter(Boolean).join("\n\n");
     const stepMessages = buildMessages({ instructions: rules, item, sourceContext, sourcePaths, attempt: attempt + 1, diagnosis, history: journal.slice(-4).join("\n"), examples });
     if (step.kind === "cloud") update(bandStart, label, `Esperando la respuesta de ${model}…`);
-    const result = step.kind === "cloud" ? await callCloud(step.id, stepMessages) : await aiService.chat({
+    let result = step.kind === "cloud" ? await callCloud(step.id, stepMessages) : await aiService.chat({
       endpoint: engine.endpoint,
       model: step.model,
       maxOutputTokens: 6_000,
@@ -556,13 +558,35 @@ async function runImprovement(
       continue;
     }
 
-    lastReply = result.data.trim().replace(/\s+/g, " ").slice(0, 220);
+    let answer = result.data;
+    let files = extractFiles(answer, sourcePaths);
+    let patches = extractPatches(answer, sourcePaths);
+
+    // Si un motor externo resolvió la mejora pero no respetó el contrato de archivos, se le da UNA oportunidad
+    // de reformatear su misma solución. Así no se desperdicia un intento entero por una respuesta con prosa o sin ruta.
+    if (!files.length && !patches.length && step.kind === "cloud") {
+      update(bandStart + 12, "Corrigiendo el formato", `${model} respondió, pero WILLY necesita rutas y bloques aplicables. Pidiendo el formato exacto…`);
+      const repaired = await callCloud(step.id, [
+        ...stepMessages,
+        { role: "assistant", content: answer.slice(0, 80_000) },
+        {
+          role: "user",
+          content: "Reformula TU MISMA solución sin explicaciones. Devuelve SOLO bloques ```replace ruta con <<<<<<< SEARCH / ======= / >>>>>>> REPLACE, o archivos completos con ```lenguaje ruta. Usa únicamente rutas permitidas y texto SEARCH copiado literalmente del código recibido. No cambies la solución: solo su formato.",
+        },
+      ]);
+      if (repaired.ok) {
+        result = repaired;
+        answer = repaired.data;
+        files = extractFiles(answer, sourcePaths);
+        patches = extractPatches(answer, sourcePaths);
+      }
+    }
+
+    lastReply = answer.trim().replace(/\s+/g, " ").slice(0, 220);
     // Primero se buscan archivos y sustituciones; solo si no hay ninguno se valora si fue una negativa.
     // (Antes se miraba el texto entero y el propio código de WILLY, que contiene frases como «no puedo», se tomaba por una negativa.)
-    const files = extractFiles(result.data, sourcePaths);
-    const patches = extractPatches(result.data, sourcePaths);
     if (!files.length && !patches.length) {
-      if (looksLikeRefusal(result.data)) {
+      if (looksLikeRefusal(answer)) {
         diagnosis = `El modelo ${model} intentó negarse en vez de entregar código. Entrega directamente los archivos o las sustituciones.`;
         update(bandStart + 13, "Cambiando de IA", "Esa IA se negó. WILLY descarta su respuesta y prueba de nuevo…");
       } else {
