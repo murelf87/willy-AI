@@ -27,11 +27,11 @@ type NavItem = { icon: typeof Home; label: string; view: View; tab?: string };
 const NAV_TOP: NavItem[] = [
   { icon: Home, label: "Inicio", view: "inicio" },
   { icon: MessageSquare, label: "Chats", view: "chat" },
+  { icon: Sparkles, label: "SÚPER IA", view: "superia" },
 ];
 
 const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
   { title: "Inteligencia", items: [
-    { icon: Sparkles, label: "Súper IA", view: "superia" },
     { icon: Brain, label: "Centro de Inteligencia", view: "inteligencia" },
     { icon: Wrench, label: "Autoconstrucción", view: "autoconstruccion" },
   ] },
