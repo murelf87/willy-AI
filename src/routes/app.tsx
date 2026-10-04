@@ -126,6 +126,12 @@ function Workspace() {
   const [threadId, setThreadId] = useState("principal");
   const [toast, setToast] = useState<string | null>(null);
   const [view, setView] = useState<View>("chat");
+  // Enlace directo estable: /app?view=superia abre SÚPER IA aunque el navegador conserve un estado anterior.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const wanted = new URLSearchParams(window.location.search).get("view");
+    if (wanted === "superia") setView("superia");
+  }, []);
   // Las pestañas que ya has abierto se quedan VIVAS (ocultas): así no pierdes lo que escribías o generabas en ellas al cambiar de una a otra.
   const [visited, setVisited] = useState<View[]>(["chat"]);
   const shown = visited.includes(view) ? visited : [...visited, view];
