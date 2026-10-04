@@ -18,8 +18,13 @@ function Refresh-Path {
   $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User') + ';' + $env:Path
 }
 function Run-Git {
-  $out = & git @args 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "Git fallo: $($args -join ' '). Salida: $out" }
+  # Captura stdout y stderr por separado para no confundir avisos de redireccion con errores
+  $tmpErr = [System.IO.Path]::GetTempFileName()
+  $out = & git @args 2>$tmpErr
+  $exitCode = $LASTEXITCODE
+  $errText = Get-Content $tmpErr -Raw -ErrorAction SilentlyContinue
+  Remove-Item $tmpErr -ErrorAction SilentlyContinue
+  if ($exitCode -ne 0) { throw "Git fallo ($exitCode): $($args -join ' ').$( if($errText){"`n$errText"} )" }
   return $out
 }
 function Ensure-Tool($command, $id) {
