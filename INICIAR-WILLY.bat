@@ -43,9 +43,8 @@ function Run-Git {
     $detalle = if ($errText -and $errText.Trim()) { "`n$($errText.Trim())" } else { '' }
     throw "Git ha fallado ($exitCode): git $($args -join ' ')$detalle"
   }
-  if ($errText -and $errText.Trim()) {
-    Write-Host $errText.Trim() -ForegroundColor DarkGray
-  }
+  # Git puede escribir informacion normal en stderr aunque termine con codigo 0.
+  # No la mostramos como error; solo se usa si el codigo de salida es distinto de cero.
   return $out
 }
 
