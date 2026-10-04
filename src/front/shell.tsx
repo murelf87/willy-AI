@@ -131,6 +131,17 @@ function TopBar({ onMenu, onNav, dark, toggleTheme, ping, settings, updateSettin
         <span className="font-display text-base font-extrabold tracking-tight">WILLY AI</span>
       </button>
       <div className="flex-1" />
+      <Button
+        variant="secondary"
+        size="sm"
+        className="h-9 gap-2 rounded-lg border border-primary/40 bg-primary/10 font-bold text-primary hover:bg-primary/15"
+        onClick={() => onNav("superia")}
+        aria-label="Abrir SÚPER IA"
+        title="Abrir SÚPER IA"
+      >
+        <Sparkles className="size-4" />
+        <span className="hidden sm:inline">SÚPER IA</span>
+      </Button>
       <AiPolicyMenu settings={settings} updateSettings={updateSettings} onNav={onNav} ping={ping} generating={generating} />
       <HealthPill onNav={onNav} />
       <UpdateNotice />
