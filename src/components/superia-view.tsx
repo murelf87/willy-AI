@@ -1,10 +1,10 @@
-// SUPER WILLY (antes «Súper IA»): la mesa de operaciones desde la que pedir cualquier cosa. Para un PROYECTO importante no
+// Súper IA (antes «Súper IA»): la mesa de operaciones desde la que pedir cualquier cosa. Para un PROYECTO importante no
 // empieza a programar con una línea: primero hace la ENTREVISTA DEL PROYECTO (bloques de preguntas con su recomendación),
 // propone funciones, enseña el resumen y solo entonces construye. Trabaja con su PROPIA IA (por defecto la mejor externa
 // gratuita para cada tarea), aparte de la pestaña Chat, y recuerda la conversación de cada proyecto.
 // Desde la revisión 21 (rediseño, fases 1, 5 y 11) es el PROJECT COMMAND CENTER: con un proyecto abierto, a la izquierda el
 // chat del proyecto y a la derecha el taller (vista previa grande, código, archivos, cambios y versiones); abre CUALQUIER
-// proyecto y recibe los encargos que le pasa el Chat («Abrir en SUPER WILLY»). Esta pantalla solo compone: la lógica vive en
+// proyecto y recibe los encargos que le pasa el Chat («Abrir en Súper IA»). Esta pantalla solo compone: la lógica vive en
 // lib/ y services/ (proyectos, diferencias, contexto de archivos, encargos).
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
@@ -108,7 +108,7 @@ type ExecOptions = {
   material?: string;
   /** Usar las imágenes adjuntas aunque la petición no sea lo escrito en el cuadro (encargos del Chat). */
   withPictures?: boolean;
-  /** Modelo de tu equipo elegido a mano al crear el proyecto (si no, el de SUPER WILLY). */
+  /** Modelo de tu equipo elegido a mano al crear el proyecto (si no, el de Súper IA). */
   preferredModel?: string;
   /** Rev22: intento de reparación automática de la vista previa (1..2) que es esta petición. */
   repairAttempt?: number;
@@ -268,8 +268,8 @@ export function SuperIAView() {
     return saved;
   };
   // Puedes irte a otra pestaña mientras trabaja: sigue en segundo plano y te avisa cuando termina (bandeja de arriba a la derecha).
-  useBackgroundReport({ id: "superia", title: "SUPER WILLY", view: "superia", running: running || savingFiles, detail: savingFiles ? "Guardando los archivos en el proyecto…" : solvedBy ? `Trabajando con ${solvedBy}…` : "Trabajando en tu petición…", ...(session?.projectId ? { projectId: session.projectId } : {}) });
-  // Modelo de TU EQUIPO de SUPER WILLY (el de respaldo): el elegido a mano o, en automático, el mejor para cada tarea
+  useBackgroundReport({ id: "superia", title: "Súper IA", view: "superia", running: running || savingFiles, detail: savingFiles ? "Guardando los archivos en el proyecto…" : solvedBy ? `Trabajando con ${solvedBy}…` : "Trabajando en tu petición…", ...(session?.projectId ? { projectId: session.projectId } : {}) });
+  // Modelo de TU EQUIPO de Súper IA (el de respaldo): el elegido a mano o, en automático, el mejor para cada tarea
   // (nunca queda atado al modelo de la pestaña Chat).
   const superModel = useMemo(() => superModelFor(settings.superIaModel, available), [settings.superIaModel, available]);
   const discovery = session?.discovery ?? null;
@@ -330,7 +330,7 @@ export function SuperIAView() {
   const chooseMode = (mode: SuperMode) => {
     setSuperMode(mode);
     writeSuperMode(mode);
-    pushNotice(`SUPER WILLY: ${SUPER_MODES.find((m) => m.id === mode)?.label ?? mode}.`, "info");
+    pushNotice(`Súper IA: ${SUPER_MODES.find((m) => m.id === mode)?.label ?? mode}.`, "info");
   };
 
   /** Guarda la entrevista (y, si hace falta, turnos nuevos) en el trabajo actual. */
@@ -452,12 +452,12 @@ export function SuperIAView() {
   };
 
   /**
-   * Abre CUALQUIER proyecto (rev21): con su conversación de SUPER WILLY si la tiene (de este navegador o de tu equipo); si no
+   * Abre CUALQUIER proyecto (rev21): con su conversación de Súper IA si la tiene (de este navegador o de tu equipo); si no
    * la tiene (creado con «Nuevo proyecto», importado o de antes), empieza una aquí mismo. Devuelve si quedó abierto.
    */
   const openProject = async (projectId: string): Promise<boolean> => {
     if (runningRef.current) {
-      pushNotice("SUPER WILLY está trabajando: cuando termine, vuelve a abrir el proyecto desde Proyectos.", "warn");
+      pushNotice("Súper IA está trabajando: cuando termine, vuelve a abrir el proyecto desde Proyectos.", "warn");
       return false;
     }
     if (sessionRef.current?.projectId === projectId) {
@@ -521,7 +521,7 @@ export function SuperIAView() {
     void execute(text);
   };
 
-  /** SUPER WILLY con su propia IA: la nube y/o tu equipo según el modo; devuelve el texto o null (sin tocar el resultado). */
+  /** Súper IA con su propia IA: la nube y/o tu equipo según el modo; devuelve el texto o null (sin tocar el resultado). */
   const askQuick = async (text: string, task: TaskKind, signal: AbortSignal): Promise<string | null> => {
     const route = superRoute(superMode, task, text, TASK_LABELS[task]);
     for (const where of route.order) {
@@ -547,7 +547,7 @@ export function SuperIAView() {
     return null;
   };
 
-  /** «Recomendarme más»: ideas de funciones de la IA de SUPER WILLY; sin IA, las de WILLY (sin repetir). */
+  /** «Recomendarme más»: ideas de funciones de la IA de Súper IA; sin IA, las de WILLY (sin repetir). */
   const recommendMore = async () => {
     const d = sessionRef.current?.discovery;
     if (!d || recommending) return;
@@ -683,7 +683,7 @@ export function SuperIAView() {
     const taskKind: TaskKind = forced ?? (kind !== "auto" ? kind : detected !== "general" || !working ? detected : /^(?:api|escritorio|herramienta|automatizacion)$/i.test(planKind) ? "codigo" : "web");
     // Si lo que pides es una regla («a partir de ahora…», «recuerda que…»), se aprende para todas las IA y todos los chats.
     if (text === prompt) {
-      const learned = learnFromOwner(text, "SUPER WILLY");
+      const learned = learnFromOwner(text, "Súper IA");
       if (learned) setSteps((prev) => [...prev, { model: "Aprendido", state: "ok", detail: `📌 Para todas las IA: «${learned.slice(0, 120)}»` }]);
     }
 
@@ -705,7 +705,7 @@ export function SuperIAView() {
     const mustContain = working && !opts.analysis && !opts.discoveryBuild && !opts.repairAttempt && !opts.testsAttempt && !opts.continueAttempt && !opts.completeAttempt && !opts.newProject && text === (opts.ownerText ?? text) ? requiredTexts(text) : [];
     const accept = working && !opts.analysis ? (answerText: string) => unusableAnswer(answerText, projectFiles, { requireFiles: mustChange || mustContain.length > 0, mustContain }) : undefined;
     const warning = localWarning(superMode, taskKind, available, TASK_LABELS[taskKind]);
-    setSteps((prev) => [...prev, { model: SUPER_MODES.find((m) => m.id === superMode)?.label ?? "SUPER WILLY", state: "ok", detail: route.why }, ...(warning ? [{ model: "Aviso", state: "relevo" as const, detail: warning }] : [])]);
+    setSteps((prev) => [...prev, { model: SUPER_MODES.find((m) => m.id === superMode)?.label ?? "Súper IA", state: "ok", detail: route.why }, ...(warning ? [{ model: "Aviso", state: "relevo" as const, detail: warning }] : [])]);
     if (warning) pushNotice(warning, "warn");
     if (history.length) setSteps((prev) => [...prev, { model: `Recuerda ${history.length / 2} turno(s)`, state: "ok", detail: "Lleva la conversación anterior del proyecto." }]);
     if (filesCloud) setSteps((prev) => [...prev, { model: `Ve ${filesCloud.included.length} de ${projectFiles.length} archivo(s)`, state: "ok", detail: filesCloud.included.join(", ") || "Ninguno completo (son muy grandes)" }]);
@@ -727,7 +727,7 @@ export function SuperIAView() {
           maxTokens: 16000,
           // La misma petición con menos archivos y menos historial, por si el motor rechaza la grande por saturación.
           ...(filesCompact ? { compact: [{ role: "system" as const, content: [system, filesCompact.block].filter(Boolean).join("\n\n") }, ...(opts.discoveryBuild ? [] : withoutSensitive(historyOf(sess, { last: 2_000, other: 600, turns: 4 }))), { role: "user" as const, content: fullPrompt }] } : {}),
-          // SUPER WILLY decide aquí la prioridad con su propio modo (no el «ahorro» del Plug and play de la pestaña Chat).
+          // Súper IA decide aquí la prioridad con su propio modo (no el «ahorro» del Plug and play de la pestaña Chat).
           status: async () => { const s = await engineStatus(); return s ? { ...s, mode: "calidad" as const } : s; },
           ask: (id, msgs, maxTokens, compact) => cloudChat(id, msgs, maxTokens, undefined, compact),
           notify: (m) => {
@@ -840,7 +840,7 @@ export function SuperIAView() {
         setSavingFiles(true);
         let savedCount = 0;
         try {
-          const files = await saveAnswerFiles(saved.projectId, result.data.text, `${opts.discoveryBuild ? "Construcción" : label} · SUPER WILLY (${result.data.model})`);
+          const files = await saveAnswerFiles(saved.projectId, result.data.text, `${opts.discoveryBuild ? "Construcción" : label} · Súper IA (${result.data.model})`);
           savedCount = files?.saved ?? 0;
           if (files?.saved) pushNotice(`${files.saved} archivo(s) guardados en el proyecto «${saved.discovery?.name ?? projectsRef.current.find((p) => p.id === saved.projectId)?.name ?? saved.title}» (${files.total} en total).`, "success");
           if (files?.rejected.length) pushNotice(`⚠️ No he guardado ${files.rejected.length} archivo(s) porque venían incompletos o rotos (${files.rejected.slice(0, 3).map((r) => r.path).join(", ")}): se conservan los que tenías. Pide a WILLY que los entregue completos.`, "warn");
@@ -927,7 +927,7 @@ export function SuperIAView() {
    * lo que ve el dueño en el chat (`ownerText`) y, como son cambios concretos, van sin la guía de entrega.
    */
   const askInProject = (text: string, opts?: AskOptions) => {
-    if (runningRef.current) { pushNotice("SUPER WILLY está trabajando: espera a que termine.", "warn"); return; }
+    if (runningRef.current) { pushNotice("Súper IA está trabajando: espera a que termine.", "warn"); return; }
     setMobilePane("chat");
     void execute(text, undefined, opts?.label ?? "Cambio", opts ? { ...(opts.ownerText ? { ownerText: opts.ownerText } : {}), noPlaybook: true } : {});
   };
@@ -1066,13 +1066,13 @@ export function SuperIAView() {
   }, [previewStatus, previewErrors, session?.projectId]);
 
   /**
-   * Un encargo que llega del Chat («Abrir en SUPER WILLY») o de «Nuevo proyecto». Un proyecto nuevo sigue por la ENTREVISTA
+   * Un encargo que llega del Chat («Abrir en Súper IA») o de «Nuevo proyecto». Un proyecto nuevo sigue por la ENTREVISTA
    * (Project Discovery) con su material; un cambio va al proyecto que nombras (y si no se sabe cuál, se pregunta).
    */
   const processHandoff = async (h: Handoff) => {
     if (runningRef.current) {
       setPrompt(h.text);
-      pushNotice("SUPER WILLY está terminando otra tarea: tu encargo queda escrito en el cuadro para cuando acabe.", "warn");
+      pushNotice("Súper IA está terminando otra tarea: tu encargo queda escrito en el cuadro para cuando acabe.", "warn");
       return;
     }
     setChoice(null);
@@ -1459,7 +1459,7 @@ export function SuperIAView() {
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border bg-card px-3 py-2">
           <span className="flex min-w-0 items-center gap-2">
             <Sparkles className="size-4 shrink-0 text-primary" />
-            <span className="shrink-0 text-sm font-bold">SUPER WILLY</span>
+            <span className="shrink-0 text-sm font-bold">Súper IA</span>
             <span className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
               <span className="shrink-0">· Proyecto:</span>
               {/* Selector de proyecto de la maqueta (Súper IA): abre otro proyecto con el mismo «openProject» de siempre. */}
@@ -1545,13 +1545,13 @@ export function SuperIAView() {
               <p className="text-sm font-semibold">Conversación de este proyecto{conversation.length ? ` (${conversation.length} mensaje(s))` : ""}</p>
               {conversation.length === 0 && !running && (
                 <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                  Cuéntale a SUPER WILLY qué quieres hacer en este proyecto: «cambia el color del botón», «añade una página de contacto», «hazlo más elegante en el móvil»…
+                  Cuéntale a Súper IA qué quieres hacer en este proyecto: «cambia el color del botón», «añade una página de contacto», «hazlo más elegante en el móvil»…
                 </p>
               )}
               {conversation.map((t, i) => (
                 <article key={`${t.at}-${i}`} className={`rounded-lg border px-3 py-2 ${t.role === "owner" ? "border-border bg-card" : "border-primary/30 bg-primary/5"} ${t.kind === "entrevista" ? "opacity-80" : ""}`}>
                   <p className="mb-1 text-[11px] font-semibold text-muted-foreground">
-                    {t.role === "owner" ? "Tú" : t.model ? `SUPER WILLY · ${t.model}` : "SUPER WILLY"}{t.kind === "entrevista" ? " · entrevista" : ""}
+                    {t.role === "owner" ? "Tú" : t.model ? `Súper IA · ${t.model}` : "Súper IA"}{t.kind === "entrevista" ? " · entrevista" : ""}
                   </p>
                   {t.role === "owner"
                     ? <p className="whitespace-pre-wrap break-words text-sm">{cut(t.text, 600)}</p>
@@ -1561,7 +1561,7 @@ export function SuperIAView() {
               {(running || liveNote) && (
                 <article className={`rounded-lg border px-3 py-2 ${liveNote === "error" ? "border-destructive/40 bg-destructive/5" : "border-primary/30 bg-primary/5"}`} aria-live="polite">
                   <p className="mb-1 text-[11px] font-semibold text-muted-foreground">
-                    SUPER WILLY{solvedBy ? ` · ${solvedBy}` : ""} · {running ? "trabajando…" : liveNote === "detenido" ? "detenido" : "no ha podido"}
+                    Súper IA{solvedBy ? ` · ${solvedBy}` : ""} · {running ? "trabajando…" : liveNote === "detenido" ? "detenido" : "no ha podido"}
                   </p>
                   {answer ? <AnswerBody text={answer} onOpenFile={openFile} streaming={running} /> : running ? <ThinkingDots label="Pensando" /> : null}
                   {progressBar}
@@ -1591,7 +1591,7 @@ export function SuperIAView() {
                   onDragOver={(e: { preventDefault: () => void }) => e.preventDefault()}
                   onDrop={onDropImages}
                   rows={3}
-                  aria-label="Qué quieres que haga SUPER WILLY en este proyecto"
+                  aria-label="Qué quieres que haga Súper IA en este proyecto"
                   placeholder="Pide un cambio, pregunta o pega una captura… (Intro envía; Mayúsculas+Intro, salto de línea)"
                   className="block w-full resize-none rounded-lg bg-transparent p-2.5 text-sm outline-none"
                 />
@@ -1689,7 +1689,7 @@ export function SuperIAView() {
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">SUPER WILLY</h1>
+          <h1 className="text-2xl font-bold">Súper IA</h1>
           <p className="text-sm text-muted-foreground">
             Tu mesa de operaciones: pide lo que quieras o dime qué proyecto quieres crear. Antes de construir un proyecto te pregunto, te aconsejo y te enseño el resumen.
           </p>
@@ -1725,7 +1725,7 @@ export function SuperIAView() {
           onDragOver={(e: { preventDefault: () => void }) => e.preventDefault()}
           onDrop={onDropImages}
           rows={interviewing ? 2 : 5}
-          aria-label={interviewing ? "Tu respuesta" : "Qué quieres que haga SUPER WILLY"}
+          aria-label={interviewing ? "Tu respuesta" : "Qué quieres que haga Súper IA"}
           placeholder={interviewing
             ? "Responde aquí (por ejemplo «1C, 2B» o «haz lo que recomiendas») o pulsa las opciones de abajo. También: «el cliente también quiere…»."
             : "Ejemplo: quiero crear una app para mi peluquería con reservas. O cualquier otra cosa: investiga, traduce, redacta…"}
@@ -1846,7 +1846,7 @@ export function SuperIAView() {
             {visibleTurns.map((t, i) => (
               <div key={i} className={`rounded-lg border px-3 py-2 text-xs ${t.role === "owner" ? "border-border bg-background" : "border-primary/30 bg-primary/5"} ${t.kind === "entrevista" ? "opacity-80" : ""}`}>
                 <p className="mb-1 font-semibold text-muted-foreground">
-                  {t.role === "owner" ? "Tú" : t.model ? `SUPER WILLY · ${t.model}` : "SUPER WILLY"}{t.kind === "entrevista" ? " · entrevista" : ""}
+                  {t.role === "owner" ? "Tú" : t.model ? `Súper IA · ${t.model}` : "Súper IA"}{t.kind === "entrevista" ? " · entrevista" : ""}
                 </p>
                 <p className="whitespace-pre-wrap break-words">{t.text.length > 400 ? `${t.text.slice(0, 400)}…` : t.text}</p>
               </div>

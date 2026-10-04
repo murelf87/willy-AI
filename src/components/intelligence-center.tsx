@@ -33,7 +33,7 @@ import type { Ping } from "@/types/domain";
 // «Resumen» reúne, con datos reales de los apartados que ya existían, lo que antes había que ir a buscar a cada pestaña.
 // «Modelos» junta la IA de tu equipo (Ollama, antes su propia pestaña) con el catálogo: es lo mismo, visto junto.
 // «Proveedores» es la antigua «IA externas», con el mismo panel de siempre (EnginesPanel/ExternalAiPanel), solo con otro
-// nombre y sus tarjetas reordenadas como en la maqueta. «Agentes» sigue igual: los 5 papeles reales de SUPER WILLY.
+// nombre y sus tarjetas reordenadas como en la maqueta. «Agentes» sigue igual: los 5 papeles reales de Súper IA.
 // «Uso y costes» es nuevo: peticiones de hoy por proveedor (lo que ya cuenta engines-server para el tope diario) — no hay
 // «coste» en euros porque WILLY solo usa niveles gratuitos (nunca gasta dinero por su cuenta, así que el coste real es 0).
 //
@@ -42,7 +42,7 @@ import type { Ping } from "@/types/domain";
 // de cada IA externa. De los 4 interruptores de la maqueta, dos existen de verdad (usar IA externas y externas primero en el
 // automático = calidad/ahorro) y se cambian aquí con las mismas órdenes que Proveedores y el chat; los otros dos son reglas
 // fijas de WILLY (relevo a tu equipo y solo gratis) y se enseñan como tales, sin un interruptor falso. «Resumen» sigue
-// trayendo el selector real de modo de SUPER WILLY (Externa primero / Híbrida / Local primero / Solo local).
+// trayendo el selector real de modo de Súper IA (Externa primero / Híbrida / Local primero / Solo local).
 
 export const INTELLIGENCE_TABS = ["resumen", "modelos", "proveedores", "agentes", "routing", "uso"] as const;
 export type IntelligenceTab = (typeof INTELLIGENCE_TABS)[number];
@@ -56,7 +56,7 @@ const TAB_LABELS: ReadonlyArray<readonly [IntelligenceTab, string]> = [
   ["uso", "Uso y costes"],
 ];
 
-/** Los papeles que SUPER WILLY tiene en cuenta al construir o cambiar un proyecto (se le indican en cada petición del proyecto). */
+/** Los papeles que Súper IA tiene en cuenta al construir o cambiar un proyecto (se le indican en cada petición del proyecto). */
 export { AGENTS } from "@/lib/project-work";
 
 /**
@@ -122,10 +122,10 @@ function ModeCard() {
   const current = SUPER_MODES.find((m) => m.id === mode) ?? SUPER_MODES[0]!;
   return (
     <Card>
-      <p className="mb-1 flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Sparkles className="size-4 text-primary" />Modo de SUPER WILLY</p>
+      <p className="mb-1 flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Sparkles className="size-4 text-primary" />Modo de Súper IA</p>
       <p className="mb-2 text-lg font-semibold">{current.icon} {current.label}</p>
       <p className="mb-3 text-xs text-muted-foreground">{current.desc}</p>
-      <div className="space-y-1" role="radiogroup" aria-label="Modo de IA de SUPER WILLY">
+      <div className="space-y-1" role="radiogroup" aria-label="Modo de IA de Súper IA">
         {SUPER_MODES.map((m) => (
           <label key={m.id} className={`flex cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${mode === m.id ? "border-primary/50 bg-primary/10" : "border-border hover:bg-accent/40"}`}>
             <input type="radio" name="ci-superwilly-modo" className="mt-0.5 accent-primary" checked={mode === m.id} onChange={() => { writeSuperMode(m.id); setMode(m.id); }} />
@@ -212,7 +212,7 @@ function SummaryTab({ report, state, onGo, ping }: { report: OllamaReport | null
         <CapabilitiesSummaryCard report={report} onGo={onGo} />
         <Card>
           <p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Bot className="size-4 text-primary" />Agentes y especialistas</p>
-          <p className="mb-2 text-xs text-muted-foreground">Los papeles que SUPER WILLY tiene en cuenta al construir o cambiar un proyecto.</p>
+          <p className="mb-2 text-xs text-muted-foreground">Los papeles que Súper IA tiene en cuenta al construir o cambiar un proyecto.</p>
           <div className="grid gap-1.5">
             {AGENTS.map((agent) => (
               <div key={agent.name} className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs">
@@ -345,11 +345,11 @@ function CapabilitiesSummaryCard({ report, onGo }: { report: OllamaReport | null
   );
 }
 
-type RecentUse = { at: number; model: string; task: string; where: "Chat" | "SUPER WILLY" };
+type RecentUse = { at: number; model: string; task: string; where: "Chat" | "Súper IA" };
 
 /**
  * Las últimas respuestas de verdad (maqueta: «Modelos en uso reciente»): el último mensaje de WILLY de cada chat (con la IA que
- * lo dio) y las respuestas de SUPER WILLY en cada proyecto. Solo lo que ya guarda este equipo: nada inventado.
+ * lo dio) y las respuestas de Súper IA en cada proyecto. Solo lo que ya guarda este equipo: nada inventado.
  */
 function recentModelUse(limit: number): RecentUse[] {
   const out: RecentUse[] = [];
@@ -359,7 +359,7 @@ function recentModelUse(limit: number): RecentUse[] {
   }
   for (const session of listSessions()) {
     const turns = (session.turns ?? []).filter((t) => t.role === "ia" && t.model && t.model !== "WILLY").slice(-3);
-    for (const turn of turns) out.push({ at: turn.at, model: turn.model ?? "", task: session.title || "Proyecto", where: "SUPER WILLY" });
+    for (const turn of turns) out.push({ at: turn.at, model: turn.model ?? "", task: session.title || "Proyecto", where: "Súper IA" });
   }
   return out.filter((u) => u.at > 0 && u.model).sort((a, b) => b.at - a.at).slice(0, limit);
 }
@@ -904,7 +904,7 @@ function AgentsTab({ ping }: { ping: Ping }) {
   return (
     <div className="space-y-3">
       <Card className="text-xs text-muted-foreground">
-        Son los papeles que SUPER WILLY tiene en cuenta cuando construye o cambia un proyecto: se le indican en cada petición del proyecto. No son programas aparte ni usan un modelo distinto: contesta la IA de SUPER WILLY.
+        Son los papeles que Súper IA tiene en cuenta cuando construye o cambia un proyecto: se le indican en cada petición del proyecto. No son programas aparte ni usan un modelo distinto: contesta la IA de Súper IA.
       </Card>
       <div className="grid gap-2 sm:grid-cols-2">
         {AGENTS.map((agent) => {
@@ -936,7 +936,7 @@ function AgentsTab({ ping }: { ping: Ping }) {
 
 /**
  * Lo que decide el enrutado AHORA MISMO (lo usan «Routing» y el «Resumen»): la misma tabla que usa el programa
- * (routing-table.ts) con el estado real de cada IA externa, el modo de SUPER WILLY y los modelos de tu equipo.
+ * (routing-table.ts) con el estado real de cada IA externa, el modo de Súper IA y los modelos de tu equipo.
  */
 function useRoutingNow(report: OllamaReport | null) {
   const ai = useExternalAi();
@@ -963,7 +963,7 @@ function useRoutingNow(report: OllamaReport | null) {
   const contexts = [
     { title: "Chat general", desc: "Por defecto contesta tu equipo. Si eliges «IA externa», prueba en este orden (las que marques van antes) y, si todas fallan, vuelve a tu equipo.", order: CHAT_ORDER, first: chatNow[0], short: `Tu equipo, o la externa que elijas. Externa ahora: ${cloudOrLocal(chatNow[0])}.` },
     { title: "Automático («plug and play»)", desc: "Elige según el tipo de petición (tabla de abajo). Lo sensible (DNI, IBAN, claves…) y los adjuntos se quedan en tu equipo.", order: null, first: undefined, short: "Según el tipo de petición. Lo sensible y los adjuntos no salen de tu equipo." },
-    { title: "Súper IA", desc: `Modo de SUPER WILLY: ${superMode.icon} ${superMode.label}. ${superMode.desc}`, order: null, first: undefined, short: `${superMode.icon} ${superMode.label}` },
+    { title: "Súper IA", desc: `Modo de Súper IA: ${superMode.icon} ${superMode.label}. ${superMode.desc}`, order: null, first: undefined, short: `${superMode.icon} ${superMode.label}` },
     { title: "Autoconstrucción", desc: "Regla fija: siempre la IA externa gratuita de más calidad que esté disponible; tu equipo es el último recurso.", order: BUILD_ORDER, first: buildNow[0], short: `Ahora: ${cloudOrLocal(buildNow[0])}.` },
   ];
   return { status, master, nameOf, pretty, now, localFor, contexts };

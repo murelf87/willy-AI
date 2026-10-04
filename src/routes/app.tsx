@@ -75,7 +75,7 @@ const NAV_GROUPS: { title?: string; items: { icon: typeof Home; label: string; a
   {
     title: "Inteligencia",
     items: [
-      { icon: Sparkles, label: "SUPER WILLY" },
+      { icon: Sparkles, label: "Súper IA" },
       { icon: Brain, label: "Centro de Inteligencia" },
       { icon: Hammer, label: "Autoconstrucción" },
     ],
@@ -163,14 +163,14 @@ function Workspace() {
   const [chatBusy, setChatBusy] = useState(false);
   const { projects, loading: projectsLoading } = useProjects();
 
-  // Proyecto actual: el que está abierto en SUPER WILLY (una sola fuente; lo usan la barra de arriba, Historial y GitHub).
+  // Proyecto actual: el que está abierto en Súper IA (una sola fuente; lo usan la barra de arriba, Historial y GitHub).
   const active = useMemo(
     () => (settings.projectId ? projects.find((p) => p.id === settings.projectId) : undefined)
       ?? (settings.project ? projects.find((p) => p.name === settings.project) : undefined),
     [projects, settings.projectId, settings.project],
   );
 
-  // Sus archivos (la lista de proyectos no trae el contenido), al día cuando SUPER WILLY guarda o se restaura una versión.
+  // Sus archivos (la lista de proyectos no trae el contenido), al día cuando Súper IA guarda o se restaura una versión.
   useEffect(() => {
     if (!active) { setGenerated([]); return; }
     let alive = true;
@@ -198,7 +198,7 @@ function Workspace() {
     window.setTimeout(() => setToast(null), 2600);
   };
 
-  /** Abre un proyecto: SIEMPRE en SUPER WILLY (rev21), con su chat, su vista previa y sus archivos. El Chat ya no tiene taller. */
+  /** Abre un proyecto: SIEMPRE en Súper IA (rev21), con su chat, su vista previa y sus archivos. El Chat ya no tiene taller. */
   const openProject = (p: Project) => {
     setNavOpen(false);
     updateSettings({ projectId: p.id, project: p.name });
@@ -289,7 +289,7 @@ function Workspace() {
             void (async () => {
               // Si el nombre lo puso WILLY y ya existe, se numera («Tienda 2»…) en vez de fallar.
               const auto = !!extra?.autoName;
-              // El tipo (web, app, api…) queda en la ficha: SUPER WILLY no inventa una pantalla para lo que no la tiene.
+              // El tipo (web, app, api…) queda en la ficha: Súper IA no inventa una pantalla para lo que no la tiene.
               const typed = { origin: "nuevo" as const, ...(extra ? { mode: extra.mode } : {}), ...(extra?.brief.inferredType ? { kind: extra.brief.inferredType } : {}) };
               let r = await projectService.create({ name, prompt, desc: (extra?.brief.goal ?? prompt).slice(0, 90), ...typed });
               for (let n = 2; !r.ok && auto && /Ya existe/.test(r.error) && n < 10; n++) {
@@ -331,9 +331,9 @@ function Workspace() {
                   ];
                   if (docs.length) await projectService.saveFiles(project.id, docs, "Sistema de diseño y plan técnico (inicio)");
                 }
-                ping(`Proyecto «${project.name}» creado en tu equipo. SUPER WILLY empieza a construirlo.`);
+                ping(`Proyecto «${project.name}» creado en tu equipo. Súper IA empieza a construirlo.`);
               }
-              // Se construye en SUPER WILLY (antes se quedaba en el Chat con un «voy a montar la estructura» que no hacía nada):
+              // Se construye en Súper IA (antes se quedaba en el Chat con un «voy a montar la estructura» que no hacía nada):
               // abre el proyecto con su taller y empieza a trabajar con el encargo completo.
               sendToSuperWilly({ text: seedText, action: "crear", attachments: [], images: [], urls: [], from: "nuevo-proyecto", projectId: project.id, autoRun: true, ...(extra?.model ? { model: extra.model } : {}) });
               setView("superia");
@@ -374,7 +374,7 @@ function TopBar({ dark, toggleTheme, onMenu, ping, onNav, settings, updateSettin
       >
         {(close) => (
           <>
-            <MenuLabel>Proyectos en tu equipo (se abren en SUPER WILLY)</MenuLabel>
+            <MenuLabel>Proyectos en tu equipo (se abren en Súper IA)</MenuLabel>
             {projects.map((p) => {
               const Icon = PROJECT_ICONS[p.icon] ?? FolderKanban;
               return (
@@ -403,7 +403,7 @@ function TopBar({ dark, toggleTheme, onMenu, ping, onNav, settings, updateSettin
       </Button>
       <div className="flex-1" />
 
-      {/* Ejecutar, Publicar, Compartir y las opciones del proyecto están en el taller del proyecto (SUPER WILLY), desde la rev21. */}
+      {/* Ejecutar, Publicar, Compartir y las opciones del proyecto están en el taller del proyecto (Súper IA), desde la rev21. */}
       <UpdateNotice />
       <NotificationBell enabled={settings.notify} onOpenSettings={() => onNav("ajustes", "general")} />
       <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Cambiar tema">{dark ? <Sun className="size-5" /> : <Moon className="size-5" />}</Button>
@@ -413,7 +413,7 @@ function TopBar({ dark, toggleTheme, onMenu, ping, onNav, settings, updateSettin
 }
 
 const NAV_VIEW: Record<string, View> = {
-  Inicio: "inicio", "SUPER WILLY": "superia", "Centro de Inteligencia": "inteligencia", Autoconstrucción: "autoconstruccion",
+  Inicio: "inicio", "Súper IA": "superia", "Centro de Inteligencia": "inteligencia", Autoconstrucción: "autoconstruccion",
   Proyectos: "proyectos", Chats: "chat", Herramientas: "herramientas", Historial: "historial", Ajustes: "ajustes",
   GitHub: "github", "Acceso directo": "instalacion", Demo: "demo", Licencias: "licencias",
   Lectura: "lectura", OCR: "ocr", "Mi yo en IA": "avatar", Traducir: "traducir",
@@ -523,7 +523,7 @@ function Sidebar({ open, onClose, view, onNav, onNewProject, onOpenProject, acti
           {projects.slice(0, 6).map((p) => {
             const Icon = PROJECT_ICONS[p.icon] ?? FileCode2;
             return (
-              <button key={p.id} onClick={() => onOpenProject(p)} title="Abrir en SUPER WILLY" className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm ${p.id === activeProject && view === "superia" ? "bg-accent font-semibold text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"}`}>
+              <button key={p.id} onClick={() => onOpenProject(p)} title="Abrir en Súper IA" className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm ${p.id === activeProject && view === "superia" ? "bg-accent font-semibold text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"}`}>
                 <Icon className="size-4" /><span className="truncate">{p.name}</span>
               </button>
             );

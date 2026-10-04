@@ -115,7 +115,7 @@ export function ProjectsView({ ping, onNewProject, onOpenProject }: { ping: Ping
     return () => { alive = false; };
   }, []);
 
-  // SUPER WILLY trabajando (aunque estés aquí): en qué proyecto y qué está haciendo ahora.
+  // Súper IA trabajando (aunque estés aquí): en qué proyecto y qué está haciendo ahora.
   const job = tasks.find((t) => t.id === "superia" && t.state === "trabajando") ?? null;
   const workingId = job ? (job.projectId ?? settings.projectId ?? null) : null;
 
@@ -185,7 +185,7 @@ export function ProjectsView({ ping, onNewProject, onOpenProject }: { ping: Ping
   const menuFor = (r: Row, close: () => void): ReactNode => (
     <>
       <MenuLabel>{r.p.name}</MenuLabel>
-      <MenuItem onClick={() => { close(); onOpenProject(r.p); }}>Abrir en SUPER WILLY</MenuItem>
+      <MenuItem onClick={() => { close(); onOpenProject(r.p); }}>Abrir en Súper IA</MenuItem>
       <MenuItem onClick={() => { close(); setDetail({ kind: "proyecto", id: r.p.id }); }}>Ver el progreso</MenuItem>
       <MenuItem onClick={() => { close(); doRename(r.p); }}>Renombrar</MenuItem>
       <MenuItem onClick={() => { close(); doDuplicate(r.p); }}>Duplicar</MenuItem>
@@ -337,8 +337,8 @@ export function ProjectsView({ ping, onNewProject, onOpenProject }: { ping: Ping
       {!loading && mine.length === 0 && !query.trim() && !showExamples && (filter === "todos" || filter === "desarrollo") && (
         <Card className="space-y-2 text-sm">
           <p className="font-semibold">Todavía no tienes proyectos.</p>
-          <p className="text-xs text-muted-foreground">Cuéntale a SUPER WILLY qué quieres crear: te hará unas preguntas, te propondrá funciones y el proyecto aparecerá aquí solo, guardado en tu equipo, con su progreso real.</p>
-          <Button size="sm" className="gap-2" onClick={() => openView("superia")}><Sparkles className="size-4" />Ir a SUPER WILLY</Button>
+          <p className="text-xs text-muted-foreground">Cuéntale a Súper IA qué quieres crear: te hará unas preguntas, te propondrá funciones y el proyecto aparecerá aquí solo, guardado en tu equipo, con su progreso real.</p>
+          <Button size="sm" className="gap-2" onClick={() => openView("superia")}><Sparkles className="size-4" />Ir a Súper IA</Button>
         </Card>
       )}
       {!loading && visible.length === 0 && (rows.length > 0 || query.trim()) && !(filter === "sistema" && showSystem) && (
@@ -434,7 +434,7 @@ function ProjectCard({ row, now, onAction, onProgress, onAnalyze, menu }: {
         <StatusChip status={status} />
         {(p.origin === "super-willy" || isExampleProject(p)) && (
           <span className={`w-fit rounded-full border px-2 py-0.5 text-[10px] font-semibold ${p.origin === "super-willy" ? "border-primary/40 text-primary" : "border-border text-muted-foreground"}`}>
-            {p.origin === "super-willy" ? <><Sparkles className="mr-1 inline size-3" />SUPER WILLY</> : "Ejemplo (sin trabajo)"}
+            {p.origin === "super-willy" ? <><Sparkles className="mr-1 inline size-3" />Súper IA</> : "Ejemplo (sin trabajo)"}
           </span>
         )}
       </div>
@@ -481,7 +481,7 @@ function SystemCard({ progress, info, now, onProgress }: { progress: ProgressInf
       <div className="flex flex-wrap items-center gap-2 pt-1">
         <span className="min-w-0 flex-1 text-[11px] text-muted-foreground">Actualizado: {relativeTime(updated, now).toLowerCase()} · {info.errors === null ? "errores: sin datos" : info.errors ? `${info.errors} error(es) desde que arrancó` : "sin errores desde que arrancó"}</span>
         <Button size="sm" variant="ghost" className="h-8 gap-1.5" onClick={onProgress}><ListChecks className="size-3.5" />Ver progreso</Button>
-        <Button size="sm" variant="ghost" className="h-8 gap-1.5" onClick={() => openView("superia")}><Sparkles className="size-3.5" />Abrir SUPER WILLY</Button>
+        <Button size="sm" variant="ghost" className="h-8 gap-1.5" onClick={() => openView("superia")}><Sparkles className="size-3.5" />Abrir Súper IA</Button>
         <Button size="sm" className="h-8 gap-1.5" onClick={() => openView("autoconstruccion")}><Wrench className="size-3.5" />Continuar desarrollo</Button>
       </div>
     </article>
@@ -554,7 +554,7 @@ function ProgressModal({ row, onClose, onOpen, onAnalyze, ping }: { row: Row; on
           <p className="text-muted-foreground">«Analizar proyecto»: WILLY revisa sus archivos de verdad, hace su plan con lo que ya está hecho y lo que falta, y desde ese momento el progreso es real. No cambia ningún archivo.</p>
           <div className="flex flex-wrap gap-2">
             <Button className="gap-2" onClick={onAnalyze}><Wand2 className="size-4" />Analizar proyecto</Button>
-            <Button variant="secondary" onClick={onOpen}>Abrir en SUPER WILLY</Button>
+            <Button variant="secondary" onClick={onOpen}>Abrir en Súper IA</Button>
           </div>
         </div>
       ) : (
@@ -612,7 +612,7 @@ function ProgressModal({ row, onClose, onOpen, onAnalyze, ping }: { row: Row; on
           )}
           <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
             <Button variant="ghost" onClick={onAnalyze} className="gap-1.5"><Wand2 className="size-4" />Volver a analizar</Button>
-            <Button onClick={onOpen} className="gap-1.5">Abrir en SUPER WILLY<ArrowRight className="size-4" /></Button>
+            <Button onClick={onOpen} className="gap-1.5">Abrir en Súper IA<ArrowRight className="size-4" /></Button>
           </div>
         </div>
       )}
@@ -655,7 +655,7 @@ function SystemModal({ progress, plan, info, onClose }: { progress: ProgressInfo
           {info.lastErrors.length > 0 && <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-destructive">{info.lastErrors.map((l, i) => <li key={i} className="truncate" title={l}>{l}</li>)}</ul>}
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
-          <Button variant="secondary" className="gap-1.5" onClick={() => { onClose(); openView("superia"); }}><Sparkles className="size-4" />Abrir SUPER WILLY</Button>
+          <Button variant="secondary" className="gap-1.5" onClick={() => { onClose(); openView("superia"); }}><Sparkles className="size-4" />Abrir Súper IA</Button>
           <Button className="gap-1.5" onClick={() => { onClose(); openView("autoconstruccion"); }}><Wrench className="size-4" />Continuar desarrollo</Button>
         </div>
       </div>

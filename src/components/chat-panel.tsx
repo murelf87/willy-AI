@@ -1,5 +1,5 @@
 // CONVERSACIÓN DE WILLY (ChatPanel): los mensajes, la IA que contesta (tu equipo o una externa), la voz, los adjuntos, las
-// sugerencias y el paso a SUPER WILLY. Antes vivía dentro de routes/app.tsx junto al armazón de pantallas; desde el 25/09/2026
+// sugerencias y el paso a Súper IA. Antes vivía dentro de routes/app.tsx junto al armazón de pantallas; desde el 25/09/2026
 // está aquí (petición de la regla 45 de COORDINACION-IAS.md) para que el armazón nuevo y la lógica del chat no se pisen en el
 // mismo archivo. El código es el mismo de siempre: solo ha cambiado de sitio.
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -56,15 +56,15 @@ function ownerSystem(): string {
 }
 
 type MsgItem = { who: "you" | "willy"; time: string; text: string; by?: string; generating?: boolean; files?: { path: string; lang?: string; content: string }[]; download?: { name: string; url: string; size: number }; engine?: boolean; suggest?: Suggestion[]; webOffer?: { query: string; question: string }; sources?: { title: string; url: string }[]; vision?: string;
-  /** Rev21: el mensaje era una PROJECT ACTION (construir o cambiar un proyecto): se ofrece «Abrir en SUPER WILLY». */
+  /** Rev21: el mensaje era una PROJECT ACTION (construir o cambiar un proyecto): se ofrece «Abrir en Súper IA». */
   projectAction?: StoredProjectAction & { key?: string } };
 
 /** El Chat es para CONVERSAR (rediseño, puntos 1-2): preguntas, explicaciones, redacción, resúmenes, investigación y también
- * programación (explicar, ejemplos, errores). Construir o cambiar un proyecto se hace en SUPER WILLY. */
+ * programación (explicar, ejemplos, errores). Construir o cambiar un proyecto se hace en Súper IA. */
 const CHAT_PROMPT = `Eres WILLY AI en la pestaña Chat: una conversación para preguntar, explicar, investigar, redactar, resumir, analizar documentos y hablar de cualquier tema, también de programación (explicar conceptos, errores y arquitecturas, y dar ejemplos de código cortos y correctos).
 - Responde en español claro, directo y bien ordenado; usa listas o pasos cuando ayuden.
 - Si pones código, en bloques con su lenguaje (\`\`\`ts, \`\`\`python…) y completo para lo que se pregunta.
-- Construir o cambiar un proyecto entero (una web, una app, un programa) se hace en SUPER WILLY, que tiene la vista previa, los archivos, las versiones y la conversación del proyecto: si te lo piden aquí, puedes orientar y dar ejemplos, y recuerda que en SUPER WILLY se construye y se guarda.`;
+- Construir o cambiar un proyecto entero (una web, una app, un programa) se hace en Súper IA, que tiene la vista previa, los archivos, las versiones y la conversación del proyecto: si te lo piden aquí, puedes orientar y dar ejemplos, y recuerda que en Súper IA se construye y se guarda.`;
 
 /** Clasifica el texto de la primera pregunta del usuario para asignar una etiqueta automática al hilo.
  * Usa solo heurísticas de palabras clave: no llama a la IA para no añadir latencia. */
@@ -122,7 +122,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [chip, setChip] = useState<null | "ajustar" | "contexto" | "herramientas" | "modelo">(null);
-  // Adjuntos de una PROJECT ACTION, por si se abre en SUPER WILLY (solo mientras la página siga abierta).
+  // Adjuntos de una PROJECT ACTION, por si se abre en Súper IA (solo mientras la página siga abierta).
   const heldFiles = useRef<Map<string, File[]>>(new Map());
   const [busy, setBusy] = useState(false);
   useEffect(() => { onBusy(busy); }, [busy]);
@@ -341,8 +341,8 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
     const carried = attachments.slice();
     setDraft("");
     setAttachments([]);
-    // PROJECT ACTION («créame una web», «arregla mi app», «desarróllalo»): se construye en SUPER WILLY. El Chat no llama a
-    // ninguna IA: ofrece «Abrir en SUPER WILLY» (con solo lo necesario) o «Responder aquí igualmente».
+    // PROJECT ACTION («créame una web», «arregla mi app», «desarróllalo»): se construye en Súper IA. El Chat no llama a
+    // ninguna IA: ofrece «Abrir en Súper IA» (con solo lo necesario) o «Responder aquí igualmente».
     // (Lo que habla de WILLY mismo —«dame el instalador de WILLY», «actualiza WILLY»— no es un proyecto: lo atiende el Chat.)
     const action = text && !/\bwilly\b/i.test(text) ? projectActionOf(text) : null;
     if (action) {
@@ -359,7 +359,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
     await reply(text, body, carried, time);
   };
 
-  /** «Abrir en SUPER WILLY»: le pasa la petición, sus adjuntos (con su texto), sus imágenes y sus enlaces; nada más. */
+  /** «Abrir en Súper IA»: le pasa la petición, sus adjuntos (con su texto), sus imágenes y sus enlaces; nada más. */
   const openInSuperWilly = async (idx: number) => {
     const card = messages[idx]?.projectAction;
     if (!card || card.state === "enviado") return;
@@ -367,11 +367,11 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
     const images = files.filter((f) => f.type.startsWith("image/"));
     const docs: HandoffAttachment[] = [];
     for (const f of files.filter((x) => !x.type.startsWith("image/"))) {
-      const read = await readAttachmentText([f], { budgetChars: 8000, modelLabel: "SUPER WILLY" }).catch(() => ({ blocks: [] as string[], notes: [] as string[] }));
+      const read = await readAttachmentText([f], { budgetChars: 8000, modelLabel: "Súper IA" }).catch(() => ({ blocks: [] as string[], notes: [] as string[] }));
       docs.push({ name: f.name, text: (read.blocks[0] ?? "").replace(/^--- [^\n]* ---\n/, "") });
     }
     setMessages((prev) => prev.map((m, i) => (i === idx && m.projectAction ? { ...m, projectAction: { ...m.projectAction, state: "enviado" } } : m)));
-    if (card.files.length && !files.length) ping("Los adjuntos de ese mensaje ya no están (se recargó la página): vuelve a añadirlos en SUPER WILLY.");
+    if (card.files.length && !files.length) ping("Los adjuntos de ese mensaje ya no están (se recargó la página): vuelve a añadirlos en Súper IA.");
     sendToSuperWilly({ text: card.text, action: card.action, attachments: docs, images, urls: urlsOf(card.text), from: "chat" });
   };
 
@@ -533,7 +533,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
       const full = answered.value;
       const by = cloudFull !== null ? (cloudBy || "IA externa") : `Tu equipo · ${usedLocal}`;
 
-      // Si trae archivos, se ven y se descargan en el propio mensaje: el Chat no los guarda en ningún proyecto (eso es SUPER WILLY).
+      // Si trae archivos, se ven y se descargan en el propio mensaje: el Chat no los guarda en ningún proyecto (eso es Súper IA).
       updateLast((m) => ({ ...m, by, generating: false, text: m.text.trimEnd() || full }));
       ping(cloudFull !== null ? `Respuesta completada con ${cloudBy || "la IA externa que elegiste"}.` : "Respuesta completada con tu IA local.");
       // Etiqueta automática: solo si el hilo no tiene etiqueta aún y el usuario acaba de enviar el primer mensaje.
@@ -881,7 +881,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
                   {externalAi.external
                     ? <MenuItem onClick={() => { close(); ping(`Contesta la IA externa: ${externalAi.summary}.`); }}><Cloud className="size-4 text-amber-600" /><span className="truncate text-xs">IA externa: {externalAi.summary}</span></MenuItem>
                     : <MenuItem onClick={() => { close(); ping(`Modelo en contexto: ${settings.model}`); }}><Cpu className="size-4" /><span className="truncate font-mono text-xs">{settings.model}</span></MenuItem>}
-                  <MenuItem onClick={() => { close(); openView("superia"); }}><Sparkles className="size-4" /><span className="truncate">Proyectos: se construyen en SUPER WILLY</span></MenuItem>
+                  <MenuItem onClick={() => { close(); openView("superia"); }}><Sparkles className="size-4" /><span className="truncate">Proyectos: se construyen en Súper IA</span></MenuItem>
                   <MenuItem onClick={() => { close(); ping("Adjunta archivos con el clip o arrastrándolos al mensaje."); }}><Paperclip className="size-4" />Añadir archivos al contexto</MenuItem>
                 </>
               )}
@@ -917,7 +917,7 @@ function Chip({ icon: Icon, label, chevron, onClick }: { icon: typeof Plus; labe
   );
 }
 
-/** PROJECT ACTION en el Chat (rev21): construir o cambiar un proyecto se hace en SUPER WILLY; aquí solo se ofrece llevarlo. */
+/** PROJECT ACTION en el Chat (rev21): construir o cambiar un proyecto se hace en Súper IA; aquí solo se ofrece llevarlo. */
 function ProjectActionCard({ action, busy, onOpen, onHere }: { action: StoredProjectAction; busy: boolean; onOpen: () => void; onHere: () => void }) {
   const isNew = action.action === "nuevo";
   return (
@@ -925,19 +925,19 @@ function ProjectActionCard({ action, busy, onOpen, onHere }: { action: StoredPro
       <p className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="size-4 shrink-0 text-primary" />{isNew ? "Esto es un proyecto" : "Esto es un cambio en un proyecto"}</p>
       <p className="mt-1 text-sm text-muted-foreground">
         {isNew
-          ? "Se construye en SUPER WILLY: con vista previa, archivos guardados, versiones y la conversación del proyecto. Antes de programar te hará unas preguntas (con su recomendación en cada una)."
-          : "Se hace en SUPER WILLY, sobre los archivos de verdad del proyecto: con vista previa, cambios línea a línea y versiones que puedes restaurar."}
+          ? "Se construye en Súper IA: con vista previa, archivos guardados, versiones y la conversación del proyecto. Antes de programar te hará unas preguntas (con su recomendación en cada una)."
+          : "Se hace en Súper IA, sobre los archivos de verdad del proyecto: con vista previa, cambios línea a línea y versiones que puedes restaurar."}
       </p>
       {action.files.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Se lleva también: {action.files.join(", ")}.</p>}
       {action.state === "pendiente" ? (
         <div className="mt-2.5 flex flex-wrap gap-2">
-          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={onOpen}><Sparkles className="size-3.5" />Abrir en SUPER WILLY</Button>
+          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={onOpen}><Sparkles className="size-3.5" />Abrir en Súper IA</Button>
           <Button size="sm" variant="ghost" className="h-8 text-xs" disabled={busy} onClick={onHere}>Responder aquí igualmente</Button>
         </div>
       ) : action.state === "enviado" ? (
         <p className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-          ✓ Enviado a SUPER WILLY.
-          <button type="button" className="text-primary underline" onClick={() => openView("superia")}>Ir a SUPER WILLY</button>
+          ✓ Enviado a Súper IA.
+          <button type="button" className="text-primary underline" onClick={() => openView("superia")}>Ir a Súper IA</button>
         </p>
       ) : (
         <p className="mt-2 text-xs text-muted-foreground">Respondido aquí en el Chat (como conversación, sin guardar nada en un proyecto).</p>

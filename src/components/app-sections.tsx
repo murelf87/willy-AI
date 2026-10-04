@@ -53,7 +53,7 @@ export type View =
 
 export const VIEW_TITLES: Record<View, string> = {
   chat: "Chats",
-  superia: "SUPER WILLY",
+  superia: "Súper IA",
   autoconstruccion: "Autoconstrucción",
   inicio: "Inicio",
   proyectos: "Proyectos",
@@ -141,10 +141,10 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
     t: "Primeros pasos",
     d: "Qué se hace en cada sitio de WILLY AI.",
     body: [
-      "1. Para construir algo (una web, una aplicación, un programa), ve a SUPER WILLY y cuéntale qué quieres: te hará unas preguntas y lo guardará como proyecto.",
-      "2. Para preguntar, redactar, resumir o investigar (también dudas de programación), usa el Chat. Si en el Chat pides construir o cambiar un proyecto, te ofrece «Abrir en SUPER WILLY» y le pasa solo lo necesario.",
+      "1. Para construir algo (una web, una aplicación, un programa), ve a Súper IA y cuéntale qué quieres: te hará unas preguntas y lo guardará como proyecto.",
+      "2. Para preguntar, redactar, resumir o investigar (también dudas de programación), usa el Chat. Si en el Chat pides construir o cambiar un proyecto, te ofrece «Abrir en Súper IA» y le pasa solo lo necesario.",
       "3. En el Centro de Inteligencia eliges con qué IA trabaja WILLY: la de tu equipo (Ollama, gratis y sin internet) o una IA externa gratuita con tu clave (más rápida).",
-      "4. Todo lo que construyes aparece en Proyectos, con sus versiones. Al abrir un proyecto se abre en SUPER WILLY: a la izquierda su chat y a la derecha la vista previa, el código, los archivos, los cambios y las versiones.",
+      "4. Todo lo que construyes aparece en Proyectos, con sus versiones. Al abrir un proyecto se abre en Súper IA: a la izquierda su chat y a la derecha la vista previa, el código, los archivos, los cambios y las versiones.",
     ],
   },
   {
@@ -172,7 +172,7 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
     t: "Cambiar algo tocándolo en la vista previa",
     d: "Seleccionar elemento, revisar el diseño y comparar antes y después.",
     body: [
-      "En SUPER WILLY, con un proyecto abierto, pulsa «Seleccionar» en la barra de la vista previa y toca lo que quieras cambiar (un botón, una imagen, un texto, el menú, una tarjeta…). Mientras eliges, la página no reacciona a los clics. WILLY te pregunta «¿Qué quieres cambiar?»: escríbelo o pulsa un cambio rápido («Hazlo más pequeño», «Cambia el color», «Elimínalo»…).",
+      "En Súper IA, con un proyecto abierto, pulsa «Seleccionar» en la barra de la vista previa y toca lo que quieras cambiar (un botón, una imagen, un texto, el menú, una tarjeta…). Mientras eliges, la página no reacciona a los clics. WILLY te pregunta «¿Qué quieres cambiar?»: escríbelo o pulsa un cambio rápido («Hazlo más pequeño», «Cambia el color», «Elimínalo»…).",
       "WILLY sabe exactamente qué has tocado (y en qué archivo y línea está), así que cambia solo eso. Si abres «Detalles técnicos (avanzado)» ves esos datos; si no, no hace falta. Tras el cambio, el elemento sigue elegido por si quieres retocarlo otra vez.",
       "«Revisar diseño» mira la pantalla que estás viendo en ordenador, tableta y móvil: lo que se sale de la pantalla, el texto que se corta, lo que se tapa, el poco contraste, la letra o los botones demasiado pequeños, las imágenes que no cargan o se deforman, el título principal y el espaciado. Si en tu equipo hay Edge o Chrome, hace además capturas de verdad; y si tienes una IA con visión, puede mirarlas y opinar.",
       "Tú eliges qué arreglar: WILLY lo arregla sin cambiar tu diseño. Si hiciera falta un cambio grande (otra distribución, otros colores de marca…), te lo explica y te pregunta antes. «Ver» te señala en la vista previa dónde está cada problema.",
@@ -195,9 +195,9 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
     d: "Con qué IA trabaja WILLY, cómo la elige y cuánto usa cada una.",
     body: [
       "Tiene 6 pestañas: Resumen, Modelos, Proveedores, Agentes, Routing y Uso y costes. Todo lo que enseña es real: tus modelos instalados, tus claves y lo que se ha usado de verdad.",
-      "Resumen: de un vistazo, el modo de SUPER WILLY, los proveedores activos, los modelos de tu equipo, la salud (con «Ejecutar diagnóstico» y «Ver logs»), el enrutado, las preferencias globales, las capacidades por tarea, los agentes y los modelos que han respondido últimamente en el Chat y en SUPER WILLY.",
+      "Resumen: de un vistazo, el modo de Súper IA, los proveedores activos, los modelos de tu equipo, la salud (con «Ejecutar diagnóstico» y «Ver logs»), el enrutado, las preferencias globales, las capacidades por tarea, los agentes y los modelos que han respondido últimamente en el Chat y en Súper IA.",
       "Modelos: la IA de tu equipo (Ollama) junto al catálogo de modelos gratuitos para descargar o quitar. Proveedores: las IA externas gratuitas con tu clave; «Probar» hace una petición real, que cuenta para el tope diario.",
-      "Routing: qué IA contesta en el Chat, en el modo automático, en SUPER WILLY y en la Autoconstrucción, y una tabla por tipo de tarea con su relevo en tu equipo. Si una IA externa falla, entra la siguiente y, al final, la de tu equipo. En el automático, lo sensible (DNI, IBAN, claves…) y los adjuntos se quedan en tu equipo.",
+      "Routing: qué IA contesta en el Chat, en el modo automático, en Súper IA y en la Autoconstrucción, y una tabla por tipo de tarea con su relevo en tu equipo. Si una IA externa falla, entra la siguiente y, al final, la de tu equipo. En el automático, lo sensible (DNI, IBAN, claves…) y los adjuntos se quedan en tu equipo.",
       "Uso y costes: las peticiones de hoy de cada proveedor frente al tope diario de seguridad. El coste es siempre 0 €: WILLY solo usa niveles gratuitos y nunca gasta dinero por su cuenta.",
     ],
   },
@@ -205,18 +205,18 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
     t: "Agentes",
     d: "Qué son Arquitecto, Programador, Diseñador UI, Analista, Revisor y Orquestador.",
     body: [
-      "Son 6 papeles que SUPER WILLY tiene en cuenta cuando construye o cambia un proyecto: se le indican en cada petición del proyecto.",
+      "Son 6 papeles que Súper IA tiene en cuenta cuando construye o cambia un proyecto: se le indican en cada petición del proyecto.",
       "Arquitecto: define la estructura, los hitos y los archivos antes de empezar. Programador: escribe y modifica el código. Diseñador UI: cuida el diseño, los estilos y la accesibilidad. Analista: convierte lo que pides en tareas concretas. Revisor: repasa que todo funcione y propone pruebas. Orquestador: coordina al resto y decide el orden.",
-      "No son programas aparte ni usan un modelo distinto: contesta la IA de SUPER WILLY.",
+      "No son programas aparte ni usan un modelo distinto: contesta la IA de Súper IA.",
       "Puedes activar o desactivar cada uno en Centro de Inteligencia → Agentes.",
     ],
   },
   {
     t: "Vista previa en vivo",
-    d: "Cómo se ve tu proyecto en SUPER WILLY mientras se construye.",
+    d: "Cómo se ve tu proyecto en Súper IA mientras se construye.",
     body: [
-      "Con un proyecto abierto en SUPER WILLY, la vista previa enseña el proyecto de verdad (sus archivos guardados) en un marco aislado; mientras WILLY escribe, se va actualizando con lo que lleva escrito.",
-      "Los botones Ordenador, Tableta y Móvil cambian de verdad el ancho de la pantalla (390 px en el móvil); «Ampliar» la pone casi a pantalla completa y «Volver a SUPER WILLY» la cierra.",
+      "Con un proyecto abierto en Súper IA, la vista previa enseña el proyecto de verdad (sus archivos guardados) en un marco aislado; mientras WILLY escribe, se va actualizando con lo que lleva escrito.",
+      "Los botones Ordenador, Tableta y Móvil cambian de verdad el ancho de la pantalla (390 px en el móvil); «Ampliar» la pone casi a pantalla completa y «Volver a Súper IA» la cierra.",
       "Dice siempre su estado (cargando, lista, actualizando, error…). Si la página falla, lo dice con el error y un botón para que WILLY lo arregle.",
       "Los proyectos de React (Vite) se COMPILAN en tu equipo al guardarlos, con las piezas que ya trae WILLY (sin npm ni internet), y la vista previa enseña su código de verdad. Si además tienen «vista-previa.html», en el selector de páginas eliges ver una u otro («… compilado en tu equipo»). Si no compila, dice por qué (el archivo y la línea, o la librería que falta) con «Reparar». Si le falta una librería conocida que el proyecto pide en su package.json (framer-motion, react-router-dom, chart.js…), WILLY LA INSTALA SOLO desde npm —sin npm, comprobando su huella y sin ejecutar nada de ella— y vuelve a compilar; las demás, con el botón «Instalar». Las instaladas se ven (y se quitan) en «Librerías instaladas».",
       "Puedes arrastrar la separación entre el chat y la vista previa, o elegir «Foco en la vista previa», «Equilibrado» o «Foco en el chat»: se recuerda.",
@@ -280,7 +280,7 @@ const DOCS: { t: string; d: string; body: string[] }[] = [
     t: "Exportar proyectos",
     d: "Descarga el código completo en un archivo comprimido.",
     body: [
-      "En SUPER WILLY, con el proyecto abierto, «Exportar» (o «Publicar») descarga el proyecto en un ZIP.",
+      "En Súper IA, con el proyecto abierto, «Exportar» (o «Publicar») descarga el proyecto en un ZIP.",
       "El ZIP lleva todos los archivos del proyecto y un README con la fecha.",
       "En Cuenta puedes descargar una copia de tu perfil y tus ajustes.",
     ],
@@ -333,7 +333,7 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
     [query],
   );
 
-  // SUPER WILLY ocupa toda la altura (rev21): con un proyecto abierto, su chat y su taller (vista previa grande) van lado a lado.
+  // Súper IA ocupa toda la altura (rev21): con un proyecto abierto, su chat y su taller (vista previa grande) van lado a lado.
   if (view === "superia") {
     return (
       <section className="flex min-h-0 flex-1 flex-col bg-background" aria-label={VIEW_TITLES[view]}>
@@ -357,7 +357,7 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
               <Card>
                 <p className="mb-3 text-sm font-semibold">Continúa donde lo dejaste</p>
                 <div className="space-y-2">
-                  {mine.length === 0 && <p className="text-xs text-muted-foreground">Todavía no tienes proyectos: cuéntale a SUPER WILLY qué quieres crear.</p>}
+                  {mine.length === 0 && <p className="text-xs text-muted-foreground">Todavía no tienes proyectos: cuéntale a Súper IA qué quieres crear.</p>}
                   {mine.slice(0, 3).map((p) => {
                     const Icon = PROJECT_ICONS[p.icon] ?? FolderKanban;
                     return (
