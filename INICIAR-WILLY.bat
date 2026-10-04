@@ -52,6 +52,13 @@ try {
     Run-Git clone --branch main --single-branch https://github.com/murelf87/willy-AI.git $repo
   }
   Set-Location -LiteralPath $repo
+  # Corregir URL del remote si apunta a la URL antigua (willy-ai en minuscula)
+  $currentUrl = (& git remote get-url origin 2>&1).Trim()
+  $correctUrl = 'https://github.com/murelf87/willy-AI.git'
+  if ($currentUrl -ne $correctUrl -and $currentUrl -notmatch 'willy-AI') {
+    Write-Host "Actualizando URL del repositorio a la nueva direccion..." -ForegroundColor Yellow
+    & git remote set-url origin $correctUrl
+  }
   Write-Host '[1/4] Comprobando cambios en GitHub...'
   Run-Git fetch origin main
   $head = (Run-Git rev-parse HEAD).Trim()
