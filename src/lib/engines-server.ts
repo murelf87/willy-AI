@@ -18,6 +18,8 @@ export type Provider = {
   prefer?: string[];
   /** Tope de tokens de respuesta que admite este proveedor (si se pide más, se recorta a esto). */
   maxOutput?: number;
+  /** Tiempo máximo por intento antes de ceder a otro modelo/proveedor. */
+  timeoutMs?: number;
 };
 
 // Orden de prioridad: primero los que aguantan contextos largos (Autoconstrucción genera prompts de 10k+ tokens).
@@ -35,6 +37,7 @@ export const PROVIDERS: Provider[] = [
     fallbackModels: ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-5.3-codex", "gpt-6-luna"],
     prefer: ["^gpt-6-astra$", "^gpt-6\\.1-sol$", "^gpt-6-sol$", "^gpt-5\\.3-codex$", "^gpt-6-luna$"],
     maxOutput: 12000,
+    timeoutMs: 240_000,
   },
   // 1. OpenRouter: múltiples modelos :free, contexto grande (hasta 128k), mejor para código largo.
   // Orden de preferencia: Qwen3-Coder (especializado en código) > DeepSeek-R1 (razonador) > Llama 3.3 70B > Gemma > otros.
@@ -46,6 +49,7 @@ export const PROVIDERS: Provider[] = [
     dataNote: "Solo se usan modelos marcados «:free». Cada proveedor de esos modelos tiene sus propias condiciones.",
     onlyModelSuffix: ":free",
     prefer: ["qwen3-coder", "deepseek-r1(?!.*lite)", "qwen3-235b", "llama-3\\.3-70b-instruct", "gemma-3-27b", "deepseek-chat", "mistral-small", "phi-4"],
+    timeoutMs: 90_000,
   },
   // 2. NVIDIA Build (NIM): gratis y sin tarjeta, 40 req/min, modelos grandes (DeepSeek, Llama, Qwen-Coder).
   // (25/09/2026) deepseek-v4.1-flash responde bien; glm-5.3 daba timeouts → movido al final de prefer.
@@ -57,9 +61,10 @@ export const PROVIDERS: Provider[] = [
     dataNote: "Gratis y sin tarjeta (cuenta de NVIDIA Developer): unas 40 peticiones por minuto. Revisa sus condiciones sobre el uso de datos.",
     fallbackModels: ["deepseek-ai/deepseek-v4.1-flash", "meta/llama-3.3-70b-instruct", "qwen/qwen3-235b-a22b", "mistralai/mistral-large-2-instruct", "deepseek-ai/deepseek-r1"],
     prefer: ["deepseek-v4[.\\d]*-flash", "llama-3\\.3-70b-instruct", "qwen3-235b", "qwen[^/]*coder", "deepseek-r1(?!.*lite)", "mistral-large-2", "deepseek-v4", "glm-5"],
+    timeoutMs: 90_000,
   },
   // 3. Mistral: nivel gratuito estable, bueno para código y contextos medianos.
-  { id: "mistral", name: "Mistral", baseUrl: "https://api.mistral.ai/v1", keyUrl: "https://console.mistral.ai/api-keys", dataNote: "Nivel gratuito con límites. Revisa sus condiciones sobre el uso de datos." },
+  { id: "mistral", name: "Mistral", baseUrl: "https://api.mistral.ai/v1", keyUrl: "https://console.mistral.ai/api-keys", dataNote: "Nivel gratuito con límites. Revisa sus condiciones sobre el uso de datos.", timeoutMs: 120_000 },
   // 4. Cohere: 1.000 peticiones/mes gratis, sin tarjeta. Muy buena con documentos largos y español.
   // Su API compatible con OpenAI no siempre da la lista de modelos: por eso lleva los conocidos.
   {
@@ -71,6 +76,7 @@ export const PROVIDERS: Provider[] = [
     fallbackModels: ["command-a-plus-05-2026", "command-a-03-2025"],
     prefer: ["^command-a-plus", "^command-a-\\d", "^command-r-plus"],
     maxOutput: 8000,
+    timeoutMs: 120_000,
   },
   // 5. Google Gemini: muy potente (gemini-2.0-flash tiene contexto de 1M tokens), límite diario generoso.
   // IMPORTANTE: el modelo debe ser gemini-2.0-flash (gemini-1.5-flash como fallback). Si la clave falla,
@@ -83,6 +89,7 @@ export const PROVIDERS: Provider[] = [
     dataNote: "En el nivel gratuito, Google puede usar lo que envíes para mejorar sus productos. No actives la facturación.",
     fallbackModels: ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite"],
     prefer: ["gemini-2\\.0-flash(?!-lite|-exp)", "gemini-2\\.0-flash-lite", "gemini-1\\.5-flash"],
+    timeoutMs: 120_000,
   },
   // 6. xAI Grok: API compatible con OpenAI, modelos grok-3-mini y grok-2 con nivel gratuito generoso.
   // grok-3-mini es el más eficiente para tareas de código y razonamiento; grok-2 para texto largo.
@@ -95,11 +102,12 @@ export const PROVIDERS: Provider[] = [
     dataNote: "Nivel gratuito con créditos mensuales renovables (~25 USD/mes). Sin tarjeta. Revisa sus condiciones de uso.",
     fallbackModels: ["grok-3-mini", "grok-2-1212", "grok-2"],
     prefer: ["grok-3-mini", "grok-2"],
+    timeoutMs: 120_000,
   },
   // 7. Groq: el MÁS RÁPIDO pero límite de ~8k tokens de entrada en el tier gratuito.
   // Va el último porque Autoconstrucción genera prompts largos que Groq rechaza; para chats normales es ideal.
   // (25/09/2026) nemotron-3-super (razonador) contestaba vacío → usar modelos de chat estables primero.
-  { id: "groq", name: "Groq", baseUrl: "https://api.groq.com/openai/v1", keyUrl: "https://console.groq.com/keys", dataNote: "Gratis con límites por minuto y por día. No pases a su plan de pago." },
+  { id: "groq", name: "Groq", baseUrl: "https://api.groq.com/openai/v1", keyUrl: "https://console.groq.com/keys", dataNote: "Gratis con límites por minuto y por día. No pases a su plan de pago.", timeoutMs: 60_000 },
 ];
 
 /** Tope general de tokens de respuesta (una web completa con su vista previa cabe de sobra). */
@@ -260,7 +268,11 @@ export function classifyFailure(status: number, body: string, retryAfterHeader: 
   if (status === 402 || /payment required|requires? (?:a )?(?:paid|billing)|insufficient (?:credit|fund|balance)|add credits|billing (?:is )?(?:not )?(?:enabled|required)/.test(text)) {
     return { kind: "payment", cooldownMs: DAY, message: "Pide pago o créditos. WILLY lo deja de lado y lo vuelve a probar dentro de 24 horas." };
   }
-  if (status === 401 || (status === 403 && /api key|api_key|permission|denied|forbidden|invalid|unauthor/.test(text))) {
+  if (
+    status === 401 ||
+    (status === 403 && /api key|api_key|permission|denied|forbidden|invalid|unauthor/.test(text)) ||
+    (status === 400 && /incorrect api key|invalid api key|api key.*invalid|invalid.*api key|unauthor/.test(text))
+  ) {
     return { kind: "auth", cooldownMs: DAY, message: "Rechaza la clave (inválida, sin permiso o proyecto denegado). Revisa la clave." };
   }
   // La PETICIÓN no cabe en este motor (25/09/2026: Groq gratis respondía 413 «Request too large … tokens per minute (TPM):
@@ -340,7 +352,11 @@ const ALT_MS = 6 * 60 * 60 * 1000;
  */
 export function canTryAnotherModel(provider: ProviderId, status: number, body: string): boolean {
   if ((status === 503 || status === 529 || status === 500) && /high demand|overload|over capacity|no capacity|unavailable|try again later/i.test(body)) return true;
-  return provider === "gemini" && status === 429;
+  if (provider === "gemini" && status === 429) return true;
+  // OpenRouter aplica límites por modelo/proveedor upstream. Si un :free se satura, probar otro
+  // es mucho mejor que dejar inservible todo OpenRouter durante un minuto.
+  if (provider === "openrouter" && status === 429 && /temporarily rate-limited upstream|upstream|provider returned error|rate.?limit/i.test(body)) return true;
+  return false;
 }
 
 type FetchLike = typeof fetch;
@@ -527,6 +543,8 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   // Si el modelo elegido estaba saturado hace poco, sigue respondiendo el que lo sustituyó (hasta que caduque).
   const altActive = engine.alt && engine.alt.until > now ? engine.alt.model : undefined;
   let model = altActive ?? engine.model;
+  // Nunca volver a escoger automáticamente un modelo que ya respondió vacío/no disponible.
+  if (model && (engine.bad ?? []).includes(model.replace(/^models\//, ""))) model = undefined;
   if (!model) {
     const listed = await listModels(provider, key, fetchImpl);
     if (!listed.ok) {
@@ -600,7 +618,7 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
               },
             }
           : { model, messages: sent, max_tokens: maxTokens, temperature: opts.temperature ?? 0.2, stream: false }),
-        signal: AbortSignal.timeout(280_000),
+        signal: AbortSignal.timeout(provider.timeoutMs ?? 120_000),
       });
       status = res.status;
       body = await res.text();
@@ -623,7 +641,8 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   if (canTryAnotherModel(provider.id, status, body)) {
     const first = { model, status, body, retryAfter };
     const listed = await listModels(provider, key, fetchImpl);
-    const others = listed.ok ? rankModels(provider, listed.ids).filter((m) => m !== first.model && !(engine.bad ?? []).includes(m)).slice(0, 2) : [];
+    const maxAlternatives = provider.id === "openrouter" ? 5 : 2;
+    const others = listed.ok ? rankModels(provider, listed.ids).filter((m) => m !== first.model && !(engine.bad ?? []).includes(m)).slice(0, maxAlternatives) : [];
     for (const other of others) {
       model = other;
       await request(wanted);
@@ -714,8 +733,9 @@ export async function testEngine(env: Env, id: string): Promise<{ ok: true; mode
     await markFailure(env.dir, id, failure, now, false);
     return { ok: false, error: `${failure.message} (${scrub(listed.body, key)})` };
   }
-  const model = pickModel(provider, listed.ids);
-  if (!model) return { ok: false, error: "La clave es válida, pero no hay ningún modelo de conversación disponible." };
+  const bad = new Set(state.engines[id]?.bad ?? []);
+  const model = pickModel(provider, listed.ids.filter((m) => !bad.has(m.replace(/^models\//, ""))));
+  if (!model) return { ok: false, error: "La clave es válida, pero no queda ningún modelo de conversación fiable disponible. WILLY conservará la clave y volverá a comprobarlo más adelante." };
   const fresh = await loadState(env.dir);
   if (fresh.engines[id]) {
     fresh.engines[id]!.model = model;

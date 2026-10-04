@@ -1287,7 +1287,7 @@ export type HealthReport = { at: string; overall: "funcionando" | "con avisos" |
 
 export type HealthProbes = {
   ollama: () => Promise<{ ok: boolean; version?: string; models?: number; error?: string }>;
-  engines: () => Promise<{ active: number; configured: number; master: boolean } | null>;
+  engines: () => Promise<{ active: number; configured: number; available: number; errors: number; master: boolean } | null>;
   backend: () => Promise<{ ok: boolean; detail: string }>;
   diskFree: (dir: string) => Promise<number | null>;
 };
@@ -1334,7 +1334,13 @@ export async function selfBuildHealth(root: string, deps: ManagerDeps, probes: H
     const engines = await probes.engines();
     if (!engines) add("motores", "IA externas", "info", "No se pudo leer su estado.");
     else if (!engines.configured) add("motores", "IA externas", "info", "Ninguna configurada (opcional).");
-    else add("motores", "IA externas", engines.master && engines.active ? "ok" : "aviso", `${engines.master ? engines.active : 0} activa(s) de ${engines.configured} configurada(s)${engines.master ? "" : " · interruptor general apagado"}.`);
+    else {
+      const status: HealthStatus = !engines.master ? "aviso" : engines.available === 0 ? "aviso" : engines.errors > 0 ? "aviso" : "ok";
+      const detail = engines.master
+        ? `${engines.available} disponible(s) · ${engines.active} activada(s) · ${engines.configured} configurada(s)${engines.errors ? ` · ${engines.errors} con incidencia` : ""}.`
+        : `0 disponible(s) · ${engines.configured} configurada(s) · interruptor general apagado.`;
+      add("motores", "IA externas", status, detail);
+    }
   } catch (error) {
     add("motores", "IA externas", "info", `No se pudo leer su estado: ${message(error)}`);
   }

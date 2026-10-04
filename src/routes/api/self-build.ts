@@ -240,9 +240,13 @@ function healthProbes(root: string): HealthProbes {
     engines: async () => {
       const nodePath = await import("node:path");
       const result = await engineAction(nodePath.join(root, "datos-privados"), { action: "engines-status" });
-      const status = result["status"] as { master?: boolean; engines?: Array<{ hasKey?: boolean; enabled?: boolean }> } | undefined;
+      const status = result["status"] as { master?: boolean; engines?: Array<{ hasKey?: boolean; enabled?: boolean; available?: boolean; reason?: string }> } | undefined;
       if (!status || !Array.isArray(status.engines)) return null;
-      return { configured: status.engines.filter((e) => e.hasKey).length, active: status.engines.filter((e) => e.hasKey && e.enabled).length, master: Boolean(status.master) };
+      const configured = status.engines.filter((e) => e.hasKey);
+      const active = configured.filter((e) => e.enabled);
+      const available = active.filter((e) => e.available);
+      const errors = active.filter((e) => !e.available && Boolean(e.reason)).length;
+      return { configured: configured.length, active: active.length, available: available.length, errors, master: Boolean(status.master) };
     },
     backend: async () => {
       try {
