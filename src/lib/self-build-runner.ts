@@ -571,7 +571,7 @@ async function runImprovement(
         { role: "assistant", content: answer.slice(0, 80_000) },
         {
           role: "user",
-          content: "Reformula TU MISMA solución sin explicaciones. Devuelve SOLO bloques ```replace ruta con <<<<<<< SEARCH / ======= / >>>>>>> REPLACE, o archivos completos con ```lenguaje ruta. Usa únicamente rutas permitidas y texto SEARCH copiado literalmente del código recibido. No cambies la solución: solo su formato.",
+          content: `Reformula TU MISMA solución sin explicaciones. Devuelve SOLO bloques SEARCH/REPLACE o archivos completos. La PRIMERA línea de cada bloque debe llevar una ruta literal. Para un parche: \`\`\`replace RUTA. Para archivo completo: \`\`\`lenguaje RUTA. Elige RUTA EXACTAMENTE de esta lista: ${sourcePaths.join(", ")}. Después usa <<<<<<< SEARCH / ======= / >>>>>>> REPLACE y copia SEARCH literalmente del código recibido. Si solo hay una ruta, úsala obligatoriamente. No cambies la solución: solo su formato.`,
         },
       ]);
       if (repaired.ok) {
