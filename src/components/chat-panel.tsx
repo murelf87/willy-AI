@@ -4,7 +4,7 @@
 // mismo archivo. El código es el mismo de siempre: solo ha cambiado de sitio.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowUp, Bot, ChevronDown, Code2, Cpu, Download, FileText, Mail, MessageSquare, Paperclip, Plus, Search, Sparkles, Square, Upload, X, Mic,
+  ArrowUp, Bot, ChevronDown, Code2, Cpu, Download, FileText, Mail, MessageSquare, MonitorUp, Paperclip, Plus, Search, Sparkles, Square, Upload, X, Mic,
   Volume2, Cloud, Check, Copy, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -101,13 +101,15 @@ async function buildInstallerHere(): Promise<{ ok: true; name: string; url: stri
   }
 }
 
-export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, embedded = false }: {
+export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, embedded = false, onRemote }: {
   ping: (m: string) => void;
   settings: WorkspaceSettings; updateSettings: (p: Partial<WorkspaceSettings>) => void;
   threadId: string;
   onBusy: (busy: boolean) => void;
   /** Dentro de la pantalla Chats del armazón nuevo (que ya pone el título): solo la barra fina con buscar y exportar. */
   embedded?: boolean;
+  /** Acceso directo al puente remoto del equipo. */
+  onRemote?: () => void;
 }) {
   const { models: chatModelList } = useLocalModels(settings.endpoint);
   // Si la IA externa está en uso, el globo del modelo local desaparece de la fila de abajo.
@@ -634,6 +636,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-background" aria-label="Chat con WILLY AI">
       <div className={`flex shrink-0 items-center gap-2 border-b border-border px-3 ${embedded ? "h-9 justify-end" : "h-11"}`}>
         {!embedded && <h2 className="flex-1 truncate text-sm font-semibold">Chat con WILLY AI</h2>}
+        {onRemote && <Button variant="ghost" size="icon" className="size-8" onClick={onRemote} aria-label="Abrir Equipo remoto" title="Equipo remoto"><MonitorUp className="size-4" /></Button>}
         <Button variant="ghost" size="icon" className={`size-8 ${searchOpen ? "text-primary" : ""}`} onClick={() => { setSearchOpen((v) => !v); setSearchQ(""); }} aria-label="Buscar en la conversación"><Search className="size-4" /></Button>
         <Button variant="ghost" size="icon" className="size-8" onClick={exportChat} aria-label="Exportar conversación"><Upload className="size-4" /></Button>
       </div>

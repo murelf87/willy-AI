@@ -27,7 +27,8 @@ import { BridgeBox } from "@/components/bridge-box";
 import { cleanChecks, deriveChecks } from "@/lib/evidence";
 import { ClarifyButton } from "@/components/clarify-button";
 import { OwnerLessonsCard } from "@/components/owner-lessons-card";
-import { loadOwnerBrain, saveOwnerInstructions } from "@/lib/owner-brain";
+import { loadOwnerBrain, saveOwnerInstructions, useOwnerBrain } from "@/lib/owner-brain";
+import { fullLessonsSection } from "@/lib/owner-brain-shared";
 import { usePersistentState } from "@/lib/persistent-state";
 import { lessonStats, readLessons, removeLesson, setVerdict, writeLessons, type Lesson } from "@/lib/learning";
 import { buildClaudePack } from "@/lib/claude-pack";
@@ -43,6 +44,7 @@ const SELF_BUILD_TAB_IDS: readonly SelfBuildTab[] = SELF_BUILD_TABS.map((entry) 
 
 export function SelfBuildView({ ping }: { ping: Ping }) {
   const [settings] = useSettings();
+  const ownerBrain = useOwnerBrain();
   const [state, setState] = useState(readSelfBuild);
   // Texto que se está editando: no se pierde cuando el trabajo en marcha actualiza el resto del estado.
   const [draft, setDraft] = useState(() => readSelfBuild().instructions);
@@ -174,10 +176,18 @@ export function SelfBuildView({ ping }: { ping: Ping }) {
       }
       setStage("");
     }
+    const currentBrain = await loadOwnerBrain(true);
+    if (currentBrain.lessons.length < 121) {
+      setWorking(false);
+      setStage("");
+      ping(`⚠️ Autoconstrucción necesita las 121 reglas del dueño y solo ha cargado ${currentBrain.lessons.length}. No inicio cambios con un contrato incompleto.`);
+      return;
+    }
+    const ownerContract = [currentBrain.instructions || readSelfBuild().instructions, fullLessonsSection(currentBrain.lessons)].filter(Boolean).join("\n\n");
     const messages: ChatMsg[] = [
       {
         role: "system",
-        content: `Eres el arquitecto de mantenimiento de WILLY AI. Solo propones mejoras de la propia aplicación, nunca de los proyectos del usuario. No aplicas cambios directamente. Debes conservar todo lo existente, exigir copia de seguridad, separar riesgos y explicar una comprobación final. Instrucciones permanentes del dueño:\n${readSelfBuild().instructions}\n\n${TRUTH_RULE}\n\n${constitutionFor("autoconstruccion")}`,
+        content: `Eres el arquitecto de mantenimiento de WILLY AI. Solo propones mejoras de la propia aplicación, nunca de los proyectos del usuario. No aplicas cambios directamente. Debes conservar todo lo existente, exigir copia de seguridad, separar riesgos y explicar una comprobación final. CONTRATO OBLIGATORIO DEL DUEÑO:\n${ownerContract}\n\n${TRUTH_RULE}\n\n${constitutionFor("autoconstruccion")}`,
       },
       {
         role: "user",
@@ -332,6 +342,13 @@ export function SelfBuildView({ ping }: { ping: Ping }) {
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Solo para mejorar WILLY AI —su código, front y backend—, nunca tus propios proyectos. Cada cambio se prueba primero en una versión candidata aparte (compila, tipos y arranque): la que funciona no se toca hasta que la candidata lo supera todo, y siempre con copia verificada.</p>
         </div>
         <Button variant="secondary" className="gap-2 self-start" onClick={exportBackup}><Download className="size-4" />Copia de seguridad</Button>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-4">
+        <div className="rounded-lg border border-border bg-card px-3 py-2"><p className="text-[11px] uppercase tracking-wide text-muted-foreground">Reglas del dueño</p><p className="mt-1 text-sm font-bold">{ownerBrain.lessons.length}/121 cargadas</p></div>
+        <div className="rounded-lg border border-border bg-card px-3 py-2"><p className="text-[11px] uppercase tracking-wide text-muted-foreground">Reparación</p><p className="mt-1 text-sm font-bold">Misma IA + mismo modelo</p></div>
+        <div className="rounded-lg border border-border bg-card px-3 py-2"><p className="text-[11px] uppercase tracking-wide text-muted-foreground">Candidata</p><p className="mt-1 text-sm font-bold">Aislada antes de instalar</p></div>
+        <div className="rounded-lg border border-border bg-card px-3 py-2"><p className="text-[11px] uppercase tracking-wide text-muted-foreground">Fallo</p><p className="mt-1 text-sm font-bold">Rollback automático</p></div>
       </div>
 
       <SelfBuildTabs tab={tab} onChange={setTab} />

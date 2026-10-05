@@ -5,7 +5,7 @@
 import { useId, type ReactNode } from "react";
 import {
   ArrowRight, AudioLines, BookOpen, Brain, Check, ChevronDown, ChevronRight, CircleDot, Clock, Cloud, Cpu, FileText, FolderKanban, Github,
-  Headphones, Home, KeyRound, Languages, LayoutGrid, Menu as MenuIcon, MessageSquare, Moon, PanelLeftClose, PanelLeftOpen,
+  Headphones, Home, KeyRound, Languages, LayoutGrid, Menu as MenuIcon, MessageSquare, MonitorUp, Moon, PanelLeftClose, PanelLeftOpen,
   Film, Presentation, Puzzle, Scale, ScanText, Settings, Sparkles, Sun, UserRound, Video, Wand2, Wrench, X, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
   { title: "Trabajo", items: [
     { icon: FolderKanban, label: "Proyectos", view: "proyectos" },
     { icon: LayoutGrid, label: "Herramientas", view: "herramientas" },
+    { icon: MonitorUp, label: "Equipo remoto", view: "remoto" },
   ] },
   { title: "Integraciones", items: [{ icon: Github, label: "GitHub", view: "github" }] },
   { title: "Sistema", items: [{ icon: Settings, label: "Ajustes", view: "ajustes" }] },
@@ -131,6 +132,16 @@ function TopBar({ onMenu, onNav, dark, toggleTheme, ping, settings, updateSettin
         <span className="hidden font-display text-base font-extrabold tracking-tight sm:inline">WILLY AI</span>
       </button>
       <div className="flex-1" />
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-9"
+        onClick={() => onNav("remoto")}
+        aria-label="Abrir Equipo remoto"
+        title="Equipo remoto"
+      >
+        <MonitorUp className="size-[18px]" />
+      </Button>
       <Button
         variant="secondary"
         size="sm"

@@ -26,9 +26,10 @@ export function buildSequence(status: PublicStatus | null, localModels: string[]
 /** Con motores en la nube hay más margen: si uno falla por su cuenta no debe gastar un intento «de verdad». */
 export function maxAttemptsFor(base: number, steps: Step[]): number {
   const clouds = steps.filter((step) => step.kind === "cloud").length;
-  // Una mejora compleja no debe terminar antes de haber dado oportunidad real a los motores externos buenos
-  // y, si hace falta, a varios modelos locales. El límite sigue siendo finito para evitar bucles.
-  return Math.min(12, base + clouds + (clouds > 0 ? 1 : 0));
+  const locals = steps.length - clouds;
+  // La misma IA/modelo puede dedicar varios ciclos a reparar su propia candidata antes del relevo.
+  // Por eso el presupuesto global debe dejar espacio real para al menos un segundo motor sin convertirse en un bucle infinito.
+  return Math.min(24, Math.max(base + clouds * 3 + Math.min(4, locals), 12));
 }
 
 /**

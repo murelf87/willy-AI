@@ -60,6 +60,17 @@ export function lessonsSection(lessons: OwnerLesson[]): string {
   return `LO QUE HAS APRENDIDO DEL DUEÑO (reglas y preferencias que te ha dado en los chats; cúmplelas SIEMPRE, en cualquier chat y con cualquier motor de IA; si una choca con una instrucción anterior, manda la más reciente):\n${lines.join("\n")}`;
 }
 
+/** Autoconstrucción necesita el contrato COMPLETO del dueño: no se recorta ni una regla ni su texto. */
+export function fullLessonsSection(lessons: OwnerLesson[]): string {
+  if (!lessons.length) return "";
+  const lines = lessons.map((lesson, index) => {
+    const day = lesson.at ? lesson.at.slice(0, 10) : "";
+    const where = lesson.source ? ` · ${lesson.source}` : "";
+    return `${index + 1}. ${day}${where}: «${lesson.text}»`;
+  });
+  return `CONTRATO COMPLETO DEL DUEÑO (${lessons.length} reglas obligatorias; ninguna puede omitirse, resumirse ni ignorarse):\n${lines.join("\n")}`;
+}
+
 /** Instrucciones permanentes + lecciones: el texto completo que ve cada IA. */
 export function ownerBlock(instructions: string, lessons: OwnerLesson[]): string {
   return [

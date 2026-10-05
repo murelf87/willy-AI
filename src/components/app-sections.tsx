@@ -33,6 +33,7 @@ import { JuridicoView } from "@/components/juridico-view";
 import { SelfBuildView } from "@/components/self-build-view";
 import { SettingsView } from "@/components/settings-view";
 import { IntelligenceCenter } from "@/components/intelligence-center";
+import { RemoteAccessView } from "@/components/remote-access-view";
 import { SectionHead as Head } from "@/components/section-ui";
 import { projectService, useProjects, useVersions } from "@/services/project-service";
 import { isExampleProject, type Ping, type Project, type ProjectIcon, type ProjectMode } from "@/types/domain";
@@ -47,7 +48,7 @@ import { PanelCard as Card } from "@/components/panel-card";
 export type View =
   | "chat" | "inicio" | "superia" | "inteligencia" | "autoconstruccion" | "proyectos" | "historial"
   | "herramientas" | "documentacion" | "ajustes" | "cuenta"
-  | "github" | "instalacion" | "demo" | "licencias"
+  | "github" | "instalacion" | "demo" | "licencias" | "remoto"
   | "lectura" | "ocr" | "avatar" | "personaje" | "influencer" | "traducir" | "extras" | "libros" | "transcribir" | "doblaje"
   | "juridico";
 
@@ -75,6 +76,7 @@ export const VIEW_TITLES: Record<View, string> = {
   ajustes: "Ajustes",
   cuenta: "Cuenta",
   github: "GitHub",
+  remoto: "Equipo remoto",
   instalacion: "Acceso directo",
   demo: "Demo para cliente",
   juridico: "Análisis Jurídico",
@@ -418,6 +420,7 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
         {view === "inteligencia" && <IntelligenceCenter ping={ping} />}
 
         {view === "autoconstruccion" && <SelfBuildView ping={ping} />}
+        {view === "remoto" && <RemoteAccessView ping={ping} />}
         {view === "licencias" && <LicensesView />}
         {view === "lectura" && <ReaderView />}
         {view === "ocr" && <OcrView />}

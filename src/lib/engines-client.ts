@@ -23,7 +23,16 @@ export async function engineCommand(action: "engines-master" | "engines-mode" | 
   return data ?? { ok: false, error: "No se pudo hablar con el servidor de WILLY." };
 }
 
-export async function cloudChat(id: string, messages: ChatMessage[], maxTokens = 6000, temperature?: number, compact?: ChatMessage[], avoidModels?: string[]): Promise<CallResult> {
+export async function cloudChat(
+  id: string,
+  messages: ChatMessage[],
+  maxTokens = 6000,
+  temperature?: number,
+  compact?: ChatMessage[],
+  avoidModels?: string[],
+  preferredModel?: string,
+  strictModel = false,
+): Promise<CallResult> {
   const data = await post<CallResult>({
     action: "cloud-chat",
     id,
@@ -32,6 +41,8 @@ export async function cloudChat(id: string, messages: ChatMessage[], maxTokens =
     ...(temperature !== undefined ? { temperature } : {}),
     ...(compact?.length ? { compact } : {}),
     ...(avoidModels?.length ? { avoidModels } : {}),
+    ...(preferredModel ? { preferredModel } : {}),
+    ...(strictModel ? { strictModel: true } : {}),
   });
   return data ?? { ok: false, kind: "transient", error: "No se pudo hablar con el servidor de WILLY." };
 }

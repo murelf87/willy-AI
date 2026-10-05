@@ -251,6 +251,7 @@ function Workspace() {
               updateSettings={updateSettings}
               threadId={threadId}
               onBusy={setChatBusy}
+              onRemote={() => goTo("remoto")}
               embedded
             />
           </ChatsScreen>

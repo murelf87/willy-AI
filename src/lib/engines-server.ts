@@ -532,7 +532,7 @@ async function setAlt(dir: string, id: string, model: string, until: number): Pr
 }
 
 /** Una petición de conversación a un motor. Aplica las esperas y los límites, y anota el resultado. */
-export async function callEngine(env: Env, id: string, messages: ChatMessage[], opts: { maxTokens?: number; temperature?: number; compact?: ChatMessage[]; avoidModels?: string[] } = {}): Promise<CallResult> {
+export async function callEngine(env: Env, id: string, messages: ChatMessage[], opts: { maxTokens?: number; temperature?: number; compact?: ChatMessage[]; avoidModels?: string[]; preferredModel?: string; strictModel?: boolean } = {}): Promise<CallResult> {
   const now = (env.now ?? Date.now)();
   const provider = (env.providers ?? PROVIDERS).find((p) => p.id === id);
   if (!provider) return { ok: false, kind: "other", error: "Motor desconocido." };
@@ -543,13 +543,18 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   const engine = state.engines[id]!;
   const key = engine.key!;
   const avoided = new Set((opts.avoidModels ?? []).map((value) => value.replace(/^models\//, "")));
+  const preferredModel = opts.preferredModel?.trim();
+  const strictModel = opts.strictModel === true && Boolean(preferredModel);
 
-  // Si el modelo elegido estaba saturado hace poco, sigue respondiendo el que lo sustituyó (hasta que caduque),
-  // salvo que ESTA mejora ya haya demostrado que ese modelo no sirve para su trabajo.
-  const altActive = engine.alt && engine.alt.until > now && !avoided.has(engine.alt.model.replace(/^models\//, "")) ? engine.alt.model : undefined;
-  let model = altActive ?? engine.model;
+  // Durante una reparación de Autoconstrucción se fija proveedor + modelo: no se permite que el servidor
+  // cambie silenciosamente de modelo hasta que el orquestador decida explícitamente el relevo.
+  const altActive = !strictModel && engine.alt && engine.alt.until > now && !avoided.has(engine.alt.model.replace(/^models\//, "")) ? engine.alt.model : undefined;
+  let model = preferredModel || altActive || engine.model;
   // Nunca volver a escoger automáticamente un modelo que ya respondió vacío/no disponible o que este trabajo ha descartado.
-  if (model && ((engine.bad ?? []).includes(model.replace(/^models\//, "")) || avoided.has(model.replace(/^models\//, "")))) model = undefined;
+  if (model && ((engine.bad ?? []).includes(model.replace(/^models\//, "")) || avoided.has(model.replace(/^models\//, "")))) {
+    if (strictModel) return { ok: false, kind: "model", error: `El modelo fijado «${model}» ya fue descartado para esta mejora.` };
+    model = undefined;
+  }
   if (!model) {
     const listed = await listModels(provider, key, fetchImpl);
     if (!listed.ok) {
@@ -643,7 +648,7 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   // (o, en Gemini, sin cuota), se prueban hasta dos modelos más del mismo proveedor, del mejor al peor; el que responda se queda
   // unas horas en su lugar. Si ninguno responde, cuenta el fallo del modelo elegido.
   let switched: string | null = null;
-  if (canTryAnotherModel(provider.id, status, body)) {
+  if (!strictModel && canTryAnotherModel(provider.id, status, body)) {
     const first = { model, status, body, retryAfter };
     const listed = await listModels(provider, key, fetchImpl);
     const maxAlternatives = provider.id === "openrouter" ? 5 : 2;
@@ -664,7 +669,7 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
     if (compactTokens < promptTokens * 0.8) {
       sent = opts.compact;
       promptTokens = compactTokens;
-      model = altActive ?? engine.model ?? model;
+      model = strictModel ? (preferredModel ?? model) : (altActive ?? engine.model ?? model);
       tries.push(`compacta (${compactTokens} tokens)`);
       await request(wanted);
     }
@@ -716,7 +721,7 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   if (failure.kind === "model") await rememberBad(env.dir, id, model);
   // (25/09/2026) El modelo no ha contestado a tiempo (NVIDIA · deepseek tardó más de 280 s con una web entera): la próxima vez
   // responde otro modelo del mismo proveedor, sin gastar más tiempo ahora. Si ese también tarda, se pasa al siguiente.
-  if (status === 0 && /timeout|abort/i.test(body)) {
+  if (!strictModel && status === 0 && /timeout|abort/i.test(body)) {
     const listed = await listModels(provider, key, fetchImpl).catch(() => ({ ok: false as const, status: 0, body: "", retryAfter: null }));
     const next = listed.ok ? rankModels(provider, listed.ids).find((m) => m !== model && m !== altActive && !(engine.bad ?? []).includes(m) && !avoided.has(m.replace(/^models\//, ""))) : undefined;
     if (next) await setAlt(env.dir, id, next, now + ALT_MS);
@@ -819,7 +824,16 @@ export async function engineAction(dir: string, body: Body, env: Partial<Env> = 
     const avoidModels = Array.isArray(body["avoidModels"])
       ? (body["avoidModels"] as unknown[]).map((value) => String(value ?? "").trim()).filter(Boolean).slice(0, 16)
       : [];
-    const result = await callEngine(full, id, messages, { maxTokens, ...(temperature !== undefined ? { temperature } : {}), ...(compact.length ? { compact } : {}), ...(avoidModels.length ? { avoidModels } : {}) });
+    const preferredModel = typeof body["preferredModel"] === "string" ? body["preferredModel"].trim().slice(0, 200) : "";
+    const strictModel = body["strictModel"] === true && Boolean(preferredModel);
+    const result = await callEngine(full, id, messages, {
+      maxTokens,
+      ...(temperature !== undefined ? { temperature } : {}),
+      ...(compact.length ? { compact } : {}),
+      ...(avoidModels.length ? { avoidModels } : {}),
+      ...(preferredModel ? { preferredModel } : {}),
+      ...(strictModel ? { strictModel: true } : {}),
+    });
     return { ...result };
   }
   return { ok: false, error: "Acción de motores desconocida." };

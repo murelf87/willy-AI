@@ -16,8 +16,7 @@ import { cloudChat, engineStatus } from "@/lib/engines-client";
 import { attemptStep, buildSequence, maxAttemptsFor, shouldRelay } from "@/lib/engine-plan";
 import { APP_VERSION } from "@/lib/version";
 import { readSelfBuild, writeSelfBuild, type WillyImprovement } from "@/lib/self-build-store";
-import { ownerLessons } from "@/lib/owner-brain";
-import { lessonsSection } from "@/lib/owner-brain-shared";
+import { fullLessonsSection, type OwnerBrain } from "@/lib/owner-brain-shared";
 import { progressInfo, type ProgressInfo } from "@/lib/self-build-progress";
 
 export type SelfBuildJob = {
@@ -37,6 +36,9 @@ export const JOB_EVENT = "willy-self-build-job";
 const JOB_KEY = "willy-self-build-job-v1";
 /** Intentos completos (modelo + aplicación + comprobación) antes de rendirse. */
 const MAX_ATTEMPTS = 6;
+const REQUIRED_OWNER_RULES = 121;
+const SAME_MODEL_REPAIR_LIMIT = 4;
+const FORMAT_REPAIR_LIMIT = 3;
 
 let current: SelfBuildJob | null = null;
 
@@ -229,11 +231,46 @@ ${input.sourceContext}`;
 }
 
 /** Un motor de la nube como si fuera un modelo más: mismo resultado {ok, data | error}. */
-async function callCloud(id: string, messages: ChatMsg[], avoidModels: string[] = []) {
+async function callCloud(id: string, messages: ChatMsg[], avoidModels: string[] = [], preferredModel?: string, strictModel = false) {
   // OpenAI/Codex puede entregar parches más largos sin obligar a trocear una mejora grande.
   const maxTokens = id === "openai" ? 10_000 : 6_000;
-  const res = await cloudChat(id, messages.map((entry) => ({ role: entry.role, content: entry.content })), maxTokens, undefined, undefined, avoidModels);
-  return res;
+  return cloudChat(
+    id,
+    messages.map((entry) => ({ role: entry.role, content: entry.content })),
+    maxTokens,
+    undefined,
+    undefined,
+    avoidModels,
+    preferredModel,
+    strictModel,
+  );
+}
+
+function rulesFingerprint(text: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+async function loadOwnerContract(fallbackInstructions: string): Promise<{ rules: string; count: number; fingerprint: string; updatedAt: string }> {
+  const res = await fetch("/api/self-build", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "owner-get" }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const data = (await res.json()) as { ok?: boolean; brain?: OwnerBrain; error?: string };
+  if (!res.ok || !data.ok || !data.brain) throw new Error(data.error ?? "No se pudieron cargar las reglas del dueño.");
+  const lessons = Array.isArray(data.brain.lessons) ? data.brain.lessons : [];
+  if (lessons.length < REQUIRED_OWNER_RULES) {
+    throw new Error(`Autoconstrucción requiere las ${REQUIRED_OWNER_RULES} reglas del dueño y solo ha cargado ${lessons.length}. No se inicia ningún cambio hasta recuperar el contrato completo.`);
+  }
+  const instructions = data.brain.instructions.trim() || fallbackInstructions.trim();
+  const rules = [instructions, fullLessonsSection(lessons)].filter(Boolean).join("\n\n");
+  return { rules, count: lessons.length, fingerprint: rulesFingerprint(rules), updatedAt: data.brain.updatedAt ?? "" };
 }
 
 async function finishSuccess(args: {
@@ -466,7 +503,17 @@ async function runImprovement(
     improvements: base.improvements.map((e) => (e.id === item.id ? { ...e, status: "en curso" as const } : e)),
   });
 
-  update(8, "Análisis", "Leyendo el código real relacionado con la mejora…");
+  update(6, "Contrato del dueño", "Cargando y verificando todas las reglas antes de escribir código…");
+  let ownerContract: Awaited<ReturnType<typeof loadOwnerContract>>;
+  try {
+    ownerContract = await loadOwnerContract(base.instructions);
+  } catch (error) {
+    finishWithError("Reglas incompletas", error instanceof Error ? error.message : "No se pudo cargar el contrato completo del dueño.");
+    return;
+  }
+  update(8, "Contrato verificado", `${ownerContract.count} reglas completas cargadas · huella ${ownerContract.fingerprint}. Ninguna IA puede trabajar sin este contrato.`);
+
+  update(10, "Análisis", "Leyendo el código real relacionado con la mejora…");
 
   let sourceContext = "";
   let sourcePaths: string[] = [];
@@ -513,6 +560,9 @@ async function runImprovement(
   const unusable = new Set<string>();
   const avoidedCloudModels = new Map<string, Set<string>>();
   const candidateFailures = new Map<string, number>();
+  const formatFailures = new Map<string, number>();
+  const pinnedCloudModels = new Map<string, string>();
+  const rules = ownerContract.rules;
   const avoidCloudModel = (providerId: string, modelName: string) => {
     const clean = modelName.replace(/^models\//, "");
     const set = avoidedCloudModels.get(providerId) ?? new Set<string>();
@@ -553,12 +603,12 @@ async function runImprovement(
 
     update(bandStart, label, `Trabajando con ${model}…`);
 
-    // Las reglas que el dueño ha ido enseñando en los chats también valen aquí (son las mismas para todas las IA).
-    const rules = [base.instructions, lessonsSection(ownerLessons())].filter(Boolean).join("\n\n");
-    const stepMessages = buildMessages({ instructions: rules, item, sourceContext, sourcePaths, attempt: attempt + 1, diagnosis, history: journal.slice(-4).join("\n"), examples });
+    // El contrato completo del dueño queda congelado al inicio del trabajo: todas las IA reciben exactamente las mismas reglas.
+    const stepMessages = buildMessages({ instructions: rules, item, sourceContext, sourcePaths, attempt: attempt + 1, diagnosis, history: journal.slice(-6).join("\n"), examples });
     const avoidModels = step.kind === "cloud" ? [...(avoidedCloudModels.get(step.id) ?? [])] : [];
-    if (step.kind === "cloud") update(bandStart, label, `Esperando la respuesta de ${model}${avoidModels.length ? ` · evitando ${avoidModels.length} modelo(s) que ya fallaron` : ""}…`);
-    let result = step.kind === "cloud" ? await callCloud(step.id, stepMessages, avoidModels) : await aiService.chat({
+    const pinnedModel = step.kind === "cloud" ? pinnedCloudModels.get(step.id) : undefined;
+    if (step.kind === "cloud") update(bandStart, label, `Esperando la respuesta de ${pinnedModel ? `${step.label.split(" · ")[0]} · ${pinnedModel} (mismo modelo en reparación)` : model}${avoidModels.length ? ` · evitando ${avoidModels.length} modelo(s) ya descartados` : ""}…`);
+    let result = step.kind === "cloud" ? await callCloud(step.id, stepMessages, avoidModels, pinnedModel, Boolean(pinnedModel)) : await aiService.chat({
       endpoint: engine.endpoint,
       model: step.model,
       maxOutputTokens: 6_000,
@@ -584,6 +634,7 @@ async function runImprovement(
     }
 
     let effectiveModel = step.kind === "cloud" ? result.model : step.model;
+    if (step.kind === "cloud" && !pinnedCloudModels.has(step.id)) pinnedCloudModels.set(step.id, effectiveModel);
     let effectiveLabel = step.kind === "cloud" ? `${step.label.split(" · ")[0]} · ${effectiveModel}` : step.label;
     lastLabel = effectiveLabel;
     usedEngines.add(effectiveLabel);
@@ -603,7 +654,7 @@ async function runImprovement(
           role: "user",
           content: `Reformula TU MISMA solución sin explicaciones. Devuelve SOLO bloques SEARCH/REPLACE o archivos completos. La PRIMERA línea de cada bloque debe llevar una ruta literal. Para un parche: \`\`\`replace RUTA. Para archivo completo: \`\`\`lenguaje RUTA. Elige RUTA EXACTAMENTE de esta lista: ${sourcePaths.join(", ")}. Después usa <<<<<<< SEARCH / ======= / >>>>>>> REPLACE y copia SEARCH literalmente del código recibido. Si solo hay una ruta, úsala obligatoriamente. No cambies la solución: solo su formato.`,
         },
-      ], avoidModels);
+      ], avoidModels, effectiveModel, true);
       if (!repaired.ok) {
         if (!handleFailure(step, repaired, bandStart + 13)) return;
         continue;
@@ -629,8 +680,16 @@ async function runImprovement(
         ? `El modelo ${effectiveModel} intentó negarse en vez de entregar código. Entrega directamente los archivos o las sustituciones.`
         : `El modelo ${effectiveModel} no marcó ninguna ruta o dejó el bloque cortado. Cada bloque debe abrir con tres comillas, el lenguaje y la ruta exacta, o usar \`\`\`replace ruta con SEARCH/REPLACE cerrado con >>>>>>> REPLACE.`;
       if (step.kind === "cloud") {
-        avoidCloudModel(step.id, effectiveModel);
-        update(bandStart + 13, "Probando otro modelo", `${effectiveModel} respondió dos veces sin un cambio aplicable. WILLY lo evita solo para esta mejora y prueba otro modelo del mismo proveedor.`);
+        const key = `${step.id}:${effectiveModel}`;
+        const failures = (formatFailures.get(key) ?? 0) + 1;
+        formatFailures.set(key, failures);
+        if (failures >= FORMAT_REPAIR_LIMIT) {
+          avoidCloudModel(step.id, effectiveModel);
+          pinnedCloudModels.delete(step.id);
+          update(bandStart + 13, "Probando otro modelo", `${effectiveModel} agotó ${failures} ciclos de reparación de formato. WILLY conserva el diagnóstico y solo ahora prueba otro modelo del mismo proveedor.`);
+        } else {
+          update(bandStart + 13, "Insistiendo con la misma IA", `${effectiveModel} aún no entregó un cambio aplicable. WILLY mantiene exactamente el mismo modelo y le da otro ciclo de reparación (${failures}/${FORMAT_REPAIR_LIMIT}).`);
+        }
       } else {
         update(bandStart + 13, refusal ? "Revisando la respuesta" : "Reintentando", `WILLY continúa con ${effectiveModel} y el diagnóstico del intento anterior…`);
       }
@@ -646,18 +705,19 @@ async function runImprovement(
       const failureKey = step.kind === "cloud" ? `${step.id}:${effectiveModel}` : step.key;
       const failures = (candidateFailures.get(failureKey) ?? 0) + 1;
       candidateFailures.set(failureKey, failures);
-      // La primera candidata fallida vuelve a la MISMA IA con el diagnóstico. Si falla una segunda vez,
-      // se cambia de modelo para no quemar todos los intentos repitiendo el mismo error.
-      if (failures >= 2) {
+      // Una candidata fallida vuelve a la MISMA IA y al MISMO MODELO con el error real. Solo tras agotar
+      // varios ciclos de reparación se permite el relevo; la versión buena nunca se toca durante esos ciclos.
+      if (failures >= SAME_MODEL_REPAIR_LIMIT) {
         if (step.kind === "cloud") {
           avoidCloudModel(step.id, effectiveModel);
-          update(bandStart + 17, "Probando otro modelo", `${effectiveModel} ya falló dos candidatas. WILLY conserva el diagnóstico y prueba otro modelo del mismo proveedor.`);
+          pinnedCloudModels.delete(step.id);
+          update(bandStart + 17, "Probando otro modelo", `${effectiveModel} agotó ${failures} reparaciones de candidata. WILLY conserva todo el diagnóstico y solo ahora prueba otro modelo del mismo proveedor.`);
         } else {
           unusable.add(step.key);
-          update(bandStart + 17, "Cambiando de modelo", `${effectiveModel} ya falló dos candidatas. WILLY conserva el diagnóstico y prueba el siguiente modelo local.`);
+          update(bandStart + 17, "Cambiando de modelo", `${effectiveModel} agotó ${failures} reparaciones de candidata. WILLY conserva el diagnóstico y prueba el siguiente modelo local.`);
         }
       } else {
-        update(bandStart + 17, "Autorreparando", `La candidata de ${effectiveModel} no pasó las comprobaciones. La versión buena no se tocó; la misma IA recibe el error real para corregirlo.`);
+        update(bandStart + 17, "Autorreparando con la misma IA", `La candidata de ${effectiveModel} no pasó las comprobaciones. La versión buena no se tocó; el mismo modelo recibe el error real y vuelve a corregirla (${failures}/${SAME_MODEL_REPAIR_LIMIT}).`);
       }
       continue;
     }
