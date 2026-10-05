@@ -30,11 +30,11 @@ export function Menu({ trigger, children, align = "start", label, up = false, wi
         <div
           role={wide ? "dialog" : "menu"}
           aria-label={label}
-          className={`z-50 max-h-[70vh] overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-2xl ${
+          className={`z-50 max-h-[70dvh] max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-2xl ${
             wide
               // En pantallas estrechas el panel ancho ocupa el ancho de la pantalla (fijo bajo la barra); en las demás cuelga del botón.
               ? `fixed inset-x-3 top-16 w-auto sm:absolute sm:inset-x-auto sm:top-[calc(100%+6px)] sm:w-[22rem] ${align === "end" ? "sm:right-0" : "sm:left-0"}`
-              : `absolute w-64 ${up ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} ${align === "end" ? "right-0" : "left-0"}`
+              : `fixed inset-x-3 w-auto ${up ? "bottom-16" : "top-16"} sm:absolute sm:inset-x-auto sm:w-64 ${up ? "sm:bottom-[calc(100%+6px)]" : "sm:top-[calc(100%+6px)]"} ${align === "end" ? "sm:right-0" : "sm:left-0"}`
           }`}
         >
           {children(() => setOpen(false))}

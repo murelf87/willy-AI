@@ -95,7 +95,7 @@ export function HerramientasScreen({ ping, onNav, onNewProject, onOpenChat }: He
   const chips: Array<[Filter, string]> = [["todas", "Todas"], ...CATEGORIES.map((c): [Filter, string] => [c.id, c.short])];
 
   return (
-    <section className="scroll-thin min-h-0 flex-1 overflow-y-auto bg-background" aria-label="Herramientas">
+    <section className="scroll-thin min-h-0 min-w-0 flex-1 overflow-y-auto bg-background" aria-label="Herramientas">
       <div className="mx-auto w-full max-w-[1240px] px-4 pb-8 pt-5 sm:px-6">
         {/* Cabecera */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

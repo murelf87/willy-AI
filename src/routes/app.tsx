@@ -226,7 +226,7 @@ function Workspace() {
   }, [projectsLoading, projects]);
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
+    <div data-willy-app className="fixed inset-0 flex h-[100dvh] min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background text-foreground">
       <OfflineBanner />
       <FrontShell
         view={view} onNav={goTo}

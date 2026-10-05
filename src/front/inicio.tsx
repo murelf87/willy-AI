@@ -40,12 +40,12 @@ export type InicioProps = {
 // ───────────────────────────────────────────────────────────────────────────── piezas visuales
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-2xl border border-border bg-card p-4 shadow-card sm:p-5 ${className}`}>{children}</section>;
+  return <section className={`min-w-0 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-5 ${className}`}>{children}</section>;
 }
 
 function CardHead({ title, count, action, right }: { title: string; count?: number; action?: { label: string; onClick: () => void }; right?: ReactNode }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-3">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
         {title}
         {typeof count === "number" && count > 0 && <span className="grid size-5 place-items-center rounded-full bg-destructive text-[11px] font-bold text-destructive-foreground">{count}</span>}
@@ -176,7 +176,7 @@ function AskBox({ onAsk, ping }: { onAsk: (text: string, files: File[]) => void;
   );
   return (
     <div className="rounded-2xl border border-border bg-card p-2 shadow-card">
-      <div className="flex items-end gap-2">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-2 sm:flex">
         <span className="grid size-9 shrink-0 place-items-center text-primary" aria-hidden="true"><Sparkles className="size-5" /></span>
         <textarea
           ref={areaRef}
@@ -186,11 +186,11 @@ function AskBox({ onAsk, ping }: { onAsk: (text: string, files: File[]) => void;
           rows={1}
           placeholder="Escribe tu idea, proyecto o consulta..."
           aria-label="Escribe tu idea, proyecto o consulta"
-          className="max-h-40 min-h-9 flex-1 resize-none bg-transparent py-2 text-[15px] leading-5 outline-none placeholder:text-muted-foreground"
+          className="max-h-40 min-h-16 w-full min-w-0 flex-1 resize-none sm:min-h-9 bg-transparent py-2 text-[15px] leading-5 outline-none placeholder:text-muted-foreground"
           style={{ height: "auto" }}
           onInput={(e) => { const el = e.currentTarget; el.style.height = "auto"; el.style.height = `${Math.min(160, el.scrollHeight)}px`; }}
         />
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="col-span-2 flex shrink-0 items-center justify-end gap-0.5">
           <input ref={imageRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
           <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
           <IconBtn label="Adjuntar imagen" onClick={() => imageRef.current?.click()}><ImageIcon className="size-[18px]" /></IconBtn>
@@ -269,7 +269,7 @@ export function InicioScreen({ ping, onNav, onNewProject, onOpenProject, onAskWi
   const firstName = profile.name.trim() || "Antonio";
 
   return (
-    <section className="scroll-thin min-h-0 flex-1 overflow-y-auto bg-background" aria-label="Inicio">
+    <section className="scroll-thin min-h-0 min-w-0 flex-1 overflow-y-auto bg-background" aria-label="Inicio">
       <div className="mx-auto w-full max-w-[1240px] px-4 pb-8 pt-5 sm:px-6">
         {/* Cabecera con la mascota */}
         <div className="mb-4 flex items-start justify-between gap-4">
@@ -287,7 +287,7 @@ export function InicioScreen({ ping, onNav, onNewProject, onOpenProject, onAskWi
         <AskBox onAsk={onAskWilly} ping={ping} />
 
         {/* Accesos */}
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 xl:grid-cols-4">
           {quick.map((q) => (
             <button key={q.title} type="button" onClick={q.onClick}
               className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition-transform hover:-translate-y-0.5 ${q.primary ? "border-primary bg-primary text-primary-foreground shadow-glow" : "border-border bg-card shadow-card hover:border-primary/40"}`}>
@@ -298,7 +298,7 @@ export function InicioScreen({ ping, onNav, onNewProject, onOpenProject, onAskWi
         </div>
 
         {/* Continúa · Atención · Trabajando */}
-        <div className="mt-4 grid gap-3 lg:grid-cols-[1.15fr_1fr_1fr]">
+        <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
           <Card>
             <CardHead title="Continúa donde lo dejaste" action={{ label: "Ver todos", onClick: () => onNav("proyectos") }} />
             {loading && !last && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Leyendo tus proyectos…</p>}
@@ -352,7 +352,7 @@ export function InicioScreen({ ping, onNav, onNewProject, onOpenProject, onAskWi
         </div>
 
         {/* Proyectos recientes · Actividad reciente */}
-        <div className="mt-3 grid gap-3 lg:grid-cols-[2fr_1fr]">
+        <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <Card>
             <CardHead title="Proyectos recientes" action={{ label: "Ver todos", onClick: () => onNav("proyectos") }} />
             <div className="grid gap-3 sm:grid-cols-3">
@@ -393,13 +393,13 @@ export function InicioScreen({ ping, onNav, onNewProject, onOpenProject, onAskWi
         {/* Herramientas rápidas */}
         <Card className="mt-3">
           <CardHead title="Herramientas rápidas" action={{ label: "Ver todas las herramientas", onClick: () => onNav("herramientas") }} />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="willy-quick-tools grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
             {tools.map((t) => (
               <button key={t.title} type="button"
                 onClick={t.onClick ?? (() => ping(`«${t.title}»: ${t.pending ?? "pendiente"}`))}
                 title={t.pending}
                 aria-describedby={t.pending ? `pendiente-${t.title}` : undefined}
-                className={`flex flex-col items-start gap-2 rounded-xl border p-3 text-left ${t.pending ? "border-dashed border-border opacity-80" : "border-border hover:border-primary/40"}`}>
+                className={`flex min-w-0 flex-col items-start gap-2 rounded-xl border p-3 text-left last:col-span-full last:flex-row last:flex-wrap last:items-center ${t.pending ? "border-dashed border-border opacity-80" : "border-border hover:border-primary/40"}`}>
                 <span className="grid size-9 place-items-center rounded-lg bg-accent text-primary"><t.icon className="size-[18px]" /></span>
                 <span className="text-sm font-bold">{t.title}</span>
                 <span className="text-[11px] leading-snug text-muted-foreground">{t.desc}</span>

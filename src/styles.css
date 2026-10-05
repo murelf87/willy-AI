@@ -270,3 +270,18 @@
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
 }
+
+/* Shared workspace sizing: every screen must shrink within its available pane. */
+[data-willy-app] { height: 100dvh; width: 100%; min-width: 0; }
+.willy-workspace { min-height: 0; min-width: 0; }
+.willy-workspace :where(.flex, .grid) > * { min-width: 0; }
+.willy-workspace :where(section, article, form, fieldset) { min-width: 0; }
+.willy-workspace :where(h1, h2, h3, p, dd, label, button) { overflow-wrap: anywhere; }
+.willy-workspace :where(pre) { max-width: 100%; overflow-x: auto; }
+.willy-workspace :where(img, video, canvas, iframe) { max-width: 100%; }
+.willy-workspace > :where(section, main) { min-width: 0; overscroll-behavior-y: contain; }
+.willy-header { padding-top: max(.375rem, env(safe-area-inset-top)); padding-bottom: .375rem; }
+@media (max-width: 639px) {
+  .willy-header { column-gap: .25rem; }
+  .willy-workspace [role="tablist"] { max-width: 100%; overflow-x: auto; }
+}

@@ -89,7 +89,7 @@ export function FrontShell(p: FrontShellProps) {
         onMenu={p.onOpenNav} onNav={p.onNav} dark={p.dark} toggleTheme={p.toggleTheme} ping={p.ping}
         settings={p.settings} updateSettings={p.updateSettings} generating={p.generating}
       />
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <div className="willy-workspace flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
         <Sidebar
           open={p.navOpen} onClose={p.onCloseNav} view={p.view} onNav={p.onNav}
           collapsed={p.collapsed} onToggle={p.onToggleCollapsed}
@@ -124,11 +124,11 @@ function TopBar({ onMenu, onNav, dark, toggleTheme, ping, settings, updateSettin
   settings: WorkspaceSettings; updateSettings: (patch: Partial<WorkspaceSettings>) => void; generating: boolean;
 }) {
   return (
-    <header className="safe-header z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-3 sm:px-4">
+    <header className="safe-header willy-header z-30 flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-border bg-card px-3 sm:px-4">
       <Button variant="ghost" size="icon" className="size-9 lg:hidden" onClick={onMenu} aria-label="Abrir menú"><MenuIcon className="size-5" /></Button>
       <button type="button" className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-accent/60 lg:hidden" onClick={() => onNav("inicio")} aria-label="Ir a Inicio">
         <LogoMark size={28} />
-        <span className="font-display text-base font-extrabold tracking-tight">WILLY AI</span>
+        <span className="hidden font-display text-base font-extrabold tracking-tight sm:inline">WILLY AI</span>
       </button>
       <div className="flex-1" />
       <Button
@@ -293,7 +293,7 @@ function Sidebar({ open, onClose, view, onNav, collapsed, onToggle }: {
 
   return (
     <aside className={`${open ? "flex" : "hidden"} safe-modal fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:static lg:z-auto lg:flex lg:w-[248px] lg:shrink-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none`} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <nav className="safe-menu flex h-full w-[280px] flex-col border-r border-border bg-card lg:w-[248px]" aria-label="Navegación principal">
+      <nav className="safe-menu flex h-full w-[280px] max-w-full flex-col border-r border-border bg-card lg:w-[248px]" aria-label="Navegación principal">
         <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-3 pb-2 pt-3">
           <div className="mb-3 flex items-center gap-2.5 px-1">
             <LogoMark size={36} />

@@ -336,14 +336,14 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
   // Súper IA ocupa toda la altura (rev21): con un proyecto abierto, su chat y su taller (vista previa grande) van lado a lado.
   if (view === "superia") {
     return (
-      <section className="flex min-h-0 flex-1 flex-col bg-background" aria-label={VIEW_TITLES[view]}>
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-background" aria-label={VIEW_TITLES[view]}>
         <SuperIAView />
       </section>
     );
   }
 
   return (
-    <section className="min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-6" aria-label={VIEW_TITLES[view]}>
+    <section className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background p-4 sm:p-6" aria-label={VIEW_TITLES[view]}>
       <div className="mx-auto w-full max-w-5xl">
         {view === "inicio" && (
           <>
