@@ -30,6 +30,7 @@ export const KIND_CLOUD_ORDER: Record<string, string[]> = {
   web:           ["openrouter", "gemini", "xai", "nvidia", "mistral", "groq", "cohere"],
   datos:         ["gemini", "openrouter", "xai", "nvidia", "mistral", "cohere", "groq"],
   razonamiento:  ["openrouter", "xai", "nvidia", "gemini", "mistral", "cohere", "groq"],
+  juridico:      ["openai", "gemini", "openrouter", "mistral", "cohere", "xai", "nvidia", "groq"],
   investigacion: ["gemini", "openrouter", "xai", "cohere", "nvidia", "mistral", "groq"],
   escritura:     ["gemini", "openrouter", "xai", "mistral", "cohere", "nvidia", "groq"],
   traduccion:    ["gemini", "mistral", "openrouter", "xai", "cohere", "groq", "nvidia"],
