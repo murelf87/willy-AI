@@ -243,7 +243,7 @@ export function publicStatus(state: EnginesFile, now: number, providers: Provide
         hasKey: !!engine?.key,
         last4: engine?.key ? engine.key.slice(-4) : "",
         enabled: engine?.enabled !== false,
-        model: engine?.model ?? "",
+        model: engine?.alt && engine.alt.until > now ? engine.alt.model : (engine?.model ?? ""),
         available: av.ok,
         reason: canUse && state.master ? av.reason : canUse ? "" : engine?.key ? "Desactivado." : "",
         cooldownUntil: engine && now < engine.cooldownUntil ? engine.cooldownUntil : 0,
@@ -532,7 +532,7 @@ async function setAlt(dir: string, id: string, model: string, until: number): Pr
 }
 
 /** Una petición de conversación a un motor. Aplica las esperas y los límites, y anota el resultado. */
-export async function callEngine(env: Env, id: string, messages: ChatMessage[], opts: { maxTokens?: number; temperature?: number; compact?: ChatMessage[] } = {}): Promise<CallResult> {
+export async function callEngine(env: Env, id: string, messages: ChatMessage[], opts: { maxTokens?: number; temperature?: number; compact?: ChatMessage[]; avoidModels?: string[] } = {}): Promise<CallResult> {
   const now = (env.now ?? Date.now)();
   const provider = (env.providers ?? PROVIDERS).find((p) => p.id === id);
   if (!provider) return { ok: false, kind: "other", error: "Motor desconocido." };
@@ -542,12 +542,14 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   if (!av.ok) return { ok: false, kind: "unavailable", error: av.reason };
   const engine = state.engines[id]!;
   const key = engine.key!;
+  const avoided = new Set((opts.avoidModels ?? []).map((value) => value.replace(/^models\//, "")));
 
-  // Si el modelo elegido estaba saturado hace poco, sigue respondiendo el que lo sustituyó (hasta que caduque).
-  const altActive = engine.alt && engine.alt.until > now ? engine.alt.model : undefined;
+  // Si el modelo elegido estaba saturado hace poco, sigue respondiendo el que lo sustituyó (hasta que caduque),
+  // salvo que ESTA mejora ya haya demostrado que ese modelo no sirve para su trabajo.
+  const altActive = engine.alt && engine.alt.until > now && !avoided.has(engine.alt.model.replace(/^models\//, "")) ? engine.alt.model : undefined;
   let model = altActive ?? engine.model;
-  // Nunca volver a escoger automáticamente un modelo que ya respondió vacío/no disponible.
-  if (model && (engine.bad ?? []).includes(model.replace(/^models\//, ""))) model = undefined;
+  // Nunca volver a escoger automáticamente un modelo que ya respondió vacío/no disponible o que este trabajo ha descartado.
+  if (model && ((engine.bad ?? []).includes(model.replace(/^models\//, "")) || avoided.has(model.replace(/^models\//, "")))) model = undefined;
   if (!model) {
     const listed = await listModels(provider, key, fetchImpl);
     if (!listed.ok) {
@@ -555,7 +557,7 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
       await markFailure(env.dir, id, failure, now, false);
       return { ok: false, kind: failure.kind, error: `${failure.message} (${scrub(listed.body, key)})`, retryAt: now + failure.cooldownMs };
     }
-    const picked = pickModel(provider, listed.ids.filter((m) => !(engine.bad ?? []).includes(m.replace(/^models\//, ""))));
+    const picked = pickModel(provider, listed.ids.filter((m) => !(engine.bad ?? []).includes(m.replace(/^models\//, "")) && !avoided.has(m.replace(/^models\//, ""))));
     if (!picked) {
       const failure: Failure = { kind: "model", cooldownMs: 10 * 60_000, message: "No hay ningún modelo de conversación disponible con esta clave." };
       await markFailure(env.dir, id, failure, now, false);
@@ -645,7 +647,7 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
     const first = { model, status, body, retryAfter };
     const listed = await listModels(provider, key, fetchImpl);
     const maxAlternatives = provider.id === "openrouter" ? 5 : 2;
-    const others = listed.ok ? rankModels(provider, listed.ids).filter((m) => m !== first.model && !(engine.bad ?? []).includes(m)).slice(0, maxAlternatives) : [];
+    const others = listed.ok ? rankModels(provider, listed.ids).filter((m) => m !== first.model && !(engine.bad ?? []).includes(m) && !avoided.has(m.replace(/^models\//, ""))).slice(0, maxAlternatives) : [];
     for (const other of others) {
       model = other;
       await request(wanted);
@@ -716,7 +718,7 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   // responde otro modelo del mismo proveedor, sin gastar más tiempo ahora. Si ese también tarda, se pasa al siguiente.
   if (status === 0 && /timeout|abort/i.test(body)) {
     const listed = await listModels(provider, key, fetchImpl).catch(() => ({ ok: false as const, status: 0, body: "", retryAfter: null }));
-    const next = listed.ok ? rankModels(provider, listed.ids).find((m) => m !== model && m !== altActive && !(engine.bad ?? []).includes(m)) : undefined;
+    const next = listed.ok ? rankModels(provider, listed.ids).find((m) => m !== model && m !== altActive && !(engine.bad ?? []).includes(m) && !avoided.has(m.replace(/^models\//, ""))) : undefined;
     if (next) await setAlt(env.dir, id, next, now + ALT_MS);
   }
   void logCall(env.dir, { at: new Date(now).toISOString(), id, model, promptTokens, maxTokens: wanted, ms: Date.now() - startedAt, ok: false, status, kind: failure.kind, error: scrub(body, key).slice(0, 200), tries });
@@ -744,6 +746,7 @@ export async function testEngine(env: Env, id: string): Promise<{ ok: true; mode
     fresh.engines[id]!.model = model;
     fresh.engines[id]!.cooldownUntil = 0;
     fresh.engines[id]!.reason = "";
+    delete fresh.engines[id]!.alt;
     await saveState(env.dir, fresh);
   }
   return { ok: true, model, count: listed.ids.length };
@@ -779,6 +782,9 @@ export async function engineAction(dir: string, body: Body, env: Partial<Env> = 
       if (key.length < 10 || key.length > 400 || /\s/.test(key)) return { ok: false, error: "La clave no parece válida (no debe llevar espacios)." };
       state.engines[id] = { ...blank(), ...(state.engines[id] ?? {}), key, enabled: true, cooldownUntil: 0, reason: "" };
       delete state.engines[id]!.model;
+      delete state.engines[id]!.alt;
+      delete state.engines[id]!.bad;
+      delete state.engines[id]!.maxRequest;
       await saveState(dir, state);
       return { ok: true, status: publicStatus(state, now, providers) };
     }
@@ -810,7 +816,10 @@ export async function engineAction(dir: string, body: Body, env: Partial<Env> = 
     const compact: ChatMessage[] = rawCompact
       .map((m) => ({ role: (m.role === "system" || m.role === "assistant" ? m.role : "user") as ChatMessage["role"], content: String(m.content ?? "") }))
       .filter((m) => m.content.trim());
-    const result = await callEngine(full, id, messages, { maxTokens, ...(temperature !== undefined ? { temperature } : {}), ...(compact.length ? { compact } : {}) });
+    const avoidModels = Array.isArray(body["avoidModels"])
+      ? (body["avoidModels"] as unknown[]).map((value) => String(value ?? "").trim()).filter(Boolean).slice(0, 16)
+      : [];
+    const result = await callEngine(full, id, messages, { maxTokens, ...(temperature !== undefined ? { temperature } : {}), ...(compact.length ? { compact } : {}), ...(avoidModels.length ? { avoidModels } : {}) });
     return { ...result };
   }
   return { ok: false, error: "Acción de motores desconocida." };

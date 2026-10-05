@@ -229,10 +229,10 @@ ${input.sourceContext}`;
 }
 
 /** Un motor de la nube como si fuera un modelo más: mismo resultado {ok, data | error}. */
-async function callCloud(id: string, messages: ChatMsg[]) {
+async function callCloud(id: string, messages: ChatMsg[], avoidModels: string[] = []) {
   // OpenAI/Codex puede entregar parches más largos sin obligar a trocear una mejora grande.
   const maxTokens = id === "openai" ? 10_000 : 6_000;
-  const res = await cloudChat(id, messages.map((entry) => ({ role: entry.role, content: entry.content })), maxTokens);
+  const res = await cloudChat(id, messages.map((entry) => ({ role: entry.role, content: entry.content })), maxTokens, undefined, undefined, avoidModels);
   return res;
 }
 
@@ -509,8 +509,16 @@ async function runImprovement(
   const examples = examplesSection(similarLessons(readLessons(), item.request, 2));
   let lastReply = "";
   let lastFiles: GeneratedFile[] = [];
-  // Modelos que fallaron por el motor (no por su código): no se vuelven a probar.
+  // Motores descartados por fallo del proveedor y modelos concretos que ESTE trabajo ya ha demostrado que no sirven.
   const unusable = new Set<string>();
+  const avoidedCloudModels = new Map<string, Set<string>>();
+  const candidateFailures = new Map<string, number>();
+  const avoidCloudModel = (providerId: string, modelName: string) => {
+    const clean = modelName.replace(/^models\//, "");
+    const set = avoidedCloudModels.get(providerId) ?? new Set<string>();
+    set.add(clean);
+    avoidedCloudModels.set(providerId, set);
+  };
 
   let attemptsMade = 0;
   const usedEngines = new Set<string>();
@@ -548,8 +556,9 @@ async function runImprovement(
     // Las reglas que el dueño ha ido enseñando en los chats también valen aquí (son las mismas para todas las IA).
     const rules = [base.instructions, lessonsSection(ownerLessons())].filter(Boolean).join("\n\n");
     const stepMessages = buildMessages({ instructions: rules, item, sourceContext, sourcePaths, attempt: attempt + 1, diagnosis, history: journal.slice(-4).join("\n"), examples });
-    if (step.kind === "cloud") update(bandStart, label, `Esperando la respuesta de ${model}…`);
-    let result = step.kind === "cloud" ? await callCloud(step.id, stepMessages) : await aiService.chat({
+    const avoidModels = step.kind === "cloud" ? [...(avoidedCloudModels.get(step.id) ?? [])] : [];
+    if (step.kind === "cloud") update(bandStart, label, `Esperando la respuesta de ${model}${avoidModels.length ? ` · evitando ${avoidModels.length} modelo(s) que ya fallaron` : ""}…`);
+    let result = step.kind === "cloud" ? await callCloud(step.id, stepMessages, avoidModels) : await aiService.chat({
       endpoint: engine.endpoint,
       model: step.model,
       maxOutputTokens: 6_000,
@@ -574,6 +583,11 @@ async function runImprovement(
       continue;
     }
 
+    let effectiveModel = step.kind === "cloud" ? result.model : step.model;
+    let effectiveLabel = step.kind === "cloud" ? `${step.label.split(" · ")[0]} · ${effectiveModel}` : step.label;
+    lastLabel = effectiveLabel;
+    usedEngines.add(effectiveLabel);
+
     let answer = result.data;
     let files = extractFiles(answer, sourcePaths);
     let patches = extractPatches(answer, sourcePaths);
@@ -589,13 +603,17 @@ async function runImprovement(
           role: "user",
           content: `Reformula TU MISMA solución sin explicaciones. Devuelve SOLO bloques SEARCH/REPLACE o archivos completos. La PRIMERA línea de cada bloque debe llevar una ruta literal. Para un parche: \`\`\`replace RUTA. Para archivo completo: \`\`\`lenguaje RUTA. Elige RUTA EXACTAMENTE de esta lista: ${sourcePaths.join(", ")}. Después usa <<<<<<< SEARCH / ======= / >>>>>>> REPLACE y copia SEARCH literalmente del código recibido. Si solo hay una ruta, úsala obligatoriamente. No cambies la solución: solo su formato.`,
         },
-      ]);
+      ], avoidModels);
       if (!repaired.ok) {
         if (!handleFailure(step, repaired, bandStart + 13)) return;
         continue;
       }
       if (repaired.ok) {
         result = repaired;
+        effectiveModel = repaired.model;
+        effectiveLabel = `${step.label.split(" · ")[0]} · ${effectiveModel}`;
+        lastLabel = effectiveLabel;
+        usedEngines.add(effectiveLabel);
         answer = repaired.data;
         files = extractFiles(answer, sourcePaths);
         patches = extractPatches(answer, sourcePaths);
@@ -606,28 +624,45 @@ async function runImprovement(
     // Primero se buscan archivos y sustituciones; solo si no hay ninguno se valora si fue una negativa.
     // (Antes se miraba el texto entero y el propio código de WILLY, que contiene frases como «no puedo», se tomaba por una negativa.)
     if (!files.length && !patches.length) {
-      if (looksLikeRefusal(answer)) {
-        diagnosis = `El modelo ${model} intentó negarse en vez de entregar código. Entrega directamente los archivos o las sustituciones.`;
-        update(bandStart + 13, "Revisando la respuesta", `WILLY continúa con ${model} y el diagnóstico del intento anterior…`);
+      const refusal = looksLikeRefusal(answer);
+      diagnosis = refusal
+        ? `El modelo ${effectiveModel} intentó negarse en vez de entregar código. Entrega directamente los archivos o las sustituciones.`
+        : `El modelo ${effectiveModel} no marcó ninguna ruta o dejó el bloque cortado. Cada bloque debe abrir con tres comillas, el lenguaje y la ruta exacta, o usar \`\`\`replace ruta con SEARCH/REPLACE cerrado con >>>>>>> REPLACE.`;
+      if (step.kind === "cloud") {
+        avoidCloudModel(step.id, effectiveModel);
+        update(bandStart + 13, "Probando otro modelo", `${effectiveModel} respondió dos veces sin un cambio aplicable. WILLY lo evita solo para esta mejora y prueba otro modelo del mismo proveedor.`);
       } else {
-        diagnosis = `El modelo ${model} no marcó ninguna ruta o dejó el bloque cortado. Cada bloque debe abrir con tres comillas, el lenguaje y la ruta exacta, o usar \`\`\`replace ruta con SEARCH/REPLACE cerrado con >>>>>>> REPLACE.`;
-        update(bandStart + 13, "Reintentando", "La respuesta no traía archivos con su ruta. WILLY reintenta con instrucciones más estrictas…");
+        update(bandStart + 13, refusal ? "Revisando la respuesta" : "Reintentando", `WILLY continúa con ${effectiveModel} y el diagnóstico del intento anterior…`);
       }
       continue;
     }
     lastFiles = files;
 
-    update(bandStart + 14, "Guardando y comprobando", `Aplicando ${files.length + patches.length} cambio(s) de ${model} en una versión candidata aparte…`, null);
-    const applied = await applyChanges(item.request, files, patches, checks, (info) => update(Math.min(bandStart + 17, bandStart + 14 + Math.floor(info.n / 3)), info.label, `${model}: ${info.detail}`));
+    update(bandStart + 14, "Guardando y comprobando", `Aplicando ${files.length + patches.length} cambio(s) de ${effectiveLabel} en una versión candidata aparte…`, null);
+    const applied = await applyChanges(item.request, files, patches, checks, (info) => update(Math.min(bandStart + 17, bandStart + 14 + Math.floor(info.n / 3)), info.label, `${effectiveLabel}: ${info.detail}`));
 
     if (!applied.ok) {
       diagnosis = `Los cambios se revirtieron porque la comprobación falló:\n${applied.error}`;
-      // Una comprobación de resultados fallida es la pista más valiosa para el siguiente motor: dice qué NO hizo lo pedido.
-      update(bandStart + 17, "Autorreparando", "La versión candidata no pasó las comprobaciones (la que funciona no se tocó). WILLY vuelve a intentarlo con el error detectado…");
+      const failureKey = step.kind === "cloud" ? `${step.id}:${effectiveModel}` : step.key;
+      const failures = (candidateFailures.get(failureKey) ?? 0) + 1;
+      candidateFailures.set(failureKey, failures);
+      // La primera candidata fallida vuelve a la MISMA IA con el diagnóstico. Si falla una segunda vez,
+      // se cambia de modelo para no quemar todos los intentos repitiendo el mismo error.
+      if (failures >= 2) {
+        if (step.kind === "cloud") {
+          avoidCloudModel(step.id, effectiveModel);
+          update(bandStart + 17, "Probando otro modelo", `${effectiveModel} ya falló dos candidatas. WILLY conserva el diagnóstico y prueba otro modelo del mismo proveedor.`);
+        } else {
+          unusable.add(step.key);
+          update(bandStart + 17, "Cambiando de modelo", `${effectiveModel} ya falló dos candidatas. WILLY conserva el diagnóstico y prueba el siguiente modelo local.`);
+        }
+      } else {
+        update(bandStart + 17, "Autorreparando", `La candidata de ${effectiveModel} no pasó las comprobaciones. La versión buena no se tocó; la misma IA recibe el error real para corregirlo.`);
+      }
       continue;
     }
 
-    await finishSuccess({ item, files, patches, applied, label: model, attempts: attempt + 1, started, ping });
+    await finishSuccess({ item, files, patches, applied, label: effectiveLabel, attempts: attempt + 1, started, ping });
     return;
   }
 
