@@ -633,7 +633,7 @@ async function runImprovement(
       continue;
     }
 
-    let effectiveModel = step.kind === "cloud" ? result.model : step.model;
+    let effectiveModel = step.kind === "cloud" && "model" in result && typeof result.model === "string" ? result.model : step.model;
     if (step.kind === "cloud" && !pinnedCloudModels.has(step.id)) pinnedCloudModels.set(step.id, effectiveModel);
     let effectiveLabel = step.kind === "cloud" ? `${step.label.split(" · ")[0]} · ${effectiveModel}` : step.label;
     lastLabel = effectiveLabel;
