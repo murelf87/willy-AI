@@ -2,7 +2,7 @@
 // favoritas y recientes. Cada tarjeta abre la pantalla REAL de esa función (o deja el encargo escrito en el Chat); lo que
 // todavía no existe se enseña como «no disponible» con el motivo, sin fingir. El registro está en tools-registry.ts.
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, ChevronLeft, Clock3, LayoutGrid, Search, Star, X } from "lucide-react";
+import { ArrowRight, ChevronLeft, Clock3, LayoutGrid, Scale, Search, Star, X } from "lucide-react";
 import { DataSourcesCard } from "@/components/data-sources-card";
 import type { View } from "@/components/app-sections";
 import { saveDraft, usePersistentState } from "@/lib/persistent-state";
@@ -93,6 +93,7 @@ export function HerramientasScreen({ ping, onNav, onNewProject, onOpenChat }: He
   const category = filter !== "todas" && filter !== "favoritas" ? CATEGORIES.find((c) => c.id === filter) ?? null : null;
   const listed: Tool[] = searching ? matches : filter === "favoritas" ? favoriteTools : category ? toolsOf(category.id) : [];
   const chips: Array<[Filter, string]> = [["todas", "Todas"], ...CATEGORIES.map((c): [Filter, string] => [c.id, c.short])];
+  const legalTool = toolById("juridico");
 
   return (
     <section className="scroll-thin min-h-0 min-w-0 flex-1 overflow-y-auto bg-background" aria-label="Herramientas">
@@ -126,6 +127,26 @@ export function HerramientasScreen({ ping, onNav, onNewProject, onOpenChat }: He
             </button>
           ))}
         </div>
+
+        {!searching && filter === "todas" && legalTool && (
+          <div className="mb-5 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card to-card p-4 shadow-card sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+                <Scale className="size-6" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-extrabold">Análisis Jurídico · Legal OS</h2>
+                  <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">PROFESIONAL</span>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Expedientes, documentos, BOE/BOJA/UE, jurisprudencia oficial, prueba, contradicciones, plazos, estrategia procesal y redacción jurídica trazable.</p>
+              </div>
+              <button type="button" onClick={() => run(legalTool)} className="flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-glow hover:opacity-95 sm:w-auto">
+                <Scale className="size-4" />Abrir Legal OS
+              </button>
+            </div>
+          </div>
+        )}
 
         {sourcesOpen && (
           <div className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-card">

@@ -12,7 +12,7 @@ import { planChain } from "@/services/orchestrator";
 import { fastCoderFirst } from "@/lib/capabilities";
 import { examplesSection, readLessons, similarLessons, taskKind, upsertLesson, writeLessons } from "@/lib/learning";
 import { deriveChecks, mergeChecks, hasChecks, summarize, type Checks, type EvidenceReport } from "@/lib/evidence";
-import { cloudChat, engineStatus } from "@/lib/engines-client";
+import { cloudChat, engineStatus, type CallResult } from "@/lib/engines-client";
 import { attemptStep, buildSequence, maxAttemptsFor, shouldRelay } from "@/lib/engine-plan";
 import { APP_VERSION } from "@/lib/version";
 import { readSelfBuild, writeSelfBuild, type WillyImprovement } from "@/lib/self-build-store";
@@ -231,7 +231,7 @@ ${input.sourceContext}`;
 }
 
 /** Un motor de la nube como si fuera un modelo más: mismo resultado {ok, data | error}. */
-async function callCloud(id: string, messages: ChatMsg[], avoidModels: string[] = [], preferredModel?: string, strictModel = false) {
+async function callCloud(id: string, messages: ChatMsg[], avoidModels: string[] = [], preferredModel?: string, strictModel = false): Promise<CallResult> {
   // OpenAI/Codex puede entregar parches más largos sin obligar a trocear una mejora grande.
   const maxTokens = id === "openai" ? 10_000 : 6_000;
   return cloudChat(
@@ -633,8 +633,15 @@ async function runImprovement(
       continue;
     }
 
-    let effectiveModel = step.kind === "cloud" ? result.model : step.model;
-    if (step.kind === "cloud" && !pinnedCloudModels.has(step.id)) pinnedCloudModels.set(step.id, effectiveModel);
+    let effectiveModel: string;
+    if (step.kind === "cloud") {
+      effectiveModel = "model" in result && typeof result.model === "string"
+        ? result.model
+        : (pinnedCloudModels.get(step.id) ?? step.label.split(" · ").at(-1) ?? step.id);
+      if (!pinnedCloudModels.has(step.id)) pinnedCloudModels.set(step.id, effectiveModel);
+    } else {
+      effectiveModel = step.model;
+    }
     let effectiveLabel = step.kind === "cloud" ? `${step.label.split(" · ")[0]} · ${effectiveModel}` : step.label;
     lastLabel = effectiveLabel;
     usedEngines.add(effectiveLabel);

@@ -4,7 +4,7 @@ import { useLocalModels } from "@/lib/use-local-models";
 import { useEscapeToClose } from "@/hooks/use-escape-to-close";
 import type { GeneratedFile } from "@/lib/ai-standard";
 import {
-  Check, Clock, Database, Download, FolderKanban, Gauge, LayoutGrid, LogOut, Pencil, Plus, RotateCcw, Search, Server, Settings, Terminal, Wrench, X, Zap, ArrowRight, FlaskConical, Paperclip, Copy,
+  Check, Clock, Database, Download, FolderKanban, Gauge, LayoutGrid, LogOut, Pencil, Plus, RotateCcw, Scale, Search, Server, Settings, Terminal, Wrench, X, Zap, ArrowRight, FlaskConical, Paperclip, Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClarifyButton } from "@/components/clarify-button";
@@ -344,6 +344,16 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
     );
   }
 
+  if (view === "juridico") {
+    return (
+      <section className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background p-2 sm:p-4 lg:p-5" aria-label={VIEW_TITLES[view]}>
+        <div className="mx-auto w-full max-w-[1600px] min-w-0">
+          <JuridicoView ping={ping} />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background p-4 sm:p-6" aria-label={VIEW_TITLES[view]}>
       <div className="mx-auto w-full max-w-5xl">
@@ -386,7 +396,21 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
 
         {view === "herramientas" && (
           <>
-            <Head title="Herramientas" desc="Fuentes de datos que tu IA puede consultar cuando le preguntas en el Chat." />
+            <Head title="Herramientas" desc="Fuentes, utilidades y espacios especializados de WILLY." />
+            <Card className="mb-4 overflow-hidden border-primary/25 bg-gradient-to-br from-primary/10 via-card to-card p-4 sm:p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+                  <Scale className="size-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold">Análisis Jurídico · Legal OS</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Expedientes, documentos, normativa oficial, jurisprudencia, prueba, contradicciones, estrategia procesal y redacción jurídica.</p>
+                </div>
+                <Button className="w-full gap-2 sm:w-auto" onClick={() => openView("juridico")}>
+                  <Scale className="size-4" />Abrir Legal OS
+                </Button>
+              </div>
+            </Card>
             <DataSourcesCard ping={ping} />
           </>
         )}
@@ -433,8 +457,6 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
         {view === "extras" && <ExtrasView />}
         {view === "libros" && <BookView />}
         {view === "demo" && <DemoView ping={ping} />}
-        {view === "juridico" && <JuridicoView ping={ping} />}
-
         {view === "cuenta" && <AccountView ping={ping} onLogout={onLogout} agentCount={settings.agents.length} />}
 
       </div>

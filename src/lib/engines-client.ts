@@ -1,4 +1,5 @@
 import type { CallResult, ChatMessage, PublicStatus } from "@/lib/engines-server";
+export type { CallResult } from "@/lib/engines-server";
 
 // Cliente de los motores en la nube. Las claves NO pasan por aquí: se guardan y se usan en el servidor de tu equipo.
 

@@ -43,7 +43,7 @@ async function tryCloud(messages: ChatMsg[], root: string, kind?: string): Promi
         action: "cloud-chat",
         id,
         messages,
-        maxTokens: 4000,
+        maxTokens: kind === "juridico" ? 9000 : 4000,
       })) as { ok?: boolean; data?: string; model?: string; error?: string };
       if (result.ok && result.data) {
         return { content: result.data.trim(), model: `${id} · ${result.model ?? id}` };
@@ -70,17 +70,27 @@ export const Route = createFileRoute("/api/chat")({
         const messages: ChatMsg[] = Array.isArray(body.messages) ? body.messages : [];
         if (!messages.length) return Response.json({ error: "Falta el campo messages." }, { status: 400 });
 
-        // 1. Intentar Ollama local
+        const root = process.env["WILLY_ROOT"] ?? process.cwd();
+        const cloudFirst = body.kind === "juridico";
+
+        // Derecho: prioriza el motor externo de mayor capacidad si existe; el resto conserva local-first.
+        if (cloudFirst) {
+          try {
+            const cloud = await tryCloud(messages, root, body.kind);
+            if (cloud) return Response.json({ content: cloud.content, model: cloud.model }, { headers: { "Cache-Control": "no-store" } });
+          } catch { /* continúa con local */ }
+        }
+
         const local = await tryOllama(messages);
         if (local) return Response.json({ content: local, model: "local" }, { headers: { "Cache-Control": "no-store" } });
 
-        // 2. Fallback: motores de nube en CHAT_ORDER
-        try {
-          const root = process.env["WILLY_ROOT"] ?? process.cwd();
-          const cloud = await tryCloud(messages, root, body.kind);
-          if (cloud) return Response.json({ content: cloud.content, model: cloud.model }, { headers: { "Cache-Control": "no-store" } });
-        } catch {
-          // ningún motor de nube disponible
+        if (!cloudFirst) {
+          try {
+            const cloud = await tryCloud(messages, root, body.kind);
+            if (cloud) return Response.json({ content: cloud.content, model: cloud.model }, { headers: { "Cache-Control": "no-store" } });
+          } catch {
+            // ningún motor de nube disponible
+          }
         }
 
         return Response.json({ error: "No hay IA disponible ahora mismo. Comprueba que Ollama está arrancado (IA de tu equipo) o que tienes algún motor de nube configurado." }, { status: 503 });

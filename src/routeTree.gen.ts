@@ -22,9 +22,11 @@ import { Route as ApiEngineRouteImport } from './routes/api/engine'
 import { Route as ApiFabricaRouteImport } from './routes/api/fabrica'
 import { Route as ApiFetchUrlRouteImport } from './routes/api/fetch-url'
 import { Route as ApiIphoneRouteImport } from './routes/api/iphone'
+import { Route as ApiJuridicoRouteImport } from './routes/api/juridico'
 import { Route as ApiLanRouteImport } from './routes/api/lan'
 import { Route as ApiLocalAiRouteImport } from './routes/api/local-ai'
 import { Route as ApiProyectosRouteImport } from './routes/api/proyectos'
+import { Route as ApiRemoteAccessRouteImport } from './routes/api/remote-access'
 import { Route as ApiRemoteStatusRouteImport } from './routes/api/remote-status'
 import { Route as ApiSelfAuditRouteImport } from './routes/api/self-audit'
 import { Route as ApiSelfBuildRouteImport } from './routes/api/self-build'
@@ -98,6 +100,11 @@ const ApiIphoneRoute = ApiIphoneRouteImport.update({
   path: '/api/iphone',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiJuridicoRoute = ApiJuridicoRouteImport.update({
+  id: '/api/juridico',
+  path: '/api/juridico',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLanRoute = ApiLanRouteImport.update({
   id: '/api/lan',
   path: '/api/lan',
@@ -111,6 +118,11 @@ const ApiLocalAiRoute = ApiLocalAiRouteImport.update({
 const ApiProyectosRoute = ApiProyectosRouteImport.update({
   id: '/api/proyectos',
   path: '/api/proyectos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRemoteAccessRoute = ApiRemoteAccessRouteImport.update({
+  id: '/api/remote-access',
+  path: '/api/remote-access',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiRemoteStatusRoute = ApiRemoteStatusRouteImport.update({
@@ -163,9 +175,11 @@ export interface FileRoutesByFullPath {
   '/api/fabrica': typeof ApiFabricaRoute
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
+  '/api/juridico': typeof ApiJuridicoRoute
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
+  '/api/remote-access': typeof ApiRemoteAccessRoute
   '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
@@ -188,9 +202,11 @@ export interface FileRoutesByTo {
   '/api/fabrica': typeof ApiFabricaRoute
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
+  '/api/juridico': typeof ApiJuridicoRoute
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
+  '/api/remote-access': typeof ApiRemoteAccessRoute
   '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
@@ -214,9 +230,11 @@ export interface FileRoutesById {
   '/api/fabrica': typeof ApiFabricaRoute
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
+  '/api/juridico': typeof ApiJuridicoRoute
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/proyectos': typeof ApiProyectosRoute
+  '/api/remote-access': typeof ApiRemoteAccessRoute
   '/api/remote-status': typeof ApiRemoteStatusRoute
   '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
@@ -241,9 +259,11 @@ export interface FileRouteTypes {
     | '/api/fabrica'
     | '/api/fetch-url'
     | '/api/iphone'
+    | '/api/juridico'
     | '/api/lan'
     | '/api/local-ai'
     | '/api/proyectos'
+    | '/api/remote-access'
     | '/api/remote-status'
     | '/api/self-audit'
     | '/api/self-build'
@@ -266,9 +286,11 @@ export interface FileRouteTypes {
     | '/api/fabrica'
     | '/api/fetch-url'
     | '/api/iphone'
+    | '/api/juridico'
     | '/api/lan'
     | '/api/local-ai'
     | '/api/proyectos'
+    | '/api/remote-access'
     | '/api/remote-status'
     | '/api/self-audit'
     | '/api/self-build'
@@ -291,9 +313,11 @@ export interface FileRouteTypes {
     | '/api/fabrica'
     | '/api/fetch-url'
     | '/api/iphone'
+    | '/api/juridico'
     | '/api/lan'
     | '/api/local-ai'
     | '/api/proyectos'
+    | '/api/remote-access'
     | '/api/remote-status'
     | '/api/self-audit'
     | '/api/self-build'
@@ -317,9 +341,11 @@ export interface RootRouteChildren {
   ApiFabricaRoute: typeof ApiFabricaRoute
   ApiFetchUrlRoute: typeof ApiFetchUrlRoute
   ApiIphoneRoute: typeof ApiIphoneRoute
+  ApiJuridicoRoute: typeof ApiJuridicoRoute
   ApiLanRoute: typeof ApiLanRoute
   ApiLocalAiRoute: typeof ApiLocalAiRoute
   ApiProyectosRoute: typeof ApiProyectosRoute
+  ApiRemoteAccessRoute: typeof ApiRemoteAccessRoute
   ApiRemoteStatusRoute: typeof ApiRemoteStatusRoute
   ApiSelfAuditRoute: typeof ApiSelfAuditRoute
   ApiSelfBuildRoute: typeof ApiSelfBuildRoute
@@ -422,6 +448,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIphoneRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/juridico': {
+      id: '/api/juridico'
+      path: '/api/juridico'
+      fullPath: '/api/juridico'
+      preLoaderRoute: typeof ApiJuridicoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/lan': {
       id: '/api/lan'
       path: '/api/lan'
@@ -441,6 +474,13 @@ declare module '@tanstack/react-router' {
       path: '/api/proyectos'
       fullPath: '/api/proyectos'
       preLoaderRoute: typeof ApiProyectosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/remote-access': {
+      id: '/api/remote-access'
+      path: '/api/remote-access'
+      fullPath: '/api/remote-access'
+      preLoaderRoute: typeof ApiRemoteAccessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/remote-status': {
@@ -509,9 +549,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFabricaRoute: ApiFabricaRoute,
   ApiFetchUrlRoute: ApiFetchUrlRoute,
   ApiIphoneRoute: ApiIphoneRoute,
+  ApiJuridicoRoute: ApiJuridicoRoute,
   ApiLanRoute: ApiLanRoute,
   ApiLocalAiRoute: ApiLocalAiRoute,
   ApiProyectosRoute: ApiProyectosRoute,
+  ApiRemoteAccessRoute: ApiRemoteAccessRoute,
   ApiRemoteStatusRoute: ApiRemoteStatusRoute,
   ApiSelfAuditRoute: ApiSelfAuditRoute,
   ApiSelfBuildRoute: ApiSelfBuildRoute,
