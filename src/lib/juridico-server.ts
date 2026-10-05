@@ -15,7 +15,16 @@ export type EuLegalResult = {
   type: "legislation" | "case-law"; url: string;
 };
 type SparqlBinding = { value?: string };
-type SparqlRow = Record<string, SparqlBinding>;
+type SparqlRow = { w?: SparqlBinding; ecli?: SparqlBinding; title?: SparqlBinding; datedoc?: SparqlBinding; celex?: SparqlBinding };
+type BoeRow = {
+  identificador?: unknown; titulo?: unknown; rango?: unknown; numero_oficial?: unknown; departamento?: unknown;
+  fecha_publicacion?: unknown; fecha_vigencia?: unknown; vigencia_agotada?: unknown;
+  estado_consolidacion?: unknown; url_html_consolidada?: unknown; url_eli?: unknown;
+};
+type BojaRow = {
+  id?: unknown; date?: unknown; organisation?: unknown; titleSec?: unknown; summary?: unknown; number?: unknown;
+  summaryNoHtml?: unknown; bodyNoHtml?: unknown; body?: unknown; pdf?: Array<{ publicUrl?: unknown }>;
+};
 
 const s = (value: unknown) => typeof value === "string" ? value.trim() : String(value ?? "").trim();
 const nestedText = (value: unknown) => value && typeof value === "object" && "texto" in value
@@ -47,7 +56,7 @@ export async function searchBoeLegislation(query: string, limit = 8): Promise<Bo
   const response = await fetch(url,{headers:{Accept:"application/json","User-Agent":"WILLY-AI-Juridico/1.0"},signal:AbortSignal.timeout(15000)});
   if (!response.ok) throw new Error(`BOE respondió ${response.status}.`);
   const json = await response.json() as { data?: unknown };
-  const data = Array.isArray(json.data) ? json.data as Array<Record<string,unknown>> : [];
+  const data = Array.isArray(json.data) ? json.data as BoeRow[] : [];
   return data.map((item)=>({
     id:s(item.identificador), title:s(item.titulo), rank:nestedText(item.rango), number:s(item.numero_oficial),
     department:nestedText(item.departamento), publicationDate:s(item.fecha_publicacion), effectiveDate:s(item.fecha_vigencia),
@@ -71,14 +80,14 @@ export async function searchBoja(query: string, limit = 10): Promise<BojaResult[
   url.searchParams.set("page","0"); url.searchParams.set("general",clean); url.searchParams.set("general_search_like","true");
   const response=await fetch(url,{headers:{Accept:"application/json","User-Agent":"WILLY-AI-Juridico/1.0"},signal:AbortSignal.timeout(20000)});
   if(!response.ok) throw new Error(`BOJA respondió ${response.status}.`);
-  const json=await response.json() as {results?:Array<Record<string,unknown>>};
+  const json=await response.json() as {results?:BojaRow[]};
   return (json.results??[]).map((row)=>({id:s(row.id),date:s(row.date),organisation:s(row.organisation),section:s(row.titleSec),summary:stripHtml(s(row.summary)),number:s(row.number),url:"https://juntadeandalucia.es/eboja/"})).filter((x)=>x.id&&x.summary);
 }
 export async function getBojaDisposition(id: string): Promise<{id:string;summary:string;body:string;pdf:string;url:string}> {
   const safe=id.trim(); if(!/^disposition\.\d{4}\.\d+\.\d+$/i.test(safe)) throw new Error("Identificador BOJA no válido.");
   const response=await fetch(`https://datos.juntadeandalucia.es/api/v0/boja/${encodeURIComponent(safe)}`,{headers:{Accept:"application/json","User-Agent":"WILLY-AI-Juridico/1.0"},signal:AbortSignal.timeout(20000)});
   if(!response.ok) throw new Error(`BOJA respondió ${response.status}.`);
-  const row=await response.json() as Record<string,unknown>; const pdfs=Array.isArray(row.pdf)?row.pdf as Array<Record<string,unknown>>:[];
+  const row=await response.json() as BojaRow; const pdfs=Array.isArray(row.pdf)?row.pdf:[];
   const pdf=s(pdfs[0]?.publicUrl);
   return {id:safe,summary:s(row.summaryNoHtml)||stripHtml(s(row.summary)),body:s(row.bodyNoHtml)||stripHtml(s(row.body)),pdf,url:pdf||"https://juntadeandalucia.es/eboja/"};
 }
