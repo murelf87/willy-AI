@@ -24,4 +24,56 @@ jobs:
       - name: TypeScript
         run: npx tsc --noEmit --pretty false
 
+      - name: Visual smoke test 1920x1080
+        shell: bash
+        run: |
+          mkdir -p datos-privados/juridico
+          cat > datos-privados/juridico/casos.json <<'JSON'
+          [
+            {
+              "id":"ci-expediente",
+              "name":"García c. Administración · prueba visual",
+              "area":"Contencioso-administrativo",
+              "jurisdiction":"Andalucía · TSJA / AP",
+              "position":"Demandante / recurrente",
+              "objective":"Impugnar la resolución, revisar plazos, prueba y estrategia procesal.",
+              "opponent":"Administración autonómica",
+              "factsDate":"2026-09-15",
+              "deadline":"2026-10-20",
+              "notes":"Expediente de prueba exclusivamente visual para CI.",
+              "docs":[
+                {"id":"d1","name":"Resolucion-administrativa.pdf","size":245000,"type":"application/pdf","text":"Resolución administrativa de prueba.","hash":"abcdef1234567890","uploadedAt":1791190000000},
+                {"id":"d2","name":"Recurso-previo.docx","size":98000,"type":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","text":"Recurso previo de prueba.","hash":"1234567890abcdef","uploadedAt":1791190100000}
+              ],
+              "sources":[
+                {"id":"BOE-A-2015-10566","title":"Ley 39/2015, del Procedimiento Administrativo Común","url":"https://www.boe.es/buscar/act.php?id=BOE-A-2015-10566","kind":"BOE · legislación","meta":"Ley 39/2015","official":true,"addedAt":1791190200000}
+              ],
+              "messages":[],
+              "createdAt":1791190000000,
+              "updatedAt":1791190200000
+            }
+          ]
+          JSON
+          NITRO_PORT=3000 NITRO_HOST=127.0.0.1 NODE_ENV=production WILLY_ROOT="$PWD" node .output/server/index.mjs >/tmp/willy.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in {1..40}; do
+            curl -fsS http://127.0.0.1:3000/app >/dev/null && break
+            sleep 0.5
+          done
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME"
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1920,1080 --virtual-time-budget=8000 --screenshot=juridico-1920.png "http://127.0.0.1:3000/app?view=juridico"
+          test -s juridico-1920.png
+          curl -fsS "http://127.0.0.1:3000/app?view=juridico" > juridico-page.html
+
+      - name: Upload visual proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: juridico-visual-proof
+          path: |
+            juridico-1920.png
+            juridico-page.html
+          retention-days: 3
+
 # branch validation trigger
