@@ -1,4 +1,4 @@
-import type { PublicStatus } from "@/lib/engines-server";
+import type { FailureKind, PublicStatus } from "@/lib/engines-server";
 import { BUILD_ORDER } from "@/lib/routing-table";
 
 // Qué motor se usa en cada intento de la Autoconstrucción: SIEMPRE primero la IA externa gratuita que esté disponible
@@ -32,13 +32,14 @@ export function maxAttemptsFor(base: number, steps: Step[]): number {
 }
 
 /**
- * El motor de este intento: se va rotando entre los que siguen disponibles en este trabajo, en orden y sin saltarse ninguno.
- * (25/09/2026: antes el número de intento era el índice de una lista que encogía al descartar motores, y con Gemini caído el
- * segundo intento se saltaba Mistral, el tercero Groq y el cuarto caía ya en el modelo local, lento. Cada motor descartado gastó
- * un intento: se descuentan, y así el índice sigue apuntando al siguiente de la lista.)
+ * Mantiene el primer motor disponible durante todas las correcciones del trabajo.
+ * Solo cambia cuando el llamador descarta explícitamente el motor, nunca por el número de intento.
  */
-export function attemptStep(steps: Step[], skipped: Set<string>, attempt: number): Step | null {
-  const usable = steps.filter((step) => !skipped.has(step.key));
-  if (!usable.length) return null;
-  return usable[Math.max(0, attempt - skipped.size) % usable.length]!;
+export function attemptStep(steps: Step[], skipped: Set<string>): Step | null {
+  return steps.find((step) => !skipped.has(step.key)) ?? null;
+}
+
+/** Un límite por minuto o un fallo de red no demuestra que la cuota esté agotada. */
+export function shouldRelay(kind?: FailureKind | "unavailable"): boolean {
+  return kind !== undefined && ["quota-day", "auth", "payment", "model", "too-large"].includes(kind);
 }

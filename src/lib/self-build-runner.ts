@@ -13,7 +13,7 @@ import { fastCoderFirst } from "@/lib/capabilities";
 import { examplesSection, readLessons, similarLessons, taskKind, upsertLesson, writeLessons } from "@/lib/learning";
 import { deriveChecks, mergeChecks, hasChecks, summarize, type Checks, type EvidenceReport } from "@/lib/evidence";
 import { cloudChat, engineStatus } from "@/lib/engines-client";
-import { attemptStep, buildSequence, maxAttemptsFor } from "@/lib/engine-plan";
+import { attemptStep, buildSequence, maxAttemptsFor, shouldRelay } from "@/lib/engine-plan";
 import { APP_VERSION } from "@/lib/version";
 import { readSelfBuild, writeSelfBuild, type WillyImprovement } from "@/lib/self-build-store";
 import { ownerLessons } from "@/lib/owner-brain";
@@ -222,18 +222,18 @@ ${input.sourceContext}`;
   if (input.history) {
     messages.splice(1, 0, {
       role: "system",
-      content: `HISTORIAL DE ESTA MEJORA (la intentaron antes otros motores; sigue desde donde lo dejaron y no repitas lo que ya falló):\n${input.history}`,
+      content: `HISTORIAL DE ESTA MEJORA (continúa desde el último intento y no repitas lo que ya falló):\n${input.history}`,
     });
   }
   return messages;
 }
 
 /** Un motor de la nube como si fuera un modelo más: mismo resultado {ok, data | error}. */
-async function callCloud(id: string, messages: ChatMsg[]): Promise<{ ok: true; data: string } | { ok: false; error: string }> {
+async function callCloud(id: string, messages: ChatMsg[]) {
   // OpenAI/Codex puede entregar parches más largos sin obligar a trocear una mejora grande.
   const maxTokens = id === "openai" ? 10_000 : 6_000;
   const res = await cloudChat(id, messages.map((entry) => ({ role: entry.role, content: entry.content })), maxTokens);
-  return res.ok ? { ok: true, data: res.data } : { ok: false, error: res.error };
+  return res;
 }
 
 async function finishSuccess(args: {
@@ -512,12 +512,30 @@ async function runImprovement(
   // Modelos que fallaron por el motor (no por su código): no se vuelven a probar.
   const unusable = new Set<string>();
 
+  let attemptsMade = 0;
+  const usedEngines = new Set<string>();
+  const handleFailure = (step: (typeof sequence)[number], failure: { error: string; kind?: Parameters<typeof shouldRelay>[0]; retryAt?: number }, pct: number): boolean => {
+    diagnosis = `El motor ${step.label} falló: ${failure.error}`;
+    if (shouldRelay(failure.kind)) {
+      unusable.add(step.key);
+      const next = attemptStep(sequence, unusable);
+      update(pct, next ? "Cambiando de IA" : "Sin IA disponible", `${failure.error}${next ? ` Continúa ${next.label} con el diagnóstico acumulado.` : " No quedan motores disponibles."}`);
+      return true;
+    }
+    // No confundir saturación temporal o caída de red con cuota agotada, ni repetir llamadas durante el cooldown.
+    const wait = failure.retryAt ? ` Puede volver a probarse a partir de ${new Date(failure.retryAt).toLocaleTimeString("es-ES")}.` : "";
+    finishWithError("Trabajo pausado", `${diagnosis}.${wait} No se ha cambiado de IA. La propuesta se conserva para reanudarla; comprueba la disponibilidad antes de reintentar.`, lastFiles);
+    return false;
+  };
+
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    // Con varios modelos se van relevando; con uno solo se reintenta con el error real como pista.
+    // La misma IA corrige su trabajo; solo hay relevo cuando el motor se descarta explícitamente.
     if (attempt > 0 && lastLabel && diagnosis) journal.push(`Intento ${attempt} con ${lastLabel}: ${diagnosis.split("\n")[0]!.slice(0, 300)}`);
-    const step = attemptStep(sequence, unusable, attempt);
+    const step = attemptStep(sequence, unusable);
     if (!step) break;
     const model = step.label;
+    attemptsMade += 1;
+    usedEngines.add(model);
     lastLabel = model;
     const bandStart = attempt < 4 ? 15 + attempt * 18 : 69 + (attempt - 3);
     let written = 0;
@@ -552,9 +570,7 @@ async function runImprovement(
     });
 
     if (!result.ok) {
-      unusable.add(step.key);
-      diagnosis = `El motor ${model} falló: ${result.error}`;
-      update(bandStart + 13, "Cambiando de IA", `${result.error} WILLY pasa al siguiente motor…`);
+      if (!handleFailure(step, result, bandStart + 13)) return;
       continue;
     }
 
@@ -574,6 +590,10 @@ async function runImprovement(
           content: `Reformula TU MISMA solución sin explicaciones. Devuelve SOLO bloques SEARCH/REPLACE o archivos completos. La PRIMERA línea de cada bloque debe llevar una ruta literal. Para un parche: \`\`\`replace RUTA. Para archivo completo: \`\`\`lenguaje RUTA. Elige RUTA EXACTAMENTE de esta lista: ${sourcePaths.join(", ")}. Después usa <<<<<<< SEARCH / ======= / >>>>>>> REPLACE y copia SEARCH literalmente del código recibido. Si solo hay una ruta, úsala obligatoriamente. No cambies la solución: solo su formato.`,
         },
       ]);
+      if (!repaired.ok) {
+        if (!handleFailure(step, repaired, bandStart + 13)) return;
+        continue;
+      }
       if (repaired.ok) {
         result = repaired;
         answer = repaired.data;
@@ -588,7 +608,7 @@ async function runImprovement(
     if (!files.length && !patches.length) {
       if (looksLikeRefusal(answer)) {
         diagnosis = `El modelo ${model} intentó negarse en vez de entregar código. Entrega directamente los archivos o las sustituciones.`;
-        update(bandStart + 13, "Cambiando de IA", "Esa IA se negó. WILLY descarta su respuesta y prueba de nuevo…");
+        update(bandStart + 13, "Revisando la respuesta", `WILLY continúa con ${model} y el diagnóstico del intento anterior…`);
       } else {
         diagnosis = `El modelo ${model} no marcó ninguna ruta o dejó el bloque cortado. Cada bloque debe abrir con tres comillas, el lenguaje y la ruta exacta, o usar \`\`\`replace ruta con SEARCH/REPLACE cerrado con >>>>>>> REPLACE.`;
         update(bandStart + 13, "Reintentando", "La respuesta no traía archivos con su ruta. WILLY reintenta con instrucciones más estrictas…");
@@ -613,7 +633,7 @@ async function runImprovement(
 
   finishWithError(
     "No se pudo completar la mejora",
-    `Se hicieron ${maxAttempts} intentos con ${sequence.length} motor(es) (${sequence.map((entry) => entry.label).join(", ")}) y ninguno dejó el programa compilando y cumpliendo lo pedido. Último motivo: ${diagnosis || "sin respuesta útil"}.${lastReply ? ` Así empezaba la última respuesta de la IA: «${lastReply}».` : ""} El código quedó como estaba y la propuesta se conserva para reintentarla.`,
+    `Se hicieron ${attemptsMade} intentos con ${usedEngines.size} motor(es) (${[...usedEngines].join(", ")}) y ninguno dejó el programa compilando y cumpliendo lo pedido. Último motivo: ${diagnosis || "sin respuesta útil"}.${lastReply ? ` Así empezaba la última respuesta de la IA: «${lastReply}».` : ""} El código quedó como estaba y la propuesta se conserva para reintentarla.`,
     lastFiles,
   );
 }
