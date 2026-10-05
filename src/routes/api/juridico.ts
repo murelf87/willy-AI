@@ -14,8 +14,8 @@ export const Route = createFileRoute("/api/juridico")({
     },
     POST: async ({ request }) => {
       const blocked=blockForeignSite(request); if(blocked)return blocked;
-      let body:Record<string,unknown>={};
-      try{body=await request.json() as Record<string,unknown>;}catch{return Response.json({ok:false,error:"Petición no válida."},{status:400});}
+      let body: { action?: unknown; query?: unknown; limit?: unknown; id?: unknown; celex?: unknown; date?: unknown; name?: unknown; cases?: unknown } = {};
+      try{body=await request.json() as typeof body;}catch{return Response.json({ok:false,error:"Petición no válida."},{status:400});}
       const action=String(body.action??"");
       try{
         if(action==="boe-search")return Response.json({ok:true,results:await searchBoeLegislation(String(body.query??""),Number(body.limit??8)),links:officialLegalLinks(String(body.query??""))},{headers:{"Cache-Control":"no-store"}});
