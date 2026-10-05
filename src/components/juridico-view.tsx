@@ -29,7 +29,7 @@ type SearchHit = { id: string; title: string; url: string; kind: string; meta: s
 type BoeResult = { id: string; title: string; rank: string; number: string; department: string; publicationDate: string; effectiveDate: string; exhausted: boolean; consolidatedState: string; url: string };
 type BojaResult = { id: string; date: string; organisation: string; section: string; summary: string; number: string; url: string };
 type EuResult = { id: string; title: string; ecli?: string; date?: string; type: "legislation" | "case-law"; url: string };
-type SourceCatalogItem = { id:string; name:string; authority:string; scope:string; access:"api"|"open-data"|"search"; automatic:boolean; free:boolean; url:string; note:string };
+type SourceCatalogItem = { id:string; name:string; authority:string; scope:string; access:"api"|"open-data"|"search"|"portal"; automatic:boolean; free:boolean; url:string; note:string };
 
 const LEGACY_KEY = "willy-juridico-casos";
 const uid = () => crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
@@ -65,6 +65,7 @@ const COURTS = [
   ["TJUE / Tribunal General","InfoCuria / CELLAR"],["TEDH","HUDOC"],
 ] as const;
 
+const CGPJ = "https://www.poderjudicial.es/";
 const CENDOJ = "https://www.poderjudicial.es/search/indexAN.jsp";
 const TC = "https://hj.tribunalconstitucional.es/";
 const CURIA = "https://juris.curia.europa.eu/juris/recherche.jsf?language=es";
@@ -84,6 +85,7 @@ const LEGAL_SYSTEM = [
   "Si faltan datos capaces de cambiar la conclusión, enuméralos antes de cerrar.",
   "No suavices conclusiones desfavorables. Precisión antes que complacencia.",
   "Si redactas un escrito, separa hechos, fundamentos, prueba y petitum/suplico; usa [COMPLETAR] para datos ausentes.",
+  "El CGPJ es una fuente institucional oficial y CENDOJ es su buscador de jurisprudencia. No confundas documentos institucionales o notas de prensa con resoluciones judiciales; cita cada documento solo si su contenido está disponible y verificado. Un enlace al portal no acredita una consulta ni una sentencia.",
   "No atribuyas a una fuente lo que no dice. Toda referencia jurisprudencial concreta no verificada debe marcarse PENDIENTE DE VERIFICACIÓN.",
   "",
   "DICTAMEN BASE: resumen ejecutivo; alcance/jurisdicción/fecha; hechos y acreditación; cuestiones; normativa; jurisprudencia y verificación; tesis favorable; mejor tesis contraria; prueba/contradicciones; riesgos/plazos; estrategia; datos faltantes; fuentes.",
@@ -455,7 +457,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
                 {sourceCatalog.map((s)=><a key={s.id} href={s.url} target="_blank" rel="noreferrer" className="rounded-xl border border-border bg-background p-3 transition hover:border-primary/40 hover:bg-primary/5">
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1"><p className="text-xs font-semibold">{s.name}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{s.authority} · {s.scope}</p></div>
-                    <span className={"shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold "+(s.automatic?"border-emerald-500/40 bg-emerald-500/10 text-emerald-700":"border-border bg-muted text-muted-foreground")}>{s.access==="api"?(s.automatic?"API automática":"API con registro"):s.access==="open-data"?"Datos abiertos":"Buscador oficial"}</span>
+                    <span className={"shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold "+(s.automatic?"border-emerald-500/40 bg-emerald-500/10 text-emerald-700":"border-border bg-muted text-muted-foreground")}>{s.access==="api"?(s.automatic?"API automática":"API con registro"):s.access==="open-data"?"Datos abiertos":s.access==="portal"?"Portal oficial":"Buscador oficial"}</span>
                   </div>
                   <p className="mt-2 text-[10px] leading-4 text-muted-foreground">{s.note}</p>
                 </a>)}
@@ -509,7 +511,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
               {[
                 ["BOE","https://www.boe.es/"],
                 ["BOJA","https://juntadeandalucia.es/eboja/"],
-                ["CENDOJ",CENDOJ],["TC",TC],["EUR-Lex","https://eur-lex.europa.eu/"],["InfoCuria",CURIA],["HUDOC",HUDOC],["AEPD","https://www.aepd.es/"],
+                ["CGPJ · Consejo General del Poder Judicial",CGPJ],["CENDOJ",CENDOJ],["TC",TC],["EUR-Lex","https://eur-lex.europa.eu/"],["InfoCuria",CURIA],["HUDOC",HUDOC],["AEPD","https://www.aepd.es/"],
               ].map(([name,url])=><a key={name} href={url} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-md border border-border px-2 py-1.5 text-[10px] font-semibold hover:bg-muted"><span>{name}</span><ExternalLink className="size-3 text-muted-foreground"/></a>)}
             </div>
           </Card>

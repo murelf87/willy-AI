@@ -238,7 +238,7 @@ export type LegalSourceDescriptor = {
   name: string;
   authority: string;
   scope: string;
-  access: "api" | "open-data" | "search";
+  access: "api" | "open-data" | "search" | "portal";
   automatic: boolean;
   free: boolean;
   url: string;
@@ -256,6 +256,7 @@ export function legalSourceCatalog(): LegalSourceDescriptor[] {
     { id:"congreso", name:"Congreso · Datos abiertos", authority:"Congreso de los Diputados", scope:"España · parlamentario", access:"open-data", automatic:false, free:true, url:"https://www.congreso.es/es/opendata", note:"CSV/JSON/XML de iniciativas, intervenciones y actividad parlamentaria." },
     { id:"senado", name:"Senado · Datos abiertos", authority:"Senado de España", scope:"España · parlamentario", access:"open-data", automatic:false, free:true, url:"https://www.senado.es/web/relacionesciudadanos/datosabiertos/index.html", note:"XML reutilizable de iniciativas, votaciones, sesiones y composición." },
     { id:"aepd", name:"AEPD · Datos abiertos", authority:"Agencia Española de Protección de Datos", scope:"España · privacidad", access:"open-data", automatic:false, free:true, url:"https://www.aepd.es/la-agencia/datos-abiertos", note:"Informes jurídicos y conjuntos documentales abiertos." },
+    { id:"cgpj", name:"CGPJ · Consejo General del Poder Judicial", authority:"Consejo General del Poder Judicial", scope:"España · información institucional", access:"portal", automatic:false, free:true, url:"https://www.poderjudicial.es/", note:"Consulta del portal oficial. Los documentos institucionales no equivalen a sentencias; verifica el documento original antes de citarlo. Sin recuperación automática integrada." },
     { id:"cendoj", name:"CENDOJ", authority:"CGPJ", scope:"España · jurisprudencia", access:"search", automatic:false, free:true, url:"https://www.poderjudicial.es/search/indexAN.jsp", note:"Buscador oficial; no se asume una API pública no documentada." },
     { id:"tc", name:"Tribunal Constitucional", authority:"Tribunal Constitucional", scope:"España · constitucional", access:"search", automatic:false, free:true, url:"https://hj.tribunalconstitucional.es/", note:"Buscador oficial de jurisprudencia constitucional." },
     { id:"curia", name:"InfoCuria", authority:"Tribunal de Justicia de la UE", scope:"UE · jurisprudencia", access:"search", automatic:false, free:true, url:"https://juris.curia.europa.eu/juris/recherche.jsf?language=es", note:"Buscador oficial TJUE/TG." },
@@ -353,6 +354,7 @@ export function officialLegalLinks(query: string) {
   const q = encodeURIComponent(query.trim().slice(0, 300));
   return [
     { id: "boe", name: "BOE · Legislación consolidada", kind: "legislación", url: "https://www.boe.es/buscar/legislacion.php", note: "Fuente oficial estatal. El texto consolidado es informativo; contrasta la publicación oficial." },
+    { id: "cgpj", name: "Consejo General del Poder Judicial", kind: "institucional", url: "https://www.poderjudicial.es/", note: "Portal oficial del CGPJ. Consulta manual; no implica que WILLY haya recuperado o verificado sus documentos." },
     { id: "cendoj", name: "CENDOJ · Jurisprudencia", kind: "jurisprudencia", url: "https://www.poderjudicial.es/search/indexAN.jsp", note: "Buscador oficial del CGPJ para resoluciones judiciales españolas." },
     { id: "tc", name: "Tribunal Constitucional", kind: "jurisprudencia", url: "https://hj.tribunalconstitucional.es/", note: "Buscador oficial de jurisprudencia constitucional." },
     { id: "eurlex", name: "EUR-Lex", kind: "UE", url: `https://eur-lex.europa.eu/search.html?scope=EURLEX&text=${q}&lang=es&type=quick`, note: "Derecho de la Unión Europea y Diario Oficial." },
@@ -394,7 +396,7 @@ export async function saveLegalCases(cases: unknown): Promise<{ count: number; b
 export function legalServerStatus() {
   return {
     checkedAt: new Date().toISOString(),
-    officialSources: ["BOE", "BORME", "BOJA", "CELLAR/EUR-Lex", "Congreso", "Senado", "CENDOJ", "Tribunal Constitucional", "InfoCuria", "HUDOC", "AEPD"],
+    officialSources: ["BOE", "BORME", "BOJA", "CELLAR/EUR-Lex", "Congreso", "Senado", "CGPJ", "CENDOJ", "Tribunal Constitucional", "InfoCuria", "HUDOC", "AEPD"],
     freeApis: [
       { id: "boe-law", name: "BOE Legislación consolidada", auth: "sin clave", active: true, endpoint: "https://www.boe.es/datosabiertos/api/legislacion-consolidada" },
       { id: "boe-daily", name: "BOE Sumario diario", auth: "sin clave", active: true, endpoint: "https://www.boe.es/datosabiertos/api/boe/sumario/{fecha}" },
@@ -405,6 +407,7 @@ export function legalServerStatus() {
       { id: "cellar-rest", name: "CELLAR REST/CELEX", auth: "sin clave", active: true, endpoint: "https://publications.europa.eu/resource/celex/{CELEX}" },
       { id: "eurlex-soap", name: "EUR-Lex Webservice SOAP", auth: "registro gratuito EU Login", active: false, endpoint: "https://eur-lex.europa.eu/content/help/data-reuse/webservice.html" },
     ],
+    publicOfficialPortals: [{ id: "cgpj", name: "Consejo General del Poder Judicial", url: "https://www.poderjudicial.es/", api: false, automatic: false }],
     publicOfficialSearches: [
       { id: "cendoj", name: "CENDOJ", api: false },
       { id: "tc", name: "Tribunal Constitucional", api: false },
