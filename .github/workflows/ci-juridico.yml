@@ -1,0 +1,25 @@
+name: CI Juridico Legal OS
+on:
+  push:
+    branches:
+      - willy-juridico-legal-os
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
+      - name: Build
+        run: npm run build
