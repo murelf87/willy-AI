@@ -344,6 +344,17 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
     );
   }
 
+  // Legal OS necesita densidad de escritorio: no hereda el max-w-5xl de las herramientas simples.
+  if (view === "juridico") {
+    return (
+      <section className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background p-3 sm:p-4 lg:p-5" aria-label={VIEW_TITLES[view]}>
+        <div className="w-full max-w-none">
+          <JuridicoViewV2 ping={ping} />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background p-4 sm:p-6" aria-label={VIEW_TITLES[view]}>
       <div className="mx-auto w-full max-w-5xl">
@@ -433,7 +444,6 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
         {view === "extras" && <ExtrasView />}
         {view === "libros" && <BookView />}
         {view === "demo" && <DemoView ping={ping} />}
-        {view === "juridico" && <JuridicoViewV2 ping={ping} />}
 
         {view === "cuenta" && <AccountView ping={ping} onLogout={onLogout} agentCount={settings.agents.length} />}
 
