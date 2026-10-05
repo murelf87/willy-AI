@@ -29,7 +29,7 @@ import { ExtrasView } from "@/components/extras-view";
 import { BookView } from "@/components/book-view";
 import { SuperIAView } from "@/components/superia-view";
 import { ProjectsView } from "@/components/projects-view";
-import { JuridicoView } from "@/components/juridico-view";
+import { JuridicoViewV2 } from "@/components/juridico-view-v2";
 import { SelfBuildView } from "@/components/self-build-view";
 import { SettingsView } from "@/components/settings-view";
 import { IntelligenceCenter } from "@/components/intelligence-center";
@@ -433,7 +433,7 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
         {view === "extras" && <ExtrasView />}
         {view === "libros" && <BookView />}
         {view === "demo" && <DemoView ping={ping} />}
-        {view === "juridico" && <JuridicoView ping={ping} />}
+        {view === "juridico" && <JuridicoViewV2 ping={ping} />}
 
         {view === "cuenta" && <AccountView ping={ping} onLogout={onLogout} agentCount={settings.agents.length} />}
 
