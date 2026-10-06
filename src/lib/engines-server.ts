@@ -2,7 +2,7 @@
 // OpenAI opcional de pago por uso. Las claves se guardan SOLO en este equipo (nunca vuelven a la pantalla). Cada motor sale
 // de la rueda cuando se agota su cuota, pide pago o rechaza la clave, y se vuelve a probar solo cuando toca.
 
-export type ProviderId = "openai" | "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia" | "xai" | "deepseek" | "qwen" | "cerebras" | "zai" | "kimi" | "modelscope" | "cloudflare" | "huggingface" | "minimax";
+export type ProviderId = "openai" | "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia" | "xai" | "deepseek" | "qwen" | "cerebras" | "zai" | "kimi" | "modelscope" | "cloudflare" | "huggingface" | "siliconflow" | "minimax";
 
 export type Provider = {
   id: ProviderId;
@@ -115,7 +115,18 @@ export const PROVIDERS: Provider[] = [
     prefer: ["Qwen3-Coder", "gpt-oss-120b", "DeepSeek-R1"],
     timeoutMs: 120_000,
   },
-  // 7. Qwen / Alibaba Model Studio: cuota de bienvenida por modelo durante 90 días en Singapur.
+  // 7. SiliconFlow: crédito inicial y una sola API para muchos modelos abiertos.
+  {
+    id: "siliconflow",
+    name: "SiliconFlow",
+    baseUrl: "https://api.siliconflow.com/v1",
+    keyUrl: "https://cloud.siliconflow.com/",
+    dataNote: "Ofrece 1 USD de crédito inicial y API compatible con OpenAI. Sirve modelos como GLM, DeepSeek, Qwen y Kimi; al agotar el crédito WILLY pasa al siguiente.",
+    fallbackModels: ["zai-org/GLM-5.3-Flash", "deepseek-ai/DeepSeek-V4-Flash-0731", "Qwen/Qwen3.8-27B", "moonshotai/Kimi-K3"],
+    prefer: ["GLM-5\\.3-Flash", "DeepSeek-V4-Flash", "Qwen3\\.8", "Kimi-K3"],
+    timeoutMs: 120_000,
+  },
+  // 8. Qwen / Alibaba Model Studio: cuota de bienvenida por modelo durante 90 días en Singapur.
   {
     id: "qwen",
     name: "Qwen · Alibaba Model Studio",
