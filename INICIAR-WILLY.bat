@@ -16,6 +16,7 @@ $mutex = New-Object System.Threading.Mutex($false, 'Local\WillyAI-GitHub-Launche
 $locked = $false
 $logging = $false
 $previousHead = $null
+$previousVersion = $null
 $buildBackup = $null
 $updatedThisRun = $false
 
@@ -71,6 +72,17 @@ function Show-Log($titulo, $ruta) {
   }
 }
 
+function Read-WillyVersion($repoPath) {
+  try {
+    $versionFile = Join-Path $repoPath 'src\lib\version.ts'
+    if (-not (Test-Path $versionFile)) { return $null }
+    $text = Get-Content -LiteralPath $versionFile -Raw
+    $match = [regex]::Match($text, 'APP_VERSION\s*=\s*"([^"]+)"')
+    if ($match.Success) { return $match.Groups[1].Value }
+  } catch { }
+  return $null
+}
+
 try {
   # Espera unos segundos por si la ventana anterior se esta cerrando todavia.
   try { $locked = $mutex.WaitOne(5000) } catch [System.Threading.AbandonedMutexException] { $locked = $true }
@@ -111,6 +123,7 @@ try {
     $previousHead = (& git rev-parse HEAD 2>$null).Trim()
     if (-not $previousHead) { $previousHead = $null }
   } catch { $previousHead = $null }
+  $previousVersion = Read-WillyVersion $repo
 
   # Corrige la direccion del repositorio si quedo apuntando a la antigua
   $urlActual = & git remote get-url origin
@@ -256,6 +269,36 @@ try {
       Show-Log 'Salida del servidor' $outLog
       Show-Log 'Error del servidor' $errLog
       throw 'WILLY no ha respondido en 90 segundos. El motivo aparece justo encima.'
+    }
+
+    # Solo después de compilar Y comprobar que el servidor responde se registra la actualización.
+    # La interfaz lee este archivo y mantiene la tarjeta visible hasta que el usuario pulse Aceptar.
+    if ($updatedThisRun) {
+      try {
+        $currentVersion = Read-WillyVersion $repo
+        if (-not $currentVersion) { $currentVersion = '0.0.0' }
+        $notes = @()
+        if ($previousHead -and $head) {
+          $notes = @(Run-Git log --format=%s "$previousHead..$head" | Select-Object -First 12)
+        }
+        if (-not $notes.Count) { $notes = @('Código actualizado, compilado y arranque verificado correctamente.') }
+        $dataDir = Join-Path $repo 'datos-privados'
+        New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+        $noticePath = Join-Path $dataDir 'actualizacion.json'
+        $from = if ($previousVersion -and $previousVersion -ne $currentVersion) { $previousVersion } else { '' }
+        $notice = [ordered]@{
+          version = $currentVersion
+          from = $from
+          label = 'Actualización instalada correctamente'
+          at = (Get-Date).ToUniversalTime().ToString('o')
+          notes = @($notes)
+          ack = $false
+        }
+        $notice | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $noticePath -Encoding UTF8
+        Write-Host "Actualización verificada: la tarjeta de novedades se mostrará en WILLY." -ForegroundColor Green
+      } catch {
+        Write-Host "Aviso: la actualización funciona, pero no se pudo guardar la tarjeta de novedades: $($_.Exception.Message)" -ForegroundColor Yellow
+      }
     }
 
     # Se abre localhost para conservar el origen del almacenamiento del navegador.

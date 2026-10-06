@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboa
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { PanelCard as Card } from "@/components/panel-card";
 import {
-  BookOpen, Brain, Check, ChevronDown, Columns2, Copy, Download, FileText, FolderKanban, FolderPlus, Hammer, Loader2, Mail, MessageSquare, Mic, Monitor, Phone,
+  BookOpen, Brain, Check, ChevronDown, Columns2, Copy, Download, FileText, FolderKanban, FolderPlus, Hammer, Loader2, Mail, MessageSquare, Mic, Monitor, MonitorUp, Phone,
   Play, RotateCcw, Send, Sparkles, Square, Trash2, User, Volume2, Wand2,
   Bug, FileSearch, LayoutDashboard, Wrench,
 } from "lucide-react";
@@ -42,7 +42,8 @@ import { openView, useBackgroundReport } from "@/lib/background-tasks";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
 import type { SpeechHandle } from "@/lib/tts-voice";
 import { describePictures, imageFilesOf } from "@/lib/vision";
-import { PROMPT_CARDS, hasUnfilled, runPlan } from "@/services/prompt-library";
+import { PROMPT_CARDS, hasUnfilled, runPlan, type PromptCard } from "@/services/prompt-library";
+import { SuperIAConsole, type ConsoleTab } from "@/components/superia-console";
 import { ThinkingDots } from "@/components/thinking-dots";
 import { useImages } from "@/lib/use-images";
 import { ImageChips } from "@/components/image-chips";
@@ -190,6 +191,7 @@ const cut = (text: string, max: number): string => (text.length > max ? `${text.
 export function SuperIAView() {
   const [settings, updateSettings] = useSettings();
   const [prompt, setPrompt] = usePersistentState("superia:prompt", "");
+  const [consoleTab, setConsoleTab] = useState<ConsoleTab>("trabajo");
   // Capturas pegadas (Win+Shift+S y Ctrl+V), arrastradas o subidas a la petición.
   const pictures = useImages((message) => pushNotice(message));
   const picturesRef = useRef(pictures.images);
@@ -331,6 +333,11 @@ export function SuperIAView() {
     setSuperMode(mode);
     writeSuperMode(mode);
     pushNotice(`Súper IA: ${SUPER_MODES.find((m) => m.id === mode)?.label ?? mode}.`, "info");
+  };
+
+  const refreshLocalModels = async () => {
+    const r = await aiService.models(settings.endpoint);
+    if (r.ok) setAvailable(r.data.map((m) => m.name));
   };
 
   /** Guarda la entrevista (y, si hace falta, turnos nuevos) en el trabajo actual. */
@@ -476,7 +483,7 @@ export function SuperIAView() {
   };
 
   /** «Ejecutar ya»: usa lo escrito arriba como contenido del prompt; con el cuadro vacío carga el prompt para rellenarlo. */
-  const runCard = (card: (typeof CAPABILITIES)[number]) => {
+  const runCard = (card: PromptCard) => {
     const plan = runPlan(card, prompt);
     if (plan.action === "run") {
       void execute(plan.prompt, card.kind, card.name);
@@ -1500,6 +1507,9 @@ export function SuperIAView() {
               </button>
             ))}
           </div>
+          <Button size="icon" variant="ghost" className="size-8 shrink-0" onClick={() => openView("remoto")} aria-label="Abrir Equipo remoto" title="Equipo remoto">
+            <MonitorUp className="size-4" />
+          </Button>
           <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2 text-xs sm:px-3" onClick={newProject} disabled={running} aria-label="Nuevo proyecto" title="Este proyecto queda guardado: lo retomas desde Proyectos o con «Continuar donde lo dejaste»">
             <FolderPlus className="size-3.5" /><span className="hidden sm:inline">Nuevo proyecto</span>
           </Button>
@@ -1652,6 +1662,44 @@ export function SuperIAView() {
     );
   }
 
+  const consolePreferences = (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card className="space-y-2">
+        <p className="flex items-center gap-2 text-sm font-semibold"><Mic className="size-4 text-primary" />Mi yo en IA</p>
+        <p className="text-xs text-muted-foreground">Describe cómo hablas y escribes. Se añade a las peticiones de Súper IA para que el contenido mantenga tu estilo.</p>
+        <textarea
+          value={persona}
+          onChange={(e) => savePersona(e.target.value)}
+          rows={4}
+          placeholder="Ejemplo: hablo directo y cercano, frases cortas, sin tecnicismos, con ejemplos reales."
+          className="w-full resize-y rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-primary"
+        />
+        <ClarifyButton context="funcion" compact variant="secondary" label="Que la IA lo entienda exactamente" value={persona} onApply={savePersona} />
+      </Card>
+      <Card className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-2 text-sm font-semibold"><Brain className="size-4 text-primary" />Aprendizaje por resultados</p>
+          <Button size="sm" variant="outline" className="gap-2" onClick={() => { resetLearning(); pushNotice("Aprendizaje reiniciado.", "info"); }}>
+            <Trash2 className="size-4" />Reiniciar
+          </Button>
+        </div>
+        {stats.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Todavía sin datos. Cada tarea resuelta mejora el orden de los motores para tareas parecidas.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {stats.map((s) => (
+              <div key={`${s.kind}-${s.model}`} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 text-xs">
+                <span className="min-w-0 truncate text-muted-foreground">{TASK_LABELS[s.kind]}</span>
+                <span className="max-w-48 truncate font-mono">{s.model}</span>
+                <span className="font-semibold text-primary">{s.wins} acierto(s)</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+
   // ------------------------------------------------------------------ SIN PROYECTO ABIERTO (o en plena entrevista)
   return (
     <>
@@ -1669,8 +1717,27 @@ export function SuperIAView() {
           </AlertDialogContent>
         </AlertDialog>
       )}
-    <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-    <div className="mx-auto w-full max-w-5xl space-y-5">
+    <SuperIAConsole
+      tab={consoleTab}
+      onTab={setConsoleTab}
+      preferences={consolePreferences}
+      mode={<SuperModeChip mode={superMode} onMode={chooseMode} available={available} localModel={settings.superIaModel} onLocalModel={(name) => updateSettings({ superIaModel: name })} />}
+      busy={running}
+      localModels={available}
+      onRefreshLocal={refreshLocalModels}
+      onPrepare={(card) => {
+        setPrompt(card.template);
+        setKind(card.kind);
+        setConsoleTab("trabajo");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        pushNotice("Encargo preparado. Completa los datos y ejecútalo.", "info");
+      }}
+      onRun={(card) => { setConsoleTab("trabajo"); runCard(card); }}
+      onResume={(saved) => { resume(saved); setConsoleTab("trabajo"); }}
+      onNew={newProject}
+      onReturn={() => setConsoleTab("trabajo")}
+    >
+    <div className="space-y-5">
       {restore && !session && (
         <Card className="flex flex-wrap items-center justify-between gap-3 border-primary/40">
           <p className="min-w-0 text-sm">
@@ -1688,7 +1755,7 @@ export function SuperIAView() {
 
       {choiceCard}
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="hidden">
         <div>
           <h1 className="text-2xl font-bold">Súper IA</h1>
           <p className="text-sm text-muted-foreground">
@@ -1886,8 +1953,8 @@ export function SuperIAView() {
         </Card>
       )}
 
-      {/* ----------------------------------------------------- capacidades */}
-      <div>
+      {/* El catálogo completo vive ahora en la pestaña Habilidades de la consola. */}
+      <div className="hidden">
         <h2 className="text-lg font-bold">Qué puedes pedirle</h2>
         <p className="mb-2 text-xs text-muted-foreground">«Usar prompt» lo carga arriba para que lo edites; «Ejecutar ya» lo ejecuta con lo que hayas escrito en el cuadro de arriba.</p>
         <div className="grid gap-2 md:grid-cols-2">
@@ -1913,8 +1980,8 @@ export function SuperIAView() {
         </div>
       </div>
 
-      {/* --------------------------------------------------------- mi yo IA */}
-      <Card className="space-y-2">
+      {/* Mi yo en IA se muestra en Ajustes y motores para evitar duplicarlo en la mesa. */}
+      <Card className="hidden">
         <p className="flex items-center gap-2 text-sm font-semibold"><Mic className="size-4 text-primary" />Mi yo en IA</p>
         <p className="text-xs text-muted-foreground">
           Describe cómo hablas y escribes. Se añade a todas las peticiones para que el contenido suene a ti.
@@ -1929,8 +1996,8 @@ export function SuperIAView() {
         <div><ClarifyButton context="funcion" compact variant="secondary" label="Que la IA lo entienda exactamente" value={persona} onApply={savePersona} /></div>
       </Card>
 
-      {/* ------------------------------------------------------ aprendizaje */}
-      <Card className="space-y-2">
+      {/* El aprendizaje por resultados se muestra en Ajustes y motores. */}
+      <Card className="hidden">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-sm font-semibold"><Brain className="size-4 text-primary" />Lo que la IA ha aprendido</p>
           <Button size="sm" variant="outline" className="gap-2" onClick={() => { resetLearning(); pushNotice("Aprendizaje reiniciado.", "info"); }}>
@@ -1952,7 +2019,7 @@ export function SuperIAView() {
         )}
       </Card>
     </div>
-    </div>
+    </SuperIAConsole>
     </>
   );
 }
