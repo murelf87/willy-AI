@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "nota": "Encargo original del dueño. Lo escribe WILLY al crear el proyecto: no se modifica.",
+  "encargo": {
+    "reference": "Saiyan Workout",
+    "goal": "quiero tener la app para usar en el movil, funcional 100% y que pueda usarla con todos los videos y ejercicios que trae dentro, haz lo necesario porfavor",
+    "level": "completo",
+    "targets": [
+      "windows",
+      "web",
+      "ios",
+      "android"
+    ],
+    "deliverables": [
+      "codigo",
+      "compilada",
+      "instalador",
+      "documentacion",
+      "informe"
+    ],
+    "attachments": []
+  }
+}

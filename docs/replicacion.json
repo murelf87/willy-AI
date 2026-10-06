@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "encargo": {
+    "reference": "Saiyan Workout",
+    "goal": "quiero tener la app para usar en el movil, funcional 100% y que pueda usarla con todos los videos y ejercicios que trae dentro, haz lo necesario porfavor",
+    "level": "completo",
+    "targets": [
+      "windows",
+      "web",
+      "ios",
+      "android"
+    ],
+    "deliverables": [
+      "codigo",
+      "compilada",
+      "instalador",
+      "documentacion",
+      "informe"
+    ],
+    "attachments": []
+  },
+  "modulos": [
+    {
+      "id": "analisis-y-matriz-de-funcionalidades",
+      "name": "Análisis y matriz de funcionalidades",
+      "status": "pendiente"
+    },
+    {
+      "id": "arquitectura-y-plan-tecnico",
+      "name": "Arquitectura y plan técnico",
+      "status": "pendiente"
+    },
+    {
+      "id": "interfaz-propia-diseno",
+      "name": "Interfaz propia (diseño)",
+      "status": "pendiente"
+    },
+    {
+      "id": "motor-principal",
+      "name": "Motor principal",
+      "status": "pendiente"
+    },
+    {
+      "id": "persistencia-de-datos",
+      "name": "Persistencia de datos",
+      "status": "pendiente"
+    },
+    {
+      "id": "configuracion",
+      "name": "Configuración",
+      "status": "pendiente"
+    },
+    {
+      "id": "actualizaciones",
+      "name": "Actualizaciones",
+      "status": "pendiente"
+    },
+    {
+      "id": "instalador",
+      "name": "Instalador",
+      "status": "pendiente"
+    },
+    {
+      "id": "desinstalador",
+      "name": "Desinstalador",
+      "status": "pendiente"
+    },
+    {
+      "id": "pruebas-funcionales",
+      "name": "Pruebas funcionales",
+      "status": "pendiente"
+    },
+    {
+      "id": "documentacion",
+      "name": "Documentación",
+      "status": "pendiente"
+    },
+    {
+      "id": "validacion-final",
+      "name": "Validación final",
+      "status": "pendiente"
+    }
+  ]
+}
