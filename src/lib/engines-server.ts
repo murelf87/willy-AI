@@ -2,7 +2,7 @@
 // OpenAI opcional de pago por uso. Las claves se guardan SOLO en este equipo (nunca vuelven a la pantalla). Cada motor sale
 // de la rueda cuando se agota su cuota, pide pago o rechaza la clave, y se vuelve a probar solo cuando toca.
 
-export type ProviderId = "openai" | "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia" | "xai";
+export type ProviderId = "openai" | "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia" | "xai" | "deepseek" | "qwen" | "cerebras" | "zai" | "kimi" | "modelscope" | "cloudflare" | "huggingface" | "minimax";
 
 export type Provider = {
   id: ProviderId;
@@ -10,10 +10,14 @@ export type Provider = {
   baseUrl: string;
   keyUrl: string;
   dataNote: string;
+  /** Texto que se muestra dentro del campo de credencial cuando no basta con una API key normal. */
+  credentialHint?: string;
   /** Solo se usan modelos cuyo id termine así (OpenRouter: «:free», para no gastar nunca dinero). */
   onlyModelSuffix?: string;
   /** Modelos conocidos, por si el proveedor no ofrece la lista de modelos en su API compatible (Cohere). */
   fallbackModels?: string[];
+  /** Si es true, nunca usa modelos fuera de fallbackModels (protección frente a catálogos que mezclan free y pago). */
+  allowListedOnly?: boolean;
   /** Modelos preferidos (expresiones, de más a menos), para elegir el mejor de ese proveedor. */
   prefer?: string[];
   /** Tope de tokens de respuesta que admite este proveedor (si se pide más, se recorta a esto). */
@@ -63,7 +67,111 @@ export const PROVIDERS: Provider[] = [
     prefer: ["deepseek-v4[.\\d]*-flash", "llama-3\\.3-70b-instruct", "qwen3-235b", "qwen[^/]*coder", "deepseek-r1(?!.*lite)", "mistral-large-2", "deepseek-v4", "glm-5"],
     timeoutMs: 45_000,
   },
-  // 3. Mistral: nivel gratuito estable, bueno para código y contextos medianos.
+  // 3. Cerebras: API gratis con límites, extremadamente rápida para modelos abiertos.
+  {
+    id: "cerebras",
+    name: "Cerebras",
+    baseUrl: "https://api.cerebras.ai/v1",
+    keyUrl: "https://cloud.cerebras.ai/",
+    dataNote: "Tiene plan Free de 0 USD con límites. Muy rápida para código y razonamiento; WILLY la aparta automáticamente si alcanza su límite.",
+    fallbackModels: ["gpt-oss-120b", "zai-glm-4.7", "llama3.1-8b"],
+    prefer: ["gpt-oss-120b", "zai-glm-4\\.7", "llama3\\.1-8b"],
+    timeoutMs: 90_000,
+  },
+  // 4. ModelScope: inferencia gratuita de modelos abiertos con API compatible con OpenAI.
+  {
+    id: "modelscope",
+    name: "ModelScope (gratis)",
+    baseUrl: "https://api-inference.modelscope.cn/v1",
+    keyUrl: "https://modelscope.cn/my/myaccesstoken",
+    dataNote: "API-Inference gratuita con límites y concurrencia reducida. Da acceso a modelos como DeepSeek, Qwen, GLM, Kimi y MiniMax cuando estén habilitados en ModelScope.",
+    credentialHint: "ms-…",
+    fallbackModels: ["deepseek-ai/DeepSeek-V4.1-Flash", "Qwen/Qwen3.8-Flash-Next", "ZhipuAI/GLM-5.3-Flash", "moonshotai/Kimi-K3", "MiniMax/MiniMax-M2.7"],
+    prefer: ["DeepSeek-V4\\.1-Flash", "Qwen3\\.8-Flash", "GLM-5\\.3-Flash", "Kimi-K3", "MiniMax-M2\\.7"],
+    timeoutMs: 120_000,
+  },
+  // 5. Cloudflare Workers AI: cuota gratuita diaria; algunos modelos grandes exigen plan de pago, por eso no se seleccionan.
+  {
+    id: "cloudflare",
+    name: "Cloudflare Workers AI",
+    baseUrl: "https://api.cloudflare.com/client/v4/accounts/{accountId}/ai/v1",
+    keyUrl: "https://dash.cloudflare.com/?to=/:account/ai/workers-ai",
+    dataNote: "10.000 Neurons al día gratis en Workers Free. Copia Account ID y API Token desde Workers AI y pégalos como ACCOUNT_ID|API_TOKEN. WILLY usa solo modelos confirmados para Free.",
+    credentialHint: "ACCOUNT_ID|API_TOKEN",
+    fallbackModels: ["@cf/nvidia/nemotron-3-120b-a12b", "@cf/zai-org/glm-4.7-flash", "@cf/google/gemma-4-26b-a4b-it"],
+    allowListedOnly: true,
+    prefer: ["nemotron-3-120b", "glm-4\\.7-flash", "gemma-4-26b"],
+    timeoutMs: 120_000,
+  },
+  // 6. Hugging Face: pequeño crédito mensual gratuito; se detiene cuando se agota.
+  {
+    id: "huggingface",
+    name: "Hugging Face Inference",
+    baseUrl: "https://router.huggingface.co/v1",
+    keyUrl: "https://huggingface.co/settings/tokens",
+    dataNote: "Los usuarios Free reciben un pequeño crédito mensual para Inference Providers. Crea un token con permiso para llamadas a Inference Providers.",
+    credentialHint: "hf_…",
+    fallbackModels: ["openai/gpt-oss-120b:fastest", "deepseek-ai/DeepSeek-R1:fastest", "Qwen/Qwen3-Coder-480B-A35B-Instruct:fastest"],
+    prefer: ["Qwen3-Coder", "gpt-oss-120b", "DeepSeek-R1"],
+    timeoutMs: 120_000,
+  },
+  // 7. Qwen / Alibaba Model Studio: cuota de bienvenida por modelo durante 90 días en Singapur.
+  {
+    id: "qwen",
+    name: "Qwen · Alibaba Model Studio",
+    baseUrl: "https://trial.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+    keyUrl: "https://modelstudio.console.alibabacloud.com/",
+    dataNote: "Los nuevos usuarios obtienen cuota gratuita por modelo durante 90 días en Singapur. Activa «Free Quota Only» en Model Studio para impedir cargos al agotarse.",
+    fallbackModels: ["qwen3.8-flash", "qwen3.7-plus", "qwen3.7-flash"],
+    allowListedOnly: true,
+    prefer: ["qwen3\\.8-flash", "qwen3\\.7-plus", "qwen3\\.7-flash"],
+    timeoutMs: 120_000,
+  },
+  // 8. DeepSeek oficial: no es una API gratis permanente, pero puede usar saldo promocional; nunca se debe confundir con gratis.
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    baseUrl: "https://api.deepseek.com",
+    keyUrl: "https://platform.deepseek.com/api_keys",
+    dataNote: "API oficial de DeepSeek. No tiene cuota gratuita permanente garantizada; usa primero cualquier saldo concedido y después requiere saldo de pago. WILLY la desactiva si pide pago.",
+    fallbackModels: ["deepseek-flash", "deepseek-v4-pro"],
+    prefer: ["deepseek-flash", "deepseek-v4-pro"],
+    timeoutMs: 180_000,
+  },
+  // 9. Z.AI / GLM.
+  {
+    id: "zai",
+    name: "Z.AI · GLM",
+    baseUrl: "https://api.z.ai/api/paas/v4",
+    keyUrl: "https://z.ai/manage-apikey/apikey-list",
+    dataNote: "API oficial de GLM. La disponibilidad de créditos promocionales depende de la cuenta; WILLY no la tratará como gratuita si el servicio pide pago.",
+    fallbackModels: ["glm-5.3", "glm-5.3-flash", "glm-4.7"],
+    prefer: ["glm-5\\.3-flash", "glm-5\\.3", "glm-4\\.7"],
+    timeoutMs: 180_000,
+  },
+  // 10. Kimi / Moonshot internacional.
+  {
+    id: "kimi",
+    name: "Kimi · Moonshot AI",
+    baseUrl: "https://api.moonshot.ai/v1",
+    keyUrl: "https://platform.kimi.ai/",
+    dataNote: "API oficial internacional de Kimi. Los créditos/promociones dependen de la cuenta; WILLY detecta cuota o pago y pasa al siguiente motor.",
+    fallbackModels: ["kimi-k3", "kimi-k2.6", "kimi-k2-thinking"],
+    prefer: ["kimi-k3", "kimi-k2\\.6", "kimi-k2-thinking"],
+    timeoutMs: 180_000,
+  },
+  // 11. MiniMax: disponible como motor adicional; no se anuncia como gratuito.
+  {
+    id: "minimax",
+    name: "MiniMax",
+    baseUrl: "https://api.minimax.io/v1",
+    keyUrl: "https://platform.minimax.io/",
+    dataNote: "API oficial de MiniMax. No se considera gratuita de forma permanente; WILLY la deja de usar automáticamente si requiere saldo o facturación.",
+    fallbackModels: ["MiniMax-M2.7", "MiniMax-M2.5"],
+    prefer: ["MiniMax-M2\\.7", "MiniMax-M2\\.5"],
+    timeoutMs: 180_000,
+  },
+  // 12. Mistral: nivel gratuito estable, bueno para código y contextos medianos.
   { id: "mistral", name: "Mistral", baseUrl: "https://api.mistral.ai/v1", keyUrl: "https://console.mistral.ai/api-keys", dataNote: "Nivel gratuito con límites. Revisa sus condiciones sobre el uso de datos.", timeoutMs: 120_000 },
   // 4. Cohere: 1.000 peticiones/mes gratis, sin tarjeta. Muy buena con documentos largos y español.
   // Su API compatible con OpenAI no siempre da la lista de modelos: por eso lleva los conocidos.
@@ -213,7 +321,7 @@ export async function recentCalls(dir: string, limit = 40): Promise<CallLog[]> {
   }
 }
 
-export type PublicEngine = { id: string; name: string; hasKey: boolean; last4: string; enabled: boolean; model: string; available: boolean; reason: string; cooldownUntil: number; used: number; cap: number; keyUrl: string; dataNote: string };
+export type PublicEngine = { id: string; name: string; hasKey: boolean; last4: string; enabled: boolean; model: string; available: boolean; reason: string; cooldownUntil: number; used: number; cap: number; keyUrl: string; dataNote: string; credentialHint: string };
 export type PublicStatus = { master: boolean; mode: "calidad" | "ahorro"; dailyCap: number; engines: PublicEngine[] };
 
 export function availability(state: EnginesFile, id: string, now: number): { ok: boolean; reason: string } {
@@ -251,6 +359,7 @@ export function publicStatus(state: EnginesFile, now: number, providers: Provide
         cap: state.dailyCap,
         keyUrl: provider.keyUrl,
         dataNote: provider.dataNote,
+        credentialHint: provider.credentialHint ?? "Pega aquí tu API key",
       };
     }),
   };
@@ -332,6 +441,7 @@ export function rankModels(provider: Provider, ids: string[]): string[] {
     .map((id) => id.replace(/^models\//, ""))
     .filter((id) => !NOT_CHAT.test(id))
     .filter((id) => !provider.onlyModelSuffix || id.endsWith(provider.onlyModelSuffix))
+    .filter((id) => !provider.allowListedOnly || (provider.fallbackModels ?? []).includes(id))
     .filter((id) => !(provider.id === "gemini" && /-pro(?![a-z])/.test(id.toLowerCase()))))];
   if (!usable.length) return [];
   // Los preferidos del proveedor (si los tiene) van por delante; entre el resto, la puntuación general.
@@ -364,7 +474,10 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 
 const scrub = (text: string, key: string | undefined): string => {
   let out = text;
-  if (key) out = out.split(key).join("***");
+  if (key) {
+    out = out.split(key).join("***");
+    for (const part of key.split("|")) if (part.length >= 6) out = out.split(part).join("***");
+  }
   return out.replace(/\s+/g, " ").trim().slice(0, 300);
 };
 
@@ -459,9 +572,28 @@ export function openAIResponseText(raw: string): string {
   }
 }
 
+function resolveProviderAuth(provider: Provider, key: string): { ok: true; baseUrl: string; token: string } | { ok: false; error: string } {
+  if (provider.id !== "cloudflare") return { ok: true, baseUrl: provider.baseUrl, token: key };
+  const split = key.indexOf("|");
+  if (split <= 0) return { ok: false, error: "Cloudflare necesita ACCOUNT_ID|API_TOKEN." };
+  const accountId = key.slice(0, split).trim();
+  const token = key.slice(split + 1).trim();
+  if (!/^[a-f0-9]{32}$/i.test(accountId)) return { ok: false, error: "El Account ID de Cloudflare debe tener 32 caracteres hexadecimales." };
+  if (token.length < 20 || /\s/.test(token)) return { ok: false, error: "El API Token de Cloudflare no parece válido." };
+  return { ok: true, baseUrl: provider.baseUrl.replace("{accountId}", accountId), token };
+}
+
+function credentialError(provider: Provider, key: string): string | null {
+  if (key.length < 10 || key.length > 700 || /\s/.test(key)) return "La credencial no parece válida (no debe llevar espacios).";
+  const resolved = resolveProviderAuth(provider, key);
+  return resolved.ok ? null : resolved.error;
+}
+
 async function listModels(provider: Provider, key: string, fetchImpl: FetchLike): Promise<{ ok: true; ids: string[] } | { ok: false; status: number; body: string; retryAfter: string | null }> {
   try {
-    const res = await fetchImpl(`${provider.baseUrl}/models`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(30_000) });
+    const auth = resolveProviderAuth(provider, key);
+    if (!auth.ok) return { ok: false, status: 401, body: auth.error, retryAfter: null };
+    const res = await fetchImpl(`${auth.baseUrl}/models`, { headers: { Authorization: `Bearer ${auth.token}` }, signal: AbortSignal.timeout(30_000) });
     const text = await res.text();
     // Sin lista de modelos en su API compatible (404/405): se usan los modelos conocidos de ese proveedor.
     if (!res.ok && provider.fallbackModels?.length && (res.status === 404 || res.status === 405)) return { ok: true, ids: provider.fallbackModels };
@@ -542,6 +674,8 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   if (!av.ok) return { ok: false, kind: "unavailable", error: av.reason };
   const engine = state.engines[id]!;
   const key = engine.key!;
+  const auth = resolveProviderAuth(provider, key);
+  if (!auth.ok) return { ok: false, kind: "auth", error: auth.error };
   const avoided = new Set((opts.avoidModels ?? []).map((value) => value.replace(/^models\//, "")));
   const preferredModel = opts.preferredModel?.trim();
   const strictModel = opts.strictModel === true && Boolean(preferredModel);
@@ -603,9 +737,9 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
       const input = sent
         .filter((message) => message.role !== "system")
         .map((message) => ({ role: message.role, content: message.content }));
-      const res = await fetchImpl(isOpenAI ? `${provider.baseUrl}/responses` : `${provider.baseUrl}/chat/completions`, {
+      const res = await fetchImpl(isOpenAI ? `${auth.baseUrl}/responses` : `${auth.baseUrl}/chat/completions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...(provider.id === "openrouter" ? { "HTTP-Referer": "http://localhost:3000", "X-Title": "WILLY AI" } : {}) },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.token}`, ...(provider.id === "openrouter" ? { "HTTP-Referer": "http://localhost:3000", "X-Title": "WILLY AI" } : {}) },
         body: JSON.stringify(isOpenAI
           ? {
               model,
@@ -784,7 +918,9 @@ export async function engineAction(dir: string, body: Body, env: Partial<Env> = 
     if (!knows(id)) return { ok: false, error: "Motor desconocido." };
     if (action === "engines-save-key") {
       const key = String(body["key"] ?? "").trim();
-      if (key.length < 10 || key.length > 400 || /\s/.test(key)) return { ok: false, error: "La clave no parece válida (no debe llevar espacios)." };
+      const provider = providers.find((p) => p.id === id)!;
+      const invalid = credentialError(provider, key);
+      if (invalid) return { ok: false, error: invalid };
       state.engines[id] = { ...blank(), ...(state.engines[id] ?? {}), key, enabled: true, cooldownUntil: 0, reason: "" };
       delete state.engines[id]!.model;
       delete state.engines[id]!.alt;

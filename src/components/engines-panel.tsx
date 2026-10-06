@@ -92,14 +92,14 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
                   <p className="mt-1 leading-5 text-muted-foreground">{engine.dataNote}</p>
                   {engine.hasKey && engine.reason && engine.enabled && !engine.available && <p className="mt-1 leading-5 text-amber-600">{engine.reason}</p>}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <a href={engine.keyUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border border-border px-2 py-1 font-semibold hover:bg-muted">Conseguir clave</a>
+                    <a href={engine.keyUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border border-border px-2 py-1 font-semibold hover:bg-muted">Conseguir API</a>
                     <input
                       type="password"
                       autoComplete="off"
                       spellCheck={false}
                       value={keys[engine.id] ?? ""}
                       onChange={(event) => setKeys((current) => ({ ...current, [engine.id]: event.target.value }))}
-                      placeholder={engine.hasKey ? "Pega una clave nueva para cambiarla" : "Pega aquí tu clave"}
+                      placeholder={engine.hasKey ? `Nueva credencial · ${engine.credentialHint}` : engine.credentialHint}
                       className="min-w-48 flex-1 rounded-md border border-border bg-background px-2 py-1 outline-none focus:border-primary"
                       aria-label={`Clave de ${engine.name}`}
                     />
@@ -117,7 +117,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
               );
             })}
           </ul>
-          <p className="text-xs leading-5 text-muted-foreground">Pulsa «Probar» después de guardar cada clave. OpenRouter, Gemini, Groq, Mistral, Cohere, NVIDIA y xAI Grok pueden ofrecer nivel gratuito. OpenAI usa la Responses API oficial y se factura por uso; el plan ChatGPT no incluye esos consumos de API. Claude y Perplexity siguen disponibles mediante «Usar otra IA» si no configuras sus APIs.</p>
+          <p className="text-xs leading-5 text-muted-foreground">Pulsa «Probar» después de guardar cada credencial. Entre los motores con acceso gratuito o cuota inicial están OpenRouter, Gemini, Groq, Mistral, Cohere, NVIDIA, Cerebras, ModelScope, Cloudflare, Hugging Face y Qwen/Alibaba. DeepSeek, Z.AI, Kimi, MiniMax y OpenAI pueden requerir saldo según la cuenta; WILLY detecta cuota/pago y pasa al siguiente motor. ChatGPT Plus no incluye consumos de API.</p>
         </div>
       )}
     </details>

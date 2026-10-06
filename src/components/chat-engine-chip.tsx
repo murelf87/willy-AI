@@ -222,18 +222,18 @@ export function ExternalAiPanel({ ai, compact = false, onClose, keysOnly = false
           </ul>
           {withoutKey.length > 0 && !showAdd && (
             <button type="button" onClick={() => setShowAdd(true)} className="mb-2 flex w-full items-center gap-1.5 rounded-lg border border-dashed border-border px-2.5 py-1.5 text-left font-semibold text-primary hover:bg-primary/5">
-              <Plus className="size-3.5 shrink-0" /><span className="min-w-0 flex-1 truncate">Añadir otra IA gratis ({withoutKey.map((e) => e.name).join(", ")})</span>
+              <Plus className="size-3.5 shrink-0" /><span className="min-w-0 flex-1 truncate">Añadir otra IA / API ({withoutKey.map((e) => e.name).join(", ")})</span>
             </button>
           )}
           {withoutKey.length > 0 && showAdd && (
             <div className="mb-2">
-              <p className="mb-1 font-semibold text-muted-foreground">Sin clave todavía · gratis y sin tarjeta</p>
+              <p className="mb-1 font-semibold text-muted-foreground">Sin credencial todavía · consigue la API del proveedor</p>
               <ul className="space-y-1">
                 {withoutKey.map((e) => (
                   <li key={e.id} className="rounded-lg border border-dashed border-border px-2 py-1.5">
                     <div className="flex items-center gap-2">
                       <span className="min-w-0 flex-1 truncate font-semibold text-foreground">{e.name}</span>
-                      {e.keyUrl && <a href={e.keyUrl} target="_blank" rel="noreferrer noopener" className="shrink-0 font-semibold text-primary underline">Conseguir clave gratis</a>}
+                      {e.keyUrl && <a href={e.keyUrl} target="_blank" rel="noreferrer noopener" className="shrink-0 font-semibold text-primary underline">Conseguir API</a>}
                     </div>
                     <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">{e.dataNote}</p>
                     <div className="mt-1 flex items-center gap-1.5">
@@ -242,7 +242,7 @@ export function ExternalAiPanel({ ai, compact = false, onClose, keysOnly = false
                         autoComplete="off"
                         value={keys[e.id] ?? ""}
                         onChange={(event) => setKeys((current) => ({ ...current, [e.id]: event.target.value }))}
-                        placeholder="Pega aquí la clave"
+                        placeholder={e.credentialHint}
                         aria-label={`Clave de ${e.name}`}
                         className="h-7 min-w-0 flex-1 rounded-md border border-border bg-background px-2 outline-none focus:border-primary"
                       />
