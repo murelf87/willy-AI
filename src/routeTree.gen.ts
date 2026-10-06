@@ -25,6 +25,7 @@ import { Route as ApiIphoneRouteImport } from './routes/api/iphone'
 import { Route as ApiJuridicoRouteImport } from './routes/api/juridico'
 import { Route as ApiLanRouteImport } from './routes/api/lan'
 import { Route as ApiLocalAiRouteImport } from './routes/api/local-ai'
+import { Route as ApiOpenCodesignRouteImport } from './routes/api/open-codesign'
 import { Route as ApiProyectosRouteImport } from './routes/api/proyectos'
 import { Route as ApiRemoteAccessRouteImport } from './routes/api/remote-access'
 import { Route as ApiRemoteStatusRouteImport } from './routes/api/remote-status'
@@ -115,6 +116,11 @@ const ApiLocalAiRoute = ApiLocalAiRouteImport.update({
   path: '/api/local-ai',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpenCodesignRoute = ApiOpenCodesignRouteImport.update({
+  id: '/api/open-codesign',
+  path: '/api/open-codesign',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProyectosRoute = ApiProyectosRouteImport.update({
   id: '/api/proyectos',
   path: '/api/proyectos',
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/api/juridico': typeof ApiJuridicoRoute
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
+  '/api/open-codesign': typeof ApiOpenCodesignRoute
   '/api/proyectos': typeof ApiProyectosRoute
   '/api/remote-access': typeof ApiRemoteAccessRoute
   '/api/remote-status': typeof ApiRemoteStatusRoute
@@ -205,6 +212,7 @@ export interface FileRoutesByTo {
   '/api/juridico': typeof ApiJuridicoRoute
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
+  '/api/open-codesign': typeof ApiOpenCodesignRoute
   '/api/proyectos': typeof ApiProyectosRoute
   '/api/remote-access': typeof ApiRemoteAccessRoute
   '/api/remote-status': typeof ApiRemoteStatusRoute
@@ -233,6 +241,7 @@ export interface FileRoutesById {
   '/api/juridico': typeof ApiJuridicoRoute
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
+  '/api/open-codesign': typeof ApiOpenCodesignRoute
   '/api/proyectos': typeof ApiProyectosRoute
   '/api/remote-access': typeof ApiRemoteAccessRoute
   '/api/remote-status': typeof ApiRemoteStatusRoute
@@ -262,6 +271,7 @@ export interface FileRouteTypes {
     | '/api/juridico'
     | '/api/lan'
     | '/api/local-ai'
+    | '/api/open-codesign'
     | '/api/proyectos'
     | '/api/remote-access'
     | '/api/remote-status'
@@ -289,6 +299,7 @@ export interface FileRouteTypes {
     | '/api/juridico'
     | '/api/lan'
     | '/api/local-ai'
+    | '/api/open-codesign'
     | '/api/proyectos'
     | '/api/remote-access'
     | '/api/remote-status'
@@ -316,6 +327,7 @@ export interface FileRouteTypes {
     | '/api/juridico'
     | '/api/lan'
     | '/api/local-ai'
+    | '/api/open-codesign'
     | '/api/proyectos'
     | '/api/remote-access'
     | '/api/remote-status'
@@ -344,6 +356,7 @@ export interface RootRouteChildren {
   ApiJuridicoRoute: typeof ApiJuridicoRoute
   ApiLanRoute: typeof ApiLanRoute
   ApiLocalAiRoute: typeof ApiLocalAiRoute
+  ApiOpenCodesignRoute: typeof ApiOpenCodesignRoute
   ApiProyectosRoute: typeof ApiProyectosRoute
   ApiRemoteAccessRoute: typeof ApiRemoteAccessRoute
   ApiRemoteStatusRoute: typeof ApiRemoteStatusRoute
@@ -469,6 +482,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLocalAiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/open-codesign': {
+      id: '/api/open-codesign'
+      path: '/api/open-codesign'
+      fullPath: '/api/open-codesign'
+      preLoaderRoute: typeof ApiOpenCodesignRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/proyectos': {
       id: '/api/proyectos'
       path: '/api/proyectos'
@@ -552,6 +572,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiJuridicoRoute: ApiJuridicoRoute,
   ApiLanRoute: ApiLanRoute,
   ApiLocalAiRoute: ApiLocalAiRoute,
+  ApiOpenCodesignRoute: ApiOpenCodesignRoute,
   ApiProyectosRoute: ApiProyectosRoute,
   ApiRemoteAccessRoute: ApiRemoteAccessRoute,
   ApiRemoteStatusRoute: ApiRemoteStatusRoute,

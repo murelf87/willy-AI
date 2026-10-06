@@ -6,7 +6,7 @@ import { useId, type ReactNode } from "react";
 import {
   ArrowRight, AudioLines, BookOpen, Brain, Check, ChevronDown, ChevronRight, CircleDot, Clock, Cloud, Cpu, FileText, FolderKanban, Github,
   Headphones, Home, KeyRound, Languages, LayoutGrid, Menu as MenuIcon, MessageSquare, MonitorUp, Moon, PanelLeftClose, PanelLeftOpen,
-  Film, Presentation, Puzzle, Scale, ScanText, Settings, Sparkles, Sun, UserRound, Video, Wand2, Wrench, X, Zap,
+  Film, Palette, Presentation, Puzzle, Scale, ScanText, Settings, Sparkles, Sun, UserRound, Video, Wand2, Wrench, X, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
@@ -37,6 +37,7 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
   ] },
   { title: "Trabajo", items: [
     { icon: FolderKanban, label: "Proyectos", view: "proyectos" },
+    { icon: Palette, label: "Diseño IA", view: "diseno" },
     { icon: LayoutGrid, label: "Herramientas", view: "herramientas" },
     { icon: MonitorUp, label: "Equipo remoto", view: "remoto" },
   ] },

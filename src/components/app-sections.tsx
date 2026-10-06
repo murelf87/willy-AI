@@ -34,6 +34,7 @@ import { SelfBuildView } from "@/components/self-build-view";
 import { SettingsView } from "@/components/settings-view";
 import { IntelligenceCenter } from "@/components/intelligence-center";
 import { RemoteAccessView } from "@/components/remote-access-view";
+import { OpenCoDesignView } from "@/components/open-codesign-view";
 import { SectionHead as Head } from "@/components/section-ui";
 import { projectService, useProjects, useVersions } from "@/services/project-service";
 import { isExampleProject, type Ping, type Project, type ProjectIcon, type ProjectMode } from "@/types/domain";
@@ -48,7 +49,7 @@ import { PanelCard as Card } from "@/components/panel-card";
 export type View =
   | "chat" | "inicio" | "superia" | "inteligencia" | "autoconstruccion" | "proyectos" | "historial"
   | "herramientas" | "documentacion" | "ajustes" | "cuenta"
-  | "github" | "instalacion" | "demo" | "licencias" | "remoto"
+  | "github" | "instalacion" | "demo" | "licencias" | "remoto" | "diseno"
   | "lectura" | "ocr" | "avatar" | "personaje" | "influencer" | "traducir" | "extras" | "libros" | "transcribir" | "doblaje"
   | "juridico";
 
@@ -77,6 +78,7 @@ export const VIEW_TITLES: Record<View, string> = {
   cuenta: "Cuenta",
   github: "GitHub",
   remoto: "Equipo remoto",
+  diseno: "Diseño IA · Open CoDesign",
   instalacion: "Acceso directo",
   demo: "Demo para cliente",
   juridico: "Análisis Jurídico",
@@ -350,6 +352,14 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
         <div className="mx-auto w-full max-w-[1600px] min-w-0">
           <JuridicoView ping={ping} />
         </div>
+      </section>
+    );
+  }
+
+  if (view === "diseno") {
+    return (
+      <section className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background" aria-label={VIEW_TITLES[view]}>
+        <OpenCoDesignView ping={ping} />
       </section>
     );
   }

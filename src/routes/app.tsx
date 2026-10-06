@@ -130,7 +130,7 @@ function Workspace() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const wanted = new URLSearchParams(window.location.search).get("view");
-    if (wanted === "superia") setView("superia");
+    if (wanted === "superia" || wanted === "diseno") setView(wanted);
   }, []);
   // Las pestañas que ya has abierto se quedan VIVAS (ocultas): así no pierdes lo que escribías o generabas en ellas al cambiar de una a otra.
   const [visited, setVisited] = useState<View[]>(["chat"]);

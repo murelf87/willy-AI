@@ -4,7 +4,7 @@
 // (claude/avatar-ai-capacidades-para-front.md) y las fuentes de datos en tiempo real (lib/data-catalog.ts).
 import {
   BookOpen, Bot, Cloud, Code2, Database, FileSearch, FileText, Github, Globe, Headphones, Image as ImageIcon, KeyRound, Languages,
-  Mic, PenLine, Presentation, Puzzle, Scale, ScanText, Search, Sparkles, Subtitles, UserRound, Video, Volume2, Wand2, Zap, Clapperboard, AudioLines,
+  Mic, Palette, PenLine, Presentation, Puzzle, Scale, ScanText, Search, Sparkles, Subtitles, UserRound, Video, Volume2, Wand2, Zap, Clapperboard, AudioLines,
   type LucideIcon,
 } from "lucide-react";
 import { CATALOG } from "@/lib/data-catalog";
@@ -95,6 +95,7 @@ export const TOOLS: Tool[] = [
   { id: "buscar-internet", name: "Buscar en internet", desc: "WILLY busca, lee las mejores páginas y responde citando las fuentes", categories: ["datos"], icon: Search, availability: "disponible", action: { kind: "chat", text: "Busca en internet: " }, owner: "WILLY AI" },
   ...dataSourceTools,
   // ── Desarrollo
+  { id: "open-codesign", name: "Diseño IA · Open CoDesign", desc: "Chat de diseño con vista previa en vivo, edición tocando elementos y Ollama local gratis", categories: ["desarrollo", "creacion"], icon: Palette, availability: "disponible", action: { kind: "view", view: "diseno" }, owner: "WILLY AI" },
   { id: "nuevo-proyecto", name: "Nuevo proyecto", desc: "Crea una web, app o programa con Súper IA (entrevista, plan y construcción)", categories: ["desarrollo"], icon: Sparkles, availability: "disponible", action: { kind: "nuevo-proyecto" }, owner: "WILLY AI" },
   { id: "replicar", name: "Replicar aplicación o programa", desc: "Versión propia de una aplicación existente, con instalador de Windows", categories: ["desarrollo"], icon: Wand2, availability: "disponible", action: { kind: "nuevo-proyecto" }, owner: "WILLY AI" },
   { id: "github", name: "GitHub", desc: "Sube y sincroniza tus proyectos con tu cuenta", categories: ["desarrollo"], icon: Github, availability: "disponible", action: { kind: "view", view: "github" }, owner: "WILLY AI" },
