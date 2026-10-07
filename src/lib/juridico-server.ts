@@ -11,6 +11,8 @@ const OFFICIAL_LEGAL_HOSTS = new Set([
   "eur-lex.europa.eu",
   "hudoc.echr.coe.int",
   "www.boe.es", "boe.es",
+  "www.juntadeandalucia.es", "juntadeandalucia.es",
+  "ws050.juntadeandalucia.es", "desarrollo.juntadeandalucia.es",
 ]);
 
 function decodeBasicHtml(text: string): string {
@@ -95,7 +97,7 @@ async function nativeHttpsGet(rawUrl: string, redirects = 0): Promise<NativeHttp
 
 async function extractPdfServer(bytes: Uint8Array): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const task = pdfjs.getDocument({ data: bytes, useWorkerFetch: false, isEvalSupported: false });
+  const task = pdfjs.getDocument({ data: bytes, useWorkerFetch: false });
   const doc = await task.promise;
   const pages: string[] = [];
   try {
@@ -412,6 +414,7 @@ export function legalSourceCatalog(): LegalSourceDescriptor[] {
     { id:"boe-diario", name:"BOE · Diario oficial", authority:"Agencia Estatal BOE", scope:"España", access:"api", automatic:true, free:true, url:"https://www.boe.es/datosabiertos/", note:"Sumarios y datos abiertos diarios." },
     { id:"borme", name:"BORME", authority:"Agencia Estatal BOE", scope:"España · mercantil", access:"api", automatic:true, free:true, url:"https://www.boe.es/datosabiertos/", note:"Sumarios mercantiles diarios." },
     { id:"boja", name:"BOJA · Disposiciones", authority:"Junta de Andalucía", scope:"Andalucía", access:"api", automatic:true, free:true, url:"https://datos.juntadeandalucia.es/api/v0/boja/openapi.json", note:"OpenAPI REST: búsqueda, detalle, boletines, calendario y valores auxiliares." },
+    { id:"hcv-junta", name:"HCV · Verificación CSV", authority:"Junta de Andalucía · Agencia Digital de Andalucía", scope:"Andalucía · autenticidad documental", access:"portal", automatic:false, free:true, url:"https://ws050.juntadeandalucia.es/verificarFirma/", note:"Comprueba autenticidad e integridad mediante CSV. La consulta ciudadana exige identificación; ENIDOCWS 2.0 permite automatización solo para clientes/sistemas autorizados.", tier:"fuente-primaria", topics:["CSV","firma electrónica","autenticidad","integridad","documento electrónico"] },
     { id:"cellar", name:"CELLAR / Publications Office", authority:"Unión Europea", scope:"UE", access:"api", automatic:true, free:true, url:"https://op.europa.eu/en/web/about-us/legal-notices/accessibility-statement", note:"REST/SPARQL para recursos jurídicos y metadatos de la UE." },
     { id:"eurlex-ws", name:"EUR-Lex Webservice", authority:"Unión Europea", scope:"UE", access:"api", automatic:false, free:true, url:"https://eur-lex.europa.eu/content/help/data-reuse/webservice.html", note:"Servicio gratuito con registro previo; preparado para añadir credenciales si el usuario las obtiene." },
     { id:"congreso", name:"Congreso · Datos abiertos", authority:"Congreso de los Diputados", scope:"España · parlamentario", access:"open-data", automatic:false, free:true, url:"https://www.congreso.es/es/opendata", note:"CSV/JSON/XML de iniciativas, intervenciones y actividad parlamentaria." },
@@ -575,7 +578,7 @@ export async function saveLegalCases(cases: unknown): Promise<{ count: number; b
 export function legalServerStatus() {
   return {
     checkedAt: new Date().toISOString(),
-    officialSources: ["BOE", "BORME", "BOJA", "CELLAR/EUR-Lex", "Congreso", "Senado", "CGPJ", "CENDOJ", "Tribunal Constitucional", "InfoCuria", "HUDOC", "AEPD", "TEAC · DYCTEA", "DGT", "Consejo de Estado", "TACRC", "Fiscalía General del Estado", "Defensor del Pueblo", "EDPB"],
+    officialSources: ["BOE", "BORME", "BOJA", "HCV · Verificación CSV", "CELLAR/EUR-Lex", "Congreso", "Senado", "CGPJ", "CENDOJ", "Tribunal Constitucional", "InfoCuria", "HUDOC", "AEPD", "TEAC · DYCTEA", "DGT", "Consejo de Estado", "TACRC", "Fiscalía General del Estado", "Defensor del Pueblo", "EDPB"],
     freeApis: [
       { id: "boe-law", name: "BOE Legislación consolidada", auth: "sin clave", active: true, endpoint: "https://www.boe.es/datosabiertos/api/legislacion-consolidada" },
       { id: "boe-daily", name: "BOE Sumario diario", auth: "sin clave", active: true, endpoint: "https://www.boe.es/datosabiertos/api/boe/sumario/{fecha}" },
@@ -586,7 +589,10 @@ export function legalServerStatus() {
       { id: "cellar-rest", name: "CELLAR REST/CELEX", auth: "sin clave", active: true, endpoint: "https://publications.europa.eu/resource/celex/{CELEX}" },
       { id: "eurlex-soap", name: "EUR-Lex Webservice SOAP", auth: "registro gratuito EU Login", active: false, endpoint: "https://eur-lex.europa.eu/content/help/data-reuse/webservice.html" },
     ],
-    publicOfficialPortals: [{ id: "cgpj", name: "Consejo General del Poder Judicial", url: "https://www.poderjudicial.es/", api: false, automatic: false }],
+    publicOfficialPortals: [
+      { id: "cgpj", name: "Consejo General del Poder Judicial", url: "https://www.poderjudicial.es/", api: false, automatic: false },
+      { id: "hcv-junta", name: "HCV · Verificación CSV", url: "https://ws050.juntadeandalucia.es/verificarFirma/", api: false, automatic: false, note: "Portal oficial. La consulta ciudadana exige identificación; ENIDOCWS 2.0 es un protocolo de integración con repositorios, no una API pública del portal." },
+    ],
     publicOfficialSearches: [
       { id: "cendoj", name: "CENDOJ", api: false, automatic: true },
       { id: "tc", name: "Tribunal Constitucional", api: false },

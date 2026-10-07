@@ -18,6 +18,7 @@ import { auditLegalAnswer, legalCorrectionPrompt } from "@/lib/juridico-verifica
 import { buildOfficialJurisprudenceSearches, jurisprudenceResearchPrompt, normalizeJurisFilters, type JurisSearchFilters } from "@/lib/jurisprudencia-search";
 import type { CendojAdvancedResult } from "@/lib/jurisprudencia-cendoj";
 import { auditPrognosisAnswer, prognosisPrompt } from "@/lib/juridico-prognosis";
+import { JuridicoCsvVerifier, type HcvCheck } from "@/components/juridico-csv-verifier";
 
 type DocFile = { id: string; name: string; size: number; type: string; text: string; hash: string; uploadedAt: number };
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: number; model?: string; mode?: string };
@@ -25,9 +26,9 @@ type LegalSource = { id: string; title: string; url: string; kind: string; offic
 type CasoJuridico = {
   id: string; nombre: string; area: string; jurisdiccion: string; posicion: string; objetivo: string;
   contraparte: string; fechaHechos: string; deadline: string; notas: string;
-  docs: DocFile[]; sources: LegalSource[]; messages: Message[]; createdAt: number; updatedAt: number;
+  docs: DocFile[]; sources: LegalSource[]; messages: Message[]; hcvChecks: HcvCheck[]; createdAt: number; updatedAt: number;
 };
-type Tab = "analisis" | "expediente" | "fuentes" | "jurisprudencia" | "herramientas";
+type Tab = "analisis" | "expediente" | "csv" | "fuentes" | "jurisprudencia" | "herramientas";
 type Mode = { id: string; name: string; desc: string; prompt: string; icon: typeof Scale };
 type SearchHit = { id: string; title: string; url: string; kind: string; meta: string; official: boolean; verification: LegalVerification };
 
@@ -93,6 +94,7 @@ const LEGAL_SYSTEM = [
   "Construye la mejor tesis del usuario y la mejor tesis contraria; no ocultes debilidades.",
   "Revisa cuando proceda jurisdicción, competencia, legitimación, postulación, procedimiento, agotamiento, prescripción, caducidad, plazos, recursos y admisibilidad.",
   "En prueba analiza autenticidad, integridad, licitud, fuerza probatoria, contradicciones y prueba faltante.",
+  "Una validación HCV positiva acredita la autenticidad/integridad del documento respecto del CSV verificado, no la legalidad material de su contenido. No confundas autenticidad documental con conformidad jurídica.",
   "No des porcentajes de éxito sin base empírica. Usa confianza Alta/Media/Baja y justifícala.",
   "Si faltan datos capaces de cambiar la conclusión, enuméralos antes de cerrar.",
   "No suavices conclusiones desfavorables. Precisión antes que complacencia.",
@@ -120,7 +122,7 @@ async function hashFile(file: File): Promise<string> {
 }
 function normalizeCase(value: Partial<CasoJuridico>): CasoJuridico {
   const now=Date.now();
-  return { id:value.id||uid(), nombre:value.nombre||"Expediente jurídico", area:value.area||"Civil", jurisdiccion:value.jurisdiccion||"Por determinar", posicion:value.posicion||"Neutral / consultivo", objetivo:value.objetivo||"", contraparte:value.contraparte||"", fechaHechos:value.fechaHechos||"", deadline:value.deadline||"", notas:value.notas||"", docs:Array.isArray(value.docs)?value.docs.map((d)=>({ ...d, hash:d.hash||"sin-hash" })):[], sources:Array.isArray(value.sources)?value.sources.map((source)=>({ ...source, verification:(source as Partial<LegalSource>).verification||"manual-pendiente" } as LegalSource)):[], messages:Array.isArray(value.messages)?value.messages:[], createdAt:value.createdAt||now, updatedAt:value.updatedAt||now };
+  return { id:value.id||uid(), nombre:value.nombre||"Expediente jurídico", area:value.area||"Civil", jurisdiccion:value.jurisdiccion||"Por determinar", posicion:value.posicion||"Neutral / consultivo", objetivo:value.objetivo||"", contraparte:value.contraparte||"", fechaHechos:value.fechaHechos||"", deadline:value.deadline||"", notas:value.notas||"", docs:Array.isArray(value.docs)?value.docs.map((d)=>({ ...d, hash:d.hash||"sin-hash" })):[], sources:Array.isArray(value.sources)?value.sources.map((source)=>({ ...source, verification:(source as Partial<LegalSource>).verification||"manual-pendiente" } as LegalSource)):[], messages:Array.isArray(value.messages)?value.messages:[], hcvChecks:Array.isArray(value.hcvChecks)?value.hcvChecks:[], createdAt:value.createdAt||now, updatedAt:value.updatedAt||now };
 }
 function readiness(c: CasoJuridico): number {
   let n=8; if(c.area)n+=8; if(c.jurisdiccion!=="Por determinar")n+=10; if(c.posicion)n+=8; if(c.objetivo)n+=12; if(c.fechaHechos)n+=8; n+=Math.min(24,c.docs.length*6); n+=Math.min(14,c.sources.length*3); if(c.messages.length>=2)n+=8; return Math.min(100,n);
@@ -129,6 +131,16 @@ function packDocs(docs: DocFile[]): string {
   if(!docs.length)return "No hay documentos adjuntos.";
   const cap=Math.max(5000,Math.floor(140000/docs.length));
   return docs.map((d,i)=>"[DOC-"+(i+1)+"] "+d.name+"\nSHA-256: "+d.hash+"\n--- EVIDENCIA DOCUMENTAL ---\n"+d.text.slice(0,cap)+(d.text.length>cap?"\n[TRUNCADO POR CONTEXTO]":"")+"\n--- FIN DOC-"+(i+1)+" ---").join("\n\n");
+}
+function packHcvChecks(checks: HcvCheck[]): string {
+  if(!checks.length)return "No hay comprobaciones HCV/CSV incorporadas.";
+  return checks.map((check,i)=>{
+    const result=check.officialResult==="positive"?"HCV POSITIVA":check.officialResult==="negative"?"HCV NEGATIVA":check.officialResult==="exists"?"CSV EXISTENTE EN ENIDOCWS · FIRMA/INTEGRIDAD PENDIENTE":check.officialResult==="not-found"?"CSV NO ENCONTRADO EN ENIDOCWS":"VERIFICACIÓN OFICIAL PENDIENTE";
+    const comparison=check.comparison
+      ? ("Comparación con original HCV: SHA-256 "+(check.comparison.exactHash?"IDÉNTICO":"DISTINTO")+(check.comparison.textSimilarity==null?"":" · similitud textual "+check.comparison.textSimilarity.toFixed(1)+"%"))
+      : "Original HCV no comparado.";
+    return "[HCV-"+(i+1)+"] "+check.source.name+"\nCSV: "+(check.csv||"no detectado")+"\nEstado: "+result+"\nOrigen del estado: "+(check.officialResultSource||"sin evidencia oficial incorporada")+"\nSHA-256 aportado: "+check.source.sha256+"\n"+comparison+"\nREGLA: este estado informa sobre autenticidad/integridad documental, no sobre la legalidad material del contenido.";
+  }).join("\n\n");
 }
 function inline(text:string,key:string):ReactNode { const parts=text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g); return <span key={key}>{parts.map((p,i)=>p.startsWith("**")&&p.endsWith("**")?<strong key={i}>{p.slice(2,-2)}</strong>:p.startsWith("`")&&p.endsWith("`")?<code key={i} className="rounded bg-muted px-1 py-0.5 text-[.9em]">{p.slice(1,-1)}</code>:<span key={i}>{p}</span>)}</span>; }
 function markdown(text:string):ReactNode[] { return text.split("\n").map((line,i)=>line.startsWith("### ")?<h3 key={i} className="mb-1 mt-4 text-sm font-bold">{line.slice(4)}</h3>:line.startsWith("## ")?<h2 key={i} className="mb-1.5 mt-5 border-b border-border pb-1.5 text-base font-bold">{line.slice(3)}</h2>:line.startsWith("# ")?<h1 key={i} className="mb-2 mt-5 text-lg font-bold">{line.slice(2)}</h1>:/^[-*] /.test(line)?<li key={i} className="ml-5 list-disc text-sm leading-6">{inline(line.slice(2),"li"+i)}</li>:/^\d+\. /.test(line)?<li key={i} className="ml-5 list-decimal text-sm leading-6">{inline(line.replace(/^\d+\. /,""),"ol"+i)}</li>:!line.trim()?<div key={i} className="h-2"/>:<p key={i} className="text-sm leading-6">{inline(line,"p"+i)}</p>); }
@@ -240,6 +252,7 @@ async function askLegal(args:{ caso:CasoJuridico; messages:Message[]; mode:Mode;
       "\n"+buildLegalProtocol({area:args.caso.area,jurisdiccion:args.caso.jurisdiccion,posicion:args.caso.posicion,deadline:args.caso.deadline}),
       "\n=== MODO ===",args.mode.name+": "+args.mode.prompt,"\n=== FICHA ===",meta,
       "\n=== DOCUMENTOS ===",packDocs(args.caso.docs),
+      "\n=== VERIFICACIONES CSV / HCV JUNTA DE ANDALUCÍA ===",packHcvChecks(args.caso.hcvChecks),
       "\n=== FUENTES FIJADAS ===",hydrated.context,
       "\n=== TEXTOS OFICIALES RECUPERADOS AUTOMÁTICAMENTE ===",autoVerified.context||"Ninguno recuperado automáticamente.",
       "\n=== INVESTIGACIÓN AUTOMÁTICA: CANDIDATAS OFICIALES ===",research,
@@ -350,6 +363,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
     "Fecha de hechos: "+(caso.fechaHechos||"no indicada"),
     "Notas: "+(caso.notas||"sin notas"),
     "Documentos adjuntos: "+caso.docs.map((d)=>d.name).join(", "),
+    "Verificaciones HCV/CSV: "+(caso.hcvChecks.length?caso.hcvChecks.map((x)=>[(x.csv||"sin CSV"),x.officialResult,x.comparison?.exactHash===true?"hash idéntico":x.comparison?"hash distinto":"sin comparar"].join(" · ")).join(" | "):"ninguna"),
   ].join("\n"):"",[caso]);
   const setJuris=<K extends keyof JurisSearchFilters,>(key:K,value:JurisSearchFilters[K])=>setJurisFilters((prev)=>({...prev,[key]:value}));
 
@@ -488,7 +502,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
             <p className="text-xl font-bold tracking-tight sm:text-2xl">Mesa jurídica de trabajo</p>
             <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Un expediente único para documentos, normativa, jurisprudencia, cronología, contradicciones, prueba y estrategia. Cada conclusión debe poder rastrearse hasta una evidencia o fuente oficial.</p>
             <div className="mt-6 grid gap-2 sm:grid-cols-2">
-              {["BOE + BORME","BOJA Andalucía","CELLAR / EUR-Lex","CENDOJ + TSJ/AP","TC + TJUE + TEDH","Matriz de prueba"].map((x)=><div key={x} className="flex items-center gap-2 rounded-lg border border-border bg-background/70 px-3 py-2 text-xs font-medium"><CheckCircle2 className="size-4 text-emerald-600"/>{x}</div>)}
+              {["BOE + BORME","BOJA Andalucía","HCV · CSV Junta","CELLAR / EUR-Lex","CENDOJ + TSJ/AP","TC + TJUE + TEDH","Matriz de prueba"].map((x)=><div key={x} className="flex items-center gap-2 rounded-lg border border-border bg-background/70 px-3 py-2 text-xs font-medium"><CheckCircle2 className="size-4 text-emerald-600"/>{x}</div>)}
             </div>
             <Button className="mt-6 w-full gap-2 sm:w-fit" onClick={newCase}><Plus className="size-4"/>Crear primer expediente</Button>
           </div>
@@ -530,7 +544,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
           </div>
         </div>
         <div className="flex gap-1 overflow-x-auto px-2 py-2 sm:px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {([["analisis","Análisis"],["expediente","Expediente"],["fuentes","Fuentes jurídicas"],["jurisprudencia","Jurisprudencia avanzada"],["herramientas","Herramientas"]] as Array<[Tab,string]>).map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={"shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition "+(tab===id?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted hover:text-foreground")}>{label}</button>)}
+          {([["analisis","Análisis"],["expediente","Expediente"],["csv","Verificador CSV"],["fuentes","Fuentes jurídicas"],["jurisprudencia","Jurisprudencia avanzada"],["herramientas","Herramientas"]] as Array<[Tab,string]>).map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={"shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition "+(tab===id?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted hover:text-foreground")}>{label}</button>)}
         </div>
       </Card>
 
@@ -625,6 +639,8 @@ export function JuridicoView({ ping }:{ ping:Ping }){
             </div>
             <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">Guardado automáticamente en el backend local de WILLY.</p><Button variant="outline" size="sm" onClick={deleteCase} className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10"><Trash2 className="size-4"/>Eliminar expediente</Button></div>
           </Card>}
+
+          {tab==="csv" && <JuridicoCsvVerifier caseId={caso.id} checks={caso.hcvChecks} onChange={(hcvChecks)=>patch({hcvChecks})} ping={ping} />}
 
           {tab==="fuentes" && <div className="space-y-3">
             <Card className="p-4">
@@ -838,6 +854,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
               {[
                 ["BOE","https://www.boe.es/"],
                 ["BOJA","https://juntadeandalucia.es/eboja/"],
+                ["HCV · Verificación CSV","https://ws050.juntadeandalucia.es/verificarFirma/"],
                 ["CGPJ · Consejo General del Poder Judicial",CGPJ],["CENDOJ",CENDOJ],["TC",TC],["TEAC · DYCTEA",TEAC],["EUR-Lex","https://eur-lex.europa.eu/"],["InfoCuria",CURIA],["HUDOC",HUDOC],["AEPD","https://www.aepd.es/"],["Aranzadi LA LEY · suscripción",ARANZADI],
               ].map(([name,url])=><a key={name} href={url} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-md border border-border px-2 py-1.5 text-[10px] font-semibold hover:bg-muted"><span>{name}</span><ExternalLink className="size-3 text-muted-foreground"/></a>)}
             </div>

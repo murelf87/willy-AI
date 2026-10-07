@@ -274,7 +274,7 @@ export function OpenCoDesignView({ ping }: { ping: Ping }) {
         <select value={model} onChange={(e) => setModel(e.target.value)} className="h-8 max-w-48 rounded-md border border-border bg-background px-2 text-xs" aria-label="Modelo de diseño">
           {models.length ? models.map((name) => <option key={name} value={name}>{name}</option>) : <option value={model}>{model}</option>}
         </select>
-        <Button variant={picking ? "default" : "secondary"} size="sm" onClick={startPicking} className="gap-1.5">
+        <Button variant={picking ? "primary" : "secondary"} size="sm" onClick={startPicking} className="gap-1.5">
           <MousePointer2 className="size-3.5" />{picking ? "Toca un elemento…" : "Seleccionar"}
         </Button>
         <Button variant="secondary" size="sm" onClick={saveToProject} className="gap-1.5"><Save className="size-3.5" />Guardar</Button>

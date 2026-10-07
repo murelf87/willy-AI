@@ -23,6 +23,7 @@ import { Route as ApiFabricaRouteImport } from './routes/api/fabrica'
 import { Route as ApiFetchUrlRouteImport } from './routes/api/fetch-url'
 import { Route as ApiIphoneRouteImport } from './routes/api/iphone'
 import { Route as ApiJuridicoRouteImport } from './routes/api/juridico'
+import { Route as ApiJuridicoHcvRouteImport } from './routes/api/juridico-hcv'
 import { Route as ApiLanRouteImport } from './routes/api/lan'
 import { Route as ApiLocalAiRouteImport } from './routes/api/local-ai'
 import { Route as ApiOpenCodesignRouteImport } from './routes/api/open-codesign'
@@ -106,6 +107,11 @@ const ApiJuridicoRoute = ApiJuridicoRouteImport.update({
   path: '/api/juridico',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiJuridicoHcvRoute = ApiJuridicoHcvRouteImport.update({
+  id: '/api/juridico-hcv',
+  path: '/api/juridico-hcv',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLanRoute = ApiLanRouteImport.update({
   id: '/api/lan',
   path: '/api/lan',
@@ -182,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
   '/api/juridico': typeof ApiJuridicoRoute
+  '/api/juridico-hcv': typeof ApiJuridicoHcvRoute
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/open-codesign': typeof ApiOpenCodesignRoute
@@ -210,6 +217,7 @@ export interface FileRoutesByTo {
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
   '/api/juridico': typeof ApiJuridicoRoute
+  '/api/juridico-hcv': typeof ApiJuridicoHcvRoute
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/open-codesign': typeof ApiOpenCodesignRoute
@@ -239,6 +247,7 @@ export interface FileRoutesById {
   '/api/fetch-url': typeof ApiFetchUrlRoute
   '/api/iphone': typeof ApiIphoneRoute
   '/api/juridico': typeof ApiJuridicoRoute
+  '/api/juridico-hcv': typeof ApiJuridicoHcvRoute
   '/api/lan': typeof ApiLanRoute
   '/api/local-ai': typeof ApiLocalAiRoute
   '/api/open-codesign': typeof ApiOpenCodesignRoute
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
     | '/api/fetch-url'
     | '/api/iphone'
     | '/api/juridico'
+    | '/api/juridico-hcv'
     | '/api/lan'
     | '/api/local-ai'
     | '/api/open-codesign'
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/api/fetch-url'
     | '/api/iphone'
     | '/api/juridico'
+    | '/api/juridico-hcv'
     | '/api/lan'
     | '/api/local-ai'
     | '/api/open-codesign'
@@ -325,6 +336,7 @@ export interface FileRouteTypes {
     | '/api/fetch-url'
     | '/api/iphone'
     | '/api/juridico'
+    | '/api/juridico-hcv'
     | '/api/lan'
     | '/api/local-ai'
     | '/api/open-codesign'
@@ -354,6 +366,7 @@ export interface RootRouteChildren {
   ApiFetchUrlRoute: typeof ApiFetchUrlRoute
   ApiIphoneRoute: typeof ApiIphoneRoute
   ApiJuridicoRoute: typeof ApiJuridicoRoute
+  ApiJuridicoHcvRoute: typeof ApiJuridicoHcvRoute
   ApiLanRoute: typeof ApiLanRoute
   ApiLocalAiRoute: typeof ApiLocalAiRoute
   ApiOpenCodesignRoute: typeof ApiOpenCodesignRoute
@@ -468,6 +481,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiJuridicoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/juridico-hcv': {
+      id: '/api/juridico-hcv'
+      path: '/api/juridico-hcv'
+      fullPath: '/api/juridico-hcv'
+      preLoaderRoute: typeof ApiJuridicoHcvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/lan': {
       id: '/api/lan'
       path: '/api/lan'
@@ -570,6 +590,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFetchUrlRoute: ApiFetchUrlRoute,
   ApiIphoneRoute: ApiIphoneRoute,
   ApiJuridicoRoute: ApiJuridicoRoute,
+  ApiJuridicoHcvRoute: ApiJuridicoHcvRoute,
   ApiLanRoute: ApiLanRoute,
   ApiLocalAiRoute: ApiLocalAiRoute,
   ApiOpenCodesignRoute: ApiOpenCodesignRoute,

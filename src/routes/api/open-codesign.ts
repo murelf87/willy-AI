@@ -6,7 +6,7 @@ async function paths() {
   const path = await import("node:path");
   const os = await import("node:os");
   const home = os.homedir();
-  const local = process.env.LOCALAPPDATA ?? path.join(home, "AppData", "Local");
+  const local = process.env["LOCALAPPDATA"] ?? path.join(home, "AppData", "Local");
   return {
     fs,
     exe: path.join(local, "Programs", "Open CoDesign", "Open CoDesign.exe"),
