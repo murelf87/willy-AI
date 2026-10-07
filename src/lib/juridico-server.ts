@@ -430,7 +430,7 @@ export function legalSourceCatalog(): LegalSourceDescriptor[] {
     { id:"tirant", name:"Tirant Prime / Tirant Online", authority:"Tirant lo Blanch", scope:"España · legislación, jurisprudencia, doctrina y formularios", access:"portal", automatic:false, free:false, url:"https://www.tirantonline.com/", note:"Base jurídica profesional de suscripción. El acceso automático solo se habilitará si Tirant facilita una integración autorizada para la licencia del usuario." },
     { id:"lefebvre", name:"Lefebvre NEO / QMemento", authority:"Lefebvre", scope:"España · legislación, jurisprudencia, doctrina, Mementos y formularios", access:"portal", automatic:false, free:false, url:"https://lefebvre.es/tienda/bases-de-datos-juridicas", note:"Base jurídica profesional con NEO/QMemento y GenIA-L. Se integra solo mediante mecanismos autorizados por la suscripción; no se extrae contenido de pago por scraping." },
     { id:"cgpj", name:"CGPJ · Consejo General del Poder Judicial", authority:"Consejo General del Poder Judicial", scope:"España · información institucional", access:"portal", automatic:false, free:true, url:"https://www.poderjudicial.es/", note:"Consulta del portal oficial. Los documentos institucionales no equivalen a sentencias; verifica el documento original antes de citarlo. Sin recuperación automática integrada." },
-    { id:"cendoj", name:"CENDOJ", authority:"CGPJ", scope:"España · jurisprudencia", access:"search", automatic:false, free:true, url:"https://www.poderjudicial.es/search/indexAN.jsp", note:"Buscador oficial; no se asume una API pública no documentada." },
+    { id:"cendoj", name:"CENDOJ", authority:"CGPJ", scope:"España · jurisprudencia", access:"search", automatic:true, free:true, url:"https://www.poderjudicial.es/search/indexAN.jsp", note:"Buscador oficial integrado mediante su interfaz pública: WILLY recupera y filtra metadatos y puede verificar nombres dentro del texto oficial. No se presenta como una API pública." },
     { id:"tc", name:"Tribunal Constitucional", authority:"Tribunal Constitucional", scope:"España · constitucional", access:"search", automatic:false, free:true, url:"https://hj.tribunalconstitucional.es/", note:"Buscador oficial de jurisprudencia constitucional." },
     { id:"curia", name:"InfoCuria", authority:"Tribunal de Justicia de la UE", scope:"UE · jurisprudencia", access:"search", automatic:false, free:true, url:"https://juris.curia.europa.eu/juris/recherche.jsf?language=es", note:"Buscador oficial TJUE/TG." },
     { id:"hudoc", name:"HUDOC", authority:"Tribunal Europeo de Derechos Humanos", scope:"CEDH", access:"search", automatic:false, free:true, url:"https://hudoc.echr.coe.int/", note:"Base oficial de jurisprudencia TEDH." },
@@ -588,7 +588,7 @@ export function legalServerStatus() {
     ],
     publicOfficialPortals: [{ id: "cgpj", name: "Consejo General del Poder Judicial", url: "https://www.poderjudicial.es/", api: false, automatic: false }],
     publicOfficialSearches: [
-      { id: "cendoj", name: "CENDOJ", api: false },
+      { id: "cendoj", name: "CENDOJ", api: false, automatic: true },
       { id: "tc", name: "Tribunal Constitucional", api: false },
       { id: "curia", name: "InfoCuria", api: false },
       { id: "hudoc", name: "HUDOC", api: false },
