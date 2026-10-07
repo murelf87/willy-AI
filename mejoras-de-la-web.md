@@ -505,3 +505,15 @@ Lo anota WILLY AI solo, cada vez que aplica una mejora. Se incluye en el paquete
 - **Archivos:** `src/lib/code-focus.ts`
 - **Copia de seguridad:** 2026-09-26T18-41-22-435-adjunto-el-archivo-real-actual-src-lib-c
 - **Evidencias:** 3 comprobadas · 0 fallos · 2 informativas
+
+## 7/10/2026, 20:02:55
+- **Petición:** 1. Verificar la versión establecida de la imagen. 2. Actualizar la versión con letras verdes para que coincida con la versión establecida. 3. Revisar que tanto la versión establecida como la versión con letras verdes muestren la imagen de manera consistente.
+- **Archivos:** `src/components/update-view.tsx`
+- **Copia de seguridad:** 2026-10-07T18-02-27-823-1-verificar-la-version-establecida-de-la
+- **Evidencias:** 2 comprobadas · 0 fallos · 2 informativas
+
+## 7/10/2026, 20:11:00
+- **Petición:** 1. Verificar la versión de texto actual en los 3 puntos que salen al pulsar el botón "Actualizar versión de texto". 2. Si la versión de texto es diferente en cada punto, generar la misma versión detectada y mostrarla en todos los 3 puntos. 3. Al pulsar el botón "Actualizar versión de texto", verificar que la versión de texto actual en los 3 puntos sea la misma que la generada en el paso 2. 4. Si la versión de texto no es la misma, mostrar un mensaje de error o indicar que la acción no se ha completado correctamente. 5. No cambiar el texto de los 3 puntos que salen al pulsar el botón "Actualizar versión de texto", a menos que se especifique lo contrario.
+- **Archivos:** `src/components/update-view.tsx`
+- **Copia de seguridad:** 2026-10-07T18-10-27-368-1-verificar-la-version-de-texto-actual-e
+- **Evidencias:** 2 comprobadas · 0 fallos · 2 informativas

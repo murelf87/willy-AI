@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { CheckCircle2, Download, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SystemInfo } from "@/lib/maintenance-client";
@@ -76,6 +76,28 @@ export function UpdateView({ info }: { info: SystemInfo | null }) {
 
   const isBusy = check.status === "checking" || check.status === "installing";
 
+  const versionSpanRef = useRef<HTMLSpanElement>(null);
+  const versionWarningRef = useRef<HTMLParagraphElement>(null);
+  const versionMainRef = useRef<HTMLParagraphElement>(null);
+  const [versionError, setVersionError] = useState<string | null>(null);
+
+  const handleUpdateVersion = () => {
+    if (!info) {
+      setVersionError("Información de versión no disponible.");
+      return;
+    }
+    const expected = `v${info.version} · r${info.revision}`;
+    const spanText = versionSpanRef.current?.textContent?.trim() ?? "";
+    const warningText = versionWarningRef.current?.textContent?.trim() ?? "";
+    const mainText = versionMainRef.current?.textContent?.trim() ?? "";
+    const mismatched = [spanText, warningText, mainText].some((t) => !t.includes(expected));
+    if (mismatched) {
+      setVersionError("Las versiones mostradas no coinciden. Acción no completada.");
+    } else {
+      setVersionError(null);
+    }
+  };
+
   return (
     <section className="rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-start gap-3">
@@ -84,7 +106,7 @@ export function UpdateView({ info }: { info: SystemInfo | null }) {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Actualizaciones</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          <p className="mt-1 text-xs leading-5 text-muted-foreground" ref={versionMainRef}>
             {info
               ? `Tienes WILLY AI ${info.version} (revisión ${info.revision}).`
               : "No se pudo leer la versión: el servidor de WILLY no respondió."}
@@ -92,9 +114,14 @@ export function UpdateView({ info }: { info: SystemInfo | null }) {
           </p>
         </div>
         {info && (
-          <span className="rounded-full border border-border bg-background px-3 py-1 font-mono text-xs font-semibold">
+          <span className="rounded-full border border-border bg-background px-3 py-1 font-mono text-xs font-semibold text-green-500" ref={versionSpanRef}>
             v{info.version} · r{info.revision}
           </span>
+        )}
+        {info && info.version !== "0.0.47" && (
+          <p className="mt-1 text-xs text-red-500" ref={versionWarningRef}>
+            Advertencia: la versión mostrada no coincide con la versión establecida (0.0.47).
+          </p>
         )}
       </div>
 
@@ -176,6 +203,8 @@ export function UpdateView({ info }: { info: SystemInfo | null }) {
           Solo funciona desde el propio ordenador donde está instalado WILLY.
         </span>
       </p>
+        {versionError && <p className="mt-2 text-xs text-red-500">{versionError}</p>}
+        <Button size="sm" onClick={handleUpdateVersion}>Actualizar versión de texto</Button>
     </section>
   );
 }
