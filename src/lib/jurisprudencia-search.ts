@@ -136,9 +136,9 @@ export function buildOfficialJurisprudenceSearches(input: Partial<JurisSearchFil
       id: "cendoj",
       name: "CENDOJ · Jurisprudencia española",
       url: q ? `https://www.poderjudicial.es/search/sentencias/${q}/1/PUB` : "https://www.poderjudicial.es/search/indexAN.jsp",
-      automatic: false,
+      automatic: true,
       filters: all,
-      note: "Buscador oficial del CGPJ. Permite localizar por texto y metadatos de las resoluciones; juez/ponente, letrados y representantes se usan como términos documentales cuando constan en la resolución. Abrir y verificar la ficha/texto antes de clasificar a favor o en contra.",
+      note: "Buscador oficial del CGPJ. WILLY ya puede consultarlo automáticamente: recupera ROJ/ECLI, órgano, sede, ponente, recurso, fecha y resumen; juez/magistrado, letrados, LAJ y procurador se confirman sobre el texto oficial cuando están disponibles. El portal sigue disponible para filtros manuales adicionales.",
     },
     {
       id: "tc",
