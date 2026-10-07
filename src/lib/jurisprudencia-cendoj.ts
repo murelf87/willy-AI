@@ -96,7 +96,8 @@ export function parseCendojResults(html: string, max = 30): CendojAdvancedResult
     const roj = firstMatch(part, /data-roj=["']([^"']+)["']/i) || firstMatch(part, /ROJ:\s*<strong>([\s\S]*?)<\/strong>/i);
     const reference = firstMatch(part, /data-reference=["']([^"']+)["']/i);
     const href = firstMatch(part, /href=["'](\/search\/documento\/[^"']+)["']/i);
-    const ecliValue = firstMatch(part, /ECLI:\s*([^<\s]+)\s*<\/strong>/i);\n    const ecli = ecliValue ? (ecliValue.toUpperCase().startsWith("ECLI:") ? ecliValue : "ECLI:" + ecliValue) : "";
+    const ecliValue = firstMatch(part, /ECLI:\s*([^<\s]+)\s*<\/strong>/i);
+    const ecli = ecliValue ? (ecliValue.toUpperCase().startsWith("ECLI:") ? ecliValue : "ECLI:" + ecliValue) : "";
     if (!roj && !reference) continue;
     const organ = metaValue(part, "Tipo Órgano") || metaValue(part, "Tipo �rgano");
     const municipality = metaValue(part, "Municipio");
