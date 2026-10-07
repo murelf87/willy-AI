@@ -243,6 +243,8 @@ export type LegalSourceDescriptor = {
   free: boolean;
   url: string;
   note: string;
+  tier?: "fuente-primaria" | "jurisprudencia" | "doctrina-oficial" | "biblioteca-profesional";
+  topics?: string[];
 };
 
 export function legalSourceCatalog(): LegalSourceDescriptor[] {
@@ -257,6 +259,12 @@ export function legalSourceCatalog(): LegalSourceDescriptor[] {
     { id:"senado", name:"Senado · Datos abiertos", authority:"Senado de España", scope:"España · parlamentario", access:"open-data", automatic:false, free:true, url:"https://www.senado.es/web/relacionesciudadanos/datosabiertos/index.html", note:"XML reutilizable de iniciativas, votaciones, sesiones y composición." },
     { id:"aepd", name:"AEPD · Datos abiertos", authority:"Agencia Española de Protección de Datos", scope:"España · privacidad", access:"open-data", automatic:false, free:true, url:"https://www.aepd.es/la-agencia/datos-abiertos", note:"Informes jurídicos y conjuntos documentales abiertos." },
     { id:"teac", name:"TEAC · DYCTEA", authority:"Tribunal Económico-Administrativo Central", scope:"España · tributario", access:"search", automatic:false, free:true, url:"https://serviciostelematicosext.hacienda.gob.es/TEAC/DYCTEA/", note:"Base oficial de doctrina, criterios y resoluciones económico-administrativas. Consulta pública; verifica siempre la resolución original." },
+    { id:"dgt", name:"DGT · Consultas tributarias", authority:"Dirección General de Tributos", scope:"España · tributario", access:"search", automatic:false, free:true, url:"https://petete.tributos.hacienda.gob.es/consultas/", note:"Buscador oficial de consultas generales y vinculantes. La doctrina tributaria debe citarse con número y fecha y distinguirse de jurisprudencia.", tier:"doctrina-oficial", topics:["fiscal","tributario"] },
+    { id:"consejo-estado", name:"Consejo de Estado · Dictámenes", authority:"Consejo de Estado / BOE", scope:"España · administrativo", access:"search", automatic:false, free:true, url:"https://www.boe.es/buscar/consejo_estado.php", note:"Base oficial de dictámenes desde 1987. Son criterio consultivo; la propia base advierte de su carácter informativo y no deben presentarse como sentencia.", tier:"doctrina-oficial", topics:["administrativo","responsabilidad patrimonial","reglamentos"] },
+    { id:"tacrc", name:"TACRC · Resoluciones", authority:"Tribunal Administrativo Central de Recursos Contractuales", scope:"España · contratación pública", access:"search", automatic:false, free:true, url:"https://www.hacienda.gob.es/es-ES/Areas%20Tematicas/Contratacion/tacrc/paginas/tribunal%20administrativo%20central%20de%20recursos%20contractuales.aspx", note:"Resoluciones públicas del TACRC y acceso a sus procedimientos. Debe distinguirse su doctrina de la jurisprudencia judicial.", tier:"doctrina-oficial", topics:["contratación pública","administrativo"] },
+    { id:"fiscalia", name:"Fiscalía General · Doctrina", authority:"Fiscalía General del Estado", scope:"España · penal y procesal", access:"search", automatic:false, free:true, url:"https://www.fiscal.es/", note:"Circulares, Consultas e Instrucciones de la Fiscalía General del Estado. Criterios institucionales relevantes, no equivalentes a jurisprudencia.", tier:"doctrina-oficial", topics:["penal","procesal","menores","violencia"] },
+    { id:"defensor", name:"Defensor del Pueblo · Resoluciones", authority:"Defensor del Pueblo", scope:"España · derechos y administración", access:"search", automatic:false, free:true, url:"https://www.defensordelpueblo.es/resoluciones-dp/", note:"Recomendaciones, sugerencias y recordatorios de deberes legales. Útiles como criterio institucional, sin valor de sentencia.", tier:"doctrina-oficial", topics:["administrativo","derechos fundamentales","servicios públicos"] },
+    { id:"edpb", name:"EDPB · Directrices y decisiones", authority:"Comité Europeo de Protección de Datos", scope:"UE · privacidad", access:"portal", automatic:false, free:true, url:"https://www.edpb.europa.eu/our-work-tools/our-documents_en", note:"Directrices, recomendaciones y otros documentos oficiales europeos de protección de datos. Contrastar con RGPD, jurisprudencia TJUE y autoridades nacionales.", tier:"doctrina-oficial", topics:["protección de datos","RGPD","UE"] },
     { id:"aranzadi", name:"Aranzadi LA LEY · Bases de datos jurídicas", authority:"Aranzadi LA LEY", scope:"España · legislación, jurisprudencia y doctrina", access:"portal", automatic:false, free:false, url:"https://www.aranzadilaley.es/productos/bases-de-datos-juridicas", note:"Fuente profesional de suscripción. Sus servicios LegalTech contemplan acceso vía API o navegador según contrato/consumo; WILLY no descarga ni reutiliza contenido licenciado sin las credenciales y derechos del cliente." },
     { id:"legalteca", name:"Legalteca · Biblioteca jurídica digital", authority:"Aranzadi LA LEY", scope:"España · doctrina y libros jurídicos", access:"portal", automatic:false, free:false, url:"https://www.aranzadilaley.es/productos/legalteca", note:"Biblioteca profesional de suscripción. Se muestra como acceso documental; cualquier automatización queda condicionada a la licencia contratada." },
     { id:"vlex", name:"vLex Library", authority:"vLex (Clio)", scope:"España e internacional · jurisprudencia, legislación y doctrina", access:"portal", automatic:false, free:false, url:"https://vlex.es/vlex-library", note:"Base jurídica profesional de suscripción con cobertura internacional. WILLY no automatiza contenido licenciado sin una integración autorizada para la cuenta del cliente." },
@@ -361,8 +369,14 @@ export function officialLegalLinks(query: string) {
   return [
     { id: "boe", name: "BOE · Legislación consolidada", kind: "legislación", url: "https://www.boe.es/buscar/legislacion.php", note: "Fuente oficial estatal. El texto consolidado es informativo; contrasta la publicación oficial." },
     { id: "cgpj", name: "Consejo General del Poder Judicial", kind: "institucional", url: "https://www.poderjudicial.es/", note: "Portal oficial del CGPJ. Consulta manual; no implica que WILLY haya recuperado o verificado sus documentos." },
-    { id: "cendoj", name: "CENDOJ · Jurisprudencia", kind: "jurisprudencia", url: "https://www.poderjudicial.es/search/indexAN.jsp", note: "Buscador oficial del CGPJ para resoluciones judiciales españolas." },
-    { id: "tc", name: "Tribunal Constitucional", kind: "jurisprudencia", url: "https://hj.tribunalconstitucional.es/", note: "Buscador oficial de jurisprudencia constitucional." },
+    { id: "cendoj", name: "CENDOJ · Jurisprudencia", kind: "jurisprudencia", url: query.trim() ? `https://www.poderjudicial.es/search/sentencias/${q}/1/PUB` : "https://www.poderjudicial.es/search/indexAN.jsp", note: "Buscador oficial del CGPJ para resoluciones judiciales españolas. La ficha debe comprobarse antes de citar ROJ/ECLI." },
+    { id: "tc", name: "Tribunal Constitucional", kind: "jurisprudencia", url: "https://hj.tribunalconstitucional.es/", note: "Buscador oficial con consulta por ECLI, disposiciones citadas, proceso y análisis doctrinal." },
+    { id: "teac", name: "TEAC · DYCTEA", kind: "doctrina económico-administrativa", url: "https://serviciostelematicosext.hacienda.gob.es/TEAC/DYCTEA/", note: "Criterios y resoluciones económico-administrativas; permite buscar por norma, precepto, concepto y texto." },
+    { id: "dgt", name: "DGT · Consultas vinculantes", kind: "doctrina tributaria", url: "https://petete.tributos.hacienda.gob.es/consultas/", note: "Buscador oficial de consultas generales y vinculantes de la Dirección General de Tributos." },
+    { id: "consejo-estado", name: "Consejo de Estado · Dictámenes", kind: "doctrina consultiva", url: "https://www.boe.es/buscar/consejo_estado.php", note: "Dictámenes oficiales publicados por BOE; criterio consultivo, no jurisprudencia." },
+    { id: "tacrc", name: "TACRC · Resoluciones", kind: "contratación pública", url: "https://www.hacienda.gob.es/es-ES/Areas%20Tematicas/Contratacion/tacrc/paginas/tribunal%20administrativo%20central%20de%20recursos%20contractuales.aspx", note: "Resoluciones públicas del Tribunal Administrativo Central de Recursos Contractuales." },
+    { id: "fiscalia", name: "Fiscalía General del Estado", kind: "doctrina fiscal", url: "https://www.fiscal.es/", note: "Circulares, Consultas e Instrucciones: criterio institucional del Ministerio Fiscal, no sentencia." },
+    { id: "defensor", name: "Defensor del Pueblo", kind: "resoluciones institucionales", url: "https://www.defensordelpueblo.es/resoluciones-dp/", note: "Recomendaciones, sugerencias y recordatorios de deberes legales." },
     { id: "eurlex", name: "EUR-Lex", kind: "UE", url: `https://eur-lex.europa.eu/search.html?scope=EURLEX&text=${q}&lang=es&type=quick`, note: "Derecho de la Unión Europea y Diario Oficial." },
     { id: "curia", name: "InfoCuria · TJUE", kind: "jurisprudencia UE", url: "https://juris.curia.europa.eu/juris/recherche.jsf?language=es", note: "Jurisprudencia oficial del Tribunal de Justicia y Tribunal General." },
     { id: "hudoc", name: "HUDOC · TEDH", kind: "derechos humanos", url: "https://hudoc.echr.coe.int/", note: "Base oficial de jurisprudencia del Tribunal Europeo de Derechos Humanos." },
@@ -402,7 +416,7 @@ export async function saveLegalCases(cases: unknown): Promise<{ count: number; b
 export function legalServerStatus() {
   return {
     checkedAt: new Date().toISOString(),
-    officialSources: ["BOE", "BORME", "BOJA", "CELLAR/EUR-Lex", "Congreso", "Senado", "CGPJ", "CENDOJ", "Tribunal Constitucional", "InfoCuria", "HUDOC", "AEPD", "TEAC · DYCTEA"],
+    officialSources: ["BOE", "BORME", "BOJA", "CELLAR/EUR-Lex", "Congreso", "Senado", "CGPJ", "CENDOJ", "Tribunal Constitucional", "InfoCuria", "HUDOC", "AEPD", "TEAC · DYCTEA", "DGT", "Consejo de Estado", "TACRC", "Fiscalía General del Estado", "Defensor del Pueblo", "EDPB"],
     freeApis: [
       { id: "boe-law", name: "BOE Legislación consolidada", auth: "sin clave", active: true, endpoint: "https://www.boe.es/datosabiertos/api/legislacion-consolidada" },
       { id: "boe-daily", name: "BOE Sumario diario", auth: "sin clave", active: true, endpoint: "https://www.boe.es/datosabiertos/api/boe/sumario/{fecha}" },
@@ -421,6 +435,12 @@ export function legalServerStatus() {
       { id: "hudoc", name: "HUDOC", api: false },
       { id: "aepd", name: "AEPD Datos Abiertos", api: false },
       { id: "teac", name: "TEAC · DYCTEA", api: false },
+      { id: "dgt", name: "DGT · Consultas tributarias", api: false },
+      { id: "consejo-estado", name: "Consejo de Estado · Dictámenes", api: false },
+      { id: "tacrc", name: "TACRC · Resoluciones", api: false },
+      { id: "fiscalia", name: "Fiscalía General · Doctrina", api: false },
+      { id: "defensor", name: "Defensor del Pueblo · Resoluciones", api: false },
+      { id: "edpb", name: "EDPB · Directrices", api: false },
     ],
     licensedSources: [
       { id: "aranzadi", name: "Aranzadi LA LEY", api: "según contrato", automatic: false, free: false, url: "https://www.aranzadilaley.es/productos/bases-de-datos-juridicas" },
