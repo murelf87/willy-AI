@@ -201,12 +201,18 @@ export async function getCendojDocumentText(rawUrl: string): Promise<{ text: str
 }
 
 function searchSeed(filters: CendojAdvancedFilters): string {
-  const values = [
-    text(filters.query, 240),
+  // Cuando hay materia/texto, CENDOJ debe buscar primero el asunto y los filtros de persona
+  // se comprueban después sobre metadatos/texto oficial. Mezclar todos los nombres en la
+  // consulta libre puede eliminar resoluciones correctas por exceso de restricción.
+  const substantive = [
+    text(filters.query, 280),
     text(filters.exactPhrase, 160),
     text(filters.ecli, 100),
     text(filters.roj, 100),
     text(filters.resourceNumber, 80),
+  ].filter(Boolean);
+  if (substantive.length) return substantive.join(" ").slice(0, 450);
+  const peopleOrPlace = [
     text(filters.ponente, 120),
     text(filters.judge, 120),
     text(filters.lawyer, 120),
@@ -214,7 +220,7 @@ function searchSeed(filters: CendojAdvancedFilters): string {
     text(filters.procurator, 120),
     text(filters.municipality, 80),
   ].filter(Boolean);
-  return values.join(" ").slice(0, 450) || "jurisprudencia";
+  return peopleOrPlace.join(" ").slice(0, 450) || "jurisprudencia";
 }
 
 export async function searchCendojAdvanced(raw: CendojAdvancedFilters): Promise<{
