@@ -289,6 +289,31 @@ export function JuridicoView({ ping }:{ ping:Ping }){
   const [lastModel,setLastModel]=useState("");
   const [lastQuality,setLastQuality]=useState<"verified"|"corrected"|null>(null);
   const [sourceCatalog,setSourceCatalog]=useState<SourceCatalogItem[]>([]);
+  const [jurisFilters,setJurisFilters]=useState<JurisSearchFilters>({
+    text:"",
+    exactPhrase:"",
+    excludeTerms:"",
+    dateFrom:"",
+    dateTo:"",
+    court:"Tribunal Superior de Justicia de Andalucía",
+    seat:"Granada",
+    section:"",
+    resolutionType:"Sentencia",
+    jurisdiction:"",
+    ecli:"",
+    roj:"",
+    caseNumber:"",
+    citedLaw:"",
+    citedArticle:"",
+    subject:"",
+    judge:"",
+    rapporteur:"",
+    courtClerk:"",
+    lawyer:"",
+    procurator:"",
+    stance:"ambas",
+    freshness:"5y",
+  });
   const [copied,setCopied]=useState<string|null>(null);
   const fileRef=useRef<HTMLInputElement>(null);
   const endRef=useRef<HTMLDivElement>(null);
@@ -300,6 +325,19 @@ export function JuridicoView({ ping }:{ ping:Ping }){
   const urgent=caso?.deadline?new Date(caso.deadline+"T23:59:59").getTime()-Date.now()<7*86400000:false;
   const recommendedIds=useMemo(()=>new Set(recommendedLegalSourceIds(caso?.area||"",caso?.jurisdiccion||"")),[caso?.area,caso?.jurisdiccion]);
   const orderedCatalog=useMemo(()=>[...sourceCatalog].sort((a,b)=>Number(recommendedIds.has(b.id))-Number(recommendedIds.has(a.id))||a.name.localeCompare(b.name,"es")),[sourceCatalog,recommendedIds]);
+  const officialJurisSearches=useMemo(()=>buildOfficialJurisprudenceSearches(jurisFilters),[jurisFilters]);
+  const caseContext=useMemo(()=>caso?[
+    "Expediente: "+caso.nombre,
+    "Área: "+caso.area,
+    "Jurisdicción: "+caso.jurisdiccion,
+    "Posición: "+caso.posicion,
+    "Objetivo: "+(caso.objetivo||"no indicado"),
+    "Contraparte: "+(caso.contraparte||"no indicada"),
+    "Fecha de hechos: "+(caso.fechaHechos||"no indicada"),
+    "Notas: "+(caso.notas||"sin notas"),
+    "Documentos adjuntos: "+caso.docs.map((d)=>d.name).join(", "),
+  ].join("\n"):"",[caso]);
+  const setJuris=<K extends keyof JurisSearchFilters>(key:K,value:JurisSearchFilters[K])=>setJurisFilters((prev)=>({...prev,[key]:value}));
 
   useEffect(()=>{
     let alive=true;
@@ -414,7 +452,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
           </div>
         </div>
         <div className="flex gap-1 overflow-x-auto px-2 py-2 sm:px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {([["analisis","Análisis"],["expediente","Expediente"],["fuentes","Fuentes jurídicas"],["herramientas","Herramientas"]] as Array<[Tab,string]>).map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={"shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition "+(tab===id?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted hover:text-foreground")}>{label}</button>)}
+          {([["analisis","Análisis"],["expediente","Expediente"],["fuentes","Fuentes jurídicas"],["jurisprudencia","Jurisprudencia avanzada"],["herramientas","Herramientas"]] as Array<[Tab,string]>).map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={"shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition "+(tab===id?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted hover:text-foreground")}>{label}</button>)}
         </div>
       </Card>
 
