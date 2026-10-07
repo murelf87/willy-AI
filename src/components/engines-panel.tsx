@@ -123,7 +123,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
               );
             })}
           </ul>
-          <p className="text-xs leading-5 text-muted-foreground">Pulsa «Probar» después de guardar cada credencial. «Probar» solo detecta una referencia inicial: no fija el modelo; WILLY puede cambiarlo automáticamente según disponibilidad y fallos. Entre los motores con acceso gratuito o cuota inicial están OpenRouter, Gemini, Groq, Mistral, Cohere, NVIDIA, Cerebras, ModelScope, Cloudflare, Hugging Face, SiliconFlow y Qwen/Alibaba. DeepSeek, Z.AI, Kimi, MiniMax y OpenAI pueden requerir saldo según la cuenta; WILLY detecta cuota/pago y pasa al siguiente motor. ChatGPT Plus no incluye consumos de API.</p>
+          <p className="text-xs leading-5 text-muted-foreground">Pulsa «Probar» después de guardar cada credencial. «Probar» solo detecta una referencia inicial: no fija el modelo; WILLY puede cambiarlo automáticamente según disponibilidad y fallos. Entre los motores con acceso gratuito o cuota inicial están OpenRouter, Gemini, Groq, Mistral, Cohere, NVIDIA, Cerebras, ModelScope, Cloudflare, Hugging Face y SiliconFlow. DeepSeek, Z.AI, Kimi, MiniMax y OpenAI pueden requerir saldo según la cuenta; WILLY detecta cuota/pago y pasa al siguiente motor. ChatGPT Plus no incluye consumos de API.</p>
         </div>
       )}
     </details>
