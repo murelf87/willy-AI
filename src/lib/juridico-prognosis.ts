@@ -7,12 +7,23 @@ export type PrognosisBasis = {
   reason: string;
 };
 
+function isJudicialReference(value: string): boolean {
+  return /(?:ECLI:|\bROJ\b|\b(?:STS|ATS|STC|ATC|SAN|STSJ|TSJ|SAP|AAP|SJCA|SJS|SJM)\b|\b(?:SENTENCIA|AUTO)\b)/i.test(value);
+}
+
 export function prognosisBasis(verifiedCorpus: string): PrognosisBasis {
-  const refs = extractConcreteLegalReferences(verifiedCorpus);
-  const unique = new Set(refs.map((x)=>x.toUpperCase())).size;
-  if (unique >= 10) return { verifiedReferences: unique, canShowPercentage: true, confidence: "alta", reason: "10 o más resoluciones/identificadores concretos verificados." };
-  if (unique >= 5) return { verifiedReferences: unique, canShowPercentage: true, confidence: "media", reason: "5 o más resoluciones/identificadores concretos verificados." };
-  return { verifiedReferences: unique, canShowPercentage: false, confidence: "baja", reason: "Menos de 5 resoluciones concretas verificadas; un porcentaje sería falsa precisión." };
+  const blocks = verifiedCorpus
+    .split(/(?=\[[^\n]{1,120}\]\[TEXTO OFICIAL RECUPERADO\])/g)
+    .map((block) => block.trim())
+    .filter(Boolean);
+  const judicialBlocks = blocks.filter((block) => extractConcreteLegalReferences(block).some(isJudicialReference));
+  const unique = new Set(judicialBlocks.map((block) => {
+    const first = extractConcreteLegalReferences(block).find(isJudicialReference);
+    return (first ?? block.slice(0, 240)).toUpperCase();
+  })).size;
+  if (unique >= 10) return { verifiedReferences: unique, canShowPercentage: true, confidence: "alta", reason: "10 o más resoluciones oficiales distintas verificadas." };
+  if (unique >= 5) return { verifiedReferences: unique, canShowPercentage: true, confidence: "media", reason: "5 o más resoluciones oficiales distintas verificadas." };
+  return { verifiedReferences: unique, canShowPercentage: false, confidence: "baja", reason: "Menos de 5 resoluciones judiciales oficiales distintas verificadas; un porcentaje sería falsa precisión." };
 }
 
 export function prognosisPrompt(caseContext: string, jurisprudencePrompt: string, verifiedCorpus: string): string {
