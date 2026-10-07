@@ -41,7 +41,7 @@ export function looksSensitive(text: string): string | null {
     for (let n = groups.length; n >= 1; n--) if (validIban(groups.slice(0, n).join(""))) return "un IBAN";
   }
   for (const m of text.matchAll(/\b(?:\d[ -]?){13,19}\b/g)) if (validCard(m[0])) return "un número de tarjeta";
-  if (/(?:AIza[0-9A-Za-z_-]{30,}|\bsk-[A-Za-z0-9_-]{20,}|\bhf_[A-Za-z0-9]{20,}|\bgsk_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/.test(text)) return "una clave de API o una clave privada";
+  if (/(?:AIza[0-9A-Za-z_-]{30,}|\bsk-[A-Za-z0-9_-]{20,}|\bpplx-[A-Za-z0-9_-]{20,}|\bhf_[A-Za-z0-9]{20,}|\bgsk_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/.test(text)) return "una clave de API o una clave privada";
   if (/\b(?:contraseña|password|passwd|clave de acceso)\s*(?:es|:|=)\s*\S{4,}/i.test(text)) return "una contraseña";
   return null;
 }
