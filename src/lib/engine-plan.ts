@@ -27,9 +27,10 @@ export function buildSequence(status: PublicStatus | null, localModels: string[]
 export function maxAttemptsFor(base: number, steps: Step[]): number {
   const clouds = steps.filter((step) => step.kind === "cloud").length;
   const locals = steps.length - clouds;
-  // La misma IA/modelo puede dedicar varios ciclos a reparar su propia candidata antes del relevo.
-  // Por eso el presupuesto global debe dejar espacio real para al menos un segundo motor sin convertirse en un bucle infinito.
-  return Math.min(24, Math.max(base + clouds * 3 + Math.min(4, locals), 12));
+  // Cada proveedor necesita margen para respuesta inicial, reparación de formato y varias reparaciones de candidata.
+  // El límite antiguo de 24 podía agotarse antes de llegar a los últimos motores configurados.
+  const needed = clouds * 7 + locals * 5;
+  return Math.min(72, Math.max(base, needed, steps.length ? 12 : 0));
 }
 
 /**
