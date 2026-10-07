@@ -15,6 +15,8 @@ import { PanelCard as Card } from "@/components/panel-card";
 import type { Ping } from "@/types/domain";
 import { buildLegalProtocol, recommendedLegalSourceIds, type LegalVerification } from "@/lib/juridico-quality";
 import { auditLegalAnswer, legalCorrectionPrompt } from "@/lib/juridico-verification";
+import { buildOfficialJurisprudenceSearches, jurisprudenceResearchPrompt, type JurisSearchFilters } from "@/lib/jurisprudencia-search";
+import { auditPrognosisAnswer, prognosisPrompt } from "@/lib/juridico-prognosis";
 
 type DocFile = { id: string; name: string; size: number; type: string; text: string; hash: string; uploadedAt: number };
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: number; model?: string; mode?: string };
@@ -24,7 +26,7 @@ type CasoJuridico = {
   contraparte: string; fechaHechos: string; deadline: string; notas: string;
   docs: DocFile[]; sources: LegalSource[]; messages: Message[]; createdAt: number; updatedAt: number;
 };
-type Tab = "analisis" | "expediente" | "fuentes" | "herramientas";
+type Tab = "analisis" | "expediente" | "fuentes" | "jurisprudencia" | "herramientas";
 type Mode = { id: string; name: string; desc: string; prompt: string; icon: typeof Scale };
 type SearchHit = { id: string; title: string; url: string; kind: string; meta: string; official: boolean; verification: LegalVerification };
 
@@ -59,6 +61,7 @@ const MODES: Mode[] = [
   { id:"admisibilidad", name:"Auditoría de admisibilidad", desc:"Competencia, legitimación, vía previa, plazos y defectos.", icon:ShieldCheck, prompt:"Audita admisibilidad y presupuestos procesales de extremo a extremo. Identifica cualquier causa de inadmisión, subsanación posible, agotamiento de vía, legitimación, competencia, postulación, cuantía, procedimiento y requisitos formales." },
   { id:"plazos", name:"Auditoría de plazos", desc:"Dies a quo/ad quem, hábiles, suspensión y caducidad.", icon:Clock3, prompt:"Audita todos los plazos relevantes. Para cada uno identifica norma, naturaleza, dies a quo, días hábiles/naturales, calendario aplicable, suspensión/interrupción, dies ad quem y consecuencias. No calcules una fecha final si falta un dato esencial." },
   { id:"autoridades", name:"Tabla de autoridades", desc:"Normas, sentencias y doctrina con estado de verificación.", icon:Landmark, prompt:"Genera una tabla de autoridades completa: proposición jurídica, fuente, órgano, rango/jerarquía, fecha, identificador (ECLI/ROJ/CELEX/BOE solo cuando esté verificado), estado de vigencia/verificación, apoyo u oposición y enlace oficial." },
+  { id:"prognostico", name:"Pronóstico del caso", desc:"Tendencia y probabilidad orientativa solo con base jurisprudencial verificada.", icon:Scale, prompt:"Evalúa la posibilidad de éxito del caso a partir de la demanda, prueba y jurisprudencia verificada. No uses porcentajes si la base verificada es insuficiente." },
 ];
 
 const COURTS = [
