@@ -5,7 +5,7 @@
 // la tabla que se usa de verdad, no una copia que se pueda quedar vieja. Solo datos: sin importaciones.
 
 /** Chat normal con «IA externa»: Groq primero (más rápido para conversaciones cortas), luego el resto. */
-export const CHAT_ORDER = ["groq", "cerebras", "gemini", "openrouter", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "mistral", "cohere"];
+export const CHAT_ORDER = ["groq", "cerebras", "gemini", "openrouter", "modelscope", "cloudflare", "siliconflow", "huggingface", "perplexity", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "mistral", "cohere"];
 
 /**
  * Autoconstrucción (y SUPER WILLY cuando construye): primero los que aguantan contextos largos (10k+ tokens).
@@ -30,8 +30,8 @@ export const KIND_CLOUD_ORDER: Record<string, string[]> = {
   web:           ["openrouter", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "nvidia", "mistral", "groq", "cohere"],
   datos:         ["gemini", "openrouter", "modelscope", "cerebras", "cloudflare", "siliconflow", "huggingface", "xai", "nvidia", "mistral", "cohere", "groq"],
   razonamiento:  ["openrouter", "cerebras", "gemini", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "mistral", "cohere", "groq"],
-  juridico:      ["openai", "gemini", "openrouter", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "mistral", "cohere", "xai", "deepseek", "zai", "kimi", "nvidia", "groq"],
-  investigacion: ["gemini", "openrouter", "modelscope", "cerebras", "huggingface", "cloudflare", "siliconflow", "xai", "cohere", "nvidia", "mistral", "groq"],
+  juridico:      ["perplexity", "openai", "gemini", "openrouter", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "mistral", "cohere", "xai", "deepseek", "zai", "kimi", "nvidia", "groq"],
+  investigacion: ["perplexity", "gemini", "openrouter", "modelscope", "cerebras", "huggingface", "cloudflare", "siliconflow", "xai", "cohere", "nvidia", "mistral", "groq"],
   escritura:     ["gemini", "openrouter", "cerebras", "modelscope", "huggingface", "cloudflare", "siliconflow", "xai", "mistral", "cohere", "nvidia", "groq"],
   traduccion:    ["gemini", "mistral", "openrouter", "modelscope", "cerebras", "huggingface", "siliconflow", "xai", "cohere", "groq", "nvidia"],
   vision:        ["gemini", "modelscope", "openrouter", "huggingface", "siliconflow", "nvidia", "mistral", "cohere", "groq"],
