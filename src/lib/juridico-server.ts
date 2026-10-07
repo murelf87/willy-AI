@@ -1,5 +1,6 @@
 import nodePath from "node:path";
 import { promises as fs } from "node:fs";
+import * as https from "node:https";
 
 
 
@@ -29,6 +30,67 @@ function decodeBasicHtml(text: string): string {
     .replace(/\n\s+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+
+type NativeHttpsResult = { url: string; status: number; contentType: string; body: Uint8Array };
+
+async function nativeHttpsGet(rawUrl: string, redirects = 0): Promise<NativeHttpsResult> {
+  if (redirects > 5) throw new Error("Demasiadas redirecciones en la fuente oficial.");
+  const url = new URL(rawUrl);
+  if (url.protocol !== "https:" || !OFFICIAL_LEGAL_HOSTS.has(url.hostname.toLowerCase())) {
+    throw new Error("Redirección fuera de un dominio jurídico oficial autorizado.");
+  }
+  return new Promise<NativeHttpsResult>((resolve, reject) => {
+    const req = https.get(url, {
+      family: 4,
+      headers: {
+        "User-Agent": "WILLY-AI-Juridico/1.0",
+        Accept: "application/pdf,text/html,application/xhtml+xml,*/*;q=0.8",
+      },
+    }, (res) => {
+      const status = res.statusCode ?? 0;
+      const location = typeof res.headers.location === "string" ? new URL(res.headers.location, url).toString() : "";
+      if (status >= 300 && status < 400 && location) {
+        res.resume();
+        void nativeHttpsGet(location, redirects + 1).then(resolve, reject);
+        return;
+      }
+      if (status < 200 || status >= 300) {
+        res.resume();
+        reject(new Error("La fuente oficial respondió " + status + "."));
+        return;
+      }
+      const declared = Number(res.headers["content-length"] || "0");
+      if (declared > 20 * 1024 * 1024) {
+        res.destroy();
+        reject(new Error("La resolución supera 20 MB."));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      let total = 0;
+      res.on("data", (chunk: Buffer) => {
+        total += chunk.length;
+        if (total > 20 * 1024 * 1024) {
+          res.destroy(new Error("La resolución supera 20 MB."));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on("end", () => {
+        const body = Buffer.concat(chunks);
+        resolve({
+          url: url.toString(),
+          status,
+          contentType: String(res.headers["content-type"] || "").toLowerCase(),
+          body: new Uint8Array(body),
+        });
+      });
+      res.on("error", reject);
+    });
+    req.setTimeout(25_000, () => req.destroy(new Error("Tiempo de espera agotado al leer la fuente oficial.")));
+    req.on("error", reject);
+  });
 }
 
 async function extractPdfServer(bytes: Uint8Array): Promise<string> {
@@ -61,25 +123,37 @@ export async function fetchOfficialLegalDocument(rawUrl: string): Promise<{ url:
   if (url.protocol !== "https:" || !OFFICIAL_LEGAL_HOSTS.has(url.hostname.toLowerCase())) {
     throw new Error("Solo se admiten URLs HTTPS de fuentes jurídicas oficiales autorizadas (CGPJ/CENDOJ, TC, TJUE/EUR-Lex, TEDH o BOE).");
   }
-  const response = await fetch(url, {
-    redirect: "follow",
-    headers: { "User-Agent": "WILLY-AI-Juridico/1.0", Accept: "application/pdf,text/html,application/xhtml+xml,*/*;q=0.8" },
-    signal: AbortSignal.timeout(25_000),
-  });
-  if (!response.ok) throw new Error("La fuente oficial respondió " + response.status + ".");
-  const finalUrl = new URL(response.url);
-  if (!OFFICIAL_LEGAL_HOSTS.has(finalUrl.hostname.toLowerCase())) throw new Error("La fuente redirigió fuera de un dominio oficial autorizado.");
-  const length = Number(response.headers.get("content-length") || "0");
-  if (length > 20 * 1024 * 1024) throw new Error("La resolución supera 20 MB.");
-  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+
+  let finalUrl = url;
+  let contentType = "";
+  let bytes: Uint8Array;
+  try {
+    const response = await fetch(url, {
+      redirect: "follow",
+      headers: { "User-Agent": "WILLY-AI-Juridico/1.0", Accept: "application/pdf,text/html,application/xhtml+xml,*/*;q=0.8" },
+      signal: AbortSignal.timeout(18_000),
+    });
+    if (!response.ok) throw new Error("La fuente oficial respondió " + response.status + ".");
+    finalUrl = new URL(response.url);
+    if (!OFFICIAL_LEGAL_HOSTS.has(finalUrl.hostname.toLowerCase())) throw new Error("La fuente redirigió fuera de un dominio oficial autorizado.");
+    const length = Number(response.headers.get("content-length") || "0");
+    if (length > 20 * 1024 * 1024) throw new Error("La resolución supera 20 MB.");
+    contentType = (response.headers.get("content-type") || "").toLowerCase();
+    bytes = new Uint8Array(await response.arrayBuffer());
+  } catch {
+    const fallback = await nativeHttpsGet(url.toString());
+    finalUrl = new URL(fallback.url);
+    contentType = fallback.contentType;
+    bytes = fallback.body;
+  }
+
+  if (bytes.byteLength > 20 * 1024 * 1024) throw new Error("La resolución supera 20 MB.");
   let text = "";
   let title = finalUrl.pathname.split("/").pop() || "Resolución oficial";
   if (contentType.includes("pdf") || finalUrl.pathname.toLowerCase().endsWith(".pdf")) {
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > 20 * 1024 * 1024) throw new Error("La resolución supera 20 MB.");
     text = await extractPdfServer(bytes);
   } else {
-    const html = await response.text();
+    const html = new TextDecoder("utf-8").decode(bytes);
     const match = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
     if (match?.[1]) title = decodeBasicHtml(match[1]).slice(0, 240) || title;
     text = decodeBasicHtml(html).slice(0, 180_000);
