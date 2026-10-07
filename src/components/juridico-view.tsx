@@ -337,7 +337,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
     "Notas: "+(caso.notas||"sin notas"),
     "Documentos adjuntos: "+caso.docs.map((d)=>d.name).join(", "),
   ].join("\n"):"",[caso]);
-  const setJuris=<K extends keyof JurisSearchFilters>(key:K,value:JurisSearchFilters[K])=>setJurisFilters((prev)=>({...prev,[key]:value}));
+  const setJuris=<K extends keyof JurisSearchFilters,>(key:K,value:JurisSearchFilters[K])=>setJurisFilters((prev)=>({...prev,[key]:value}));
 
   useEffect(()=>{
     let alive=true;
