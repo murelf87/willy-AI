@@ -70,6 +70,8 @@ const CENDOJ = "https://www.poderjudicial.es/search/indexAN.jsp";
 const TC = "https://hj.tribunalconstitucional.es/";
 const CURIA = "https://juris.curia.europa.eu/juris/recherche.jsf?language=es";
 const HUDOC = "https://hudoc.echr.coe.int/";
+const TEAC = "https://serviciostelematicosext.hacienda.gob.es/TEAC/DYCTEA/";
+const ARANZADI = "https://www.aranzadilaley.es/productos/bases-de-datos-juridicas";
 
 const LEGAL_SYSTEM = [
   "Eres WILLY JURÍDICO, un sistema de análisis legal profesional orientado a Derecho español, autonómico, UE y CEDH.",
@@ -274,7 +276,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
 
   if(!caso)return (
     <div className="min-w-0 space-y-4 sm:space-y-5">
-      <Head title="Análisis Jurídico" desc="Legal OS · expediente, prueba, fuentes oficiales, estrategia procesal y redacción con trazabilidad." action={<Button className="gap-2" onClick={newCase}><Plus className="size-4"/>Nuevo expediente</Button>}/>
+      <Head title="Análisis Jurídico" desc="Legal OS · expediente, prueba, fuentes oficiales y bibliotecas profesionales, estrategia procesal y redacción con trazabilidad." action={<Button className="gap-2" onClick={newCase}><Plus className="size-4"/>Nuevo expediente</Button>}/>
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="grid min-h-0 lg:min-h-[520px] lg:grid-cols-[1.05fr_.95fr]">
           <div className="flex flex-col justify-center border-b border-border p-4 sm:p-6 lg:border-b-0 lg:border-r lg:p-7">
@@ -298,7 +300,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
     <div className="min-w-0 space-y-3 overflow-x-hidden">
       <Head
         title="Análisis Jurídico"
-        desc="Legal OS · análisis contradictorio, fuentes oficiales y expediente trazable."
+        desc="Legal OS · análisis contradictorio, fuentes oficiales, bibliotecas profesionales y expediente trazable."
         action={<div className="flex w-full flex-wrap gap-2 sm:w-auto"><Button variant="outline" className="flex-1 gap-2 sm:flex-none" onClick={exportCase}><Download className="size-4"/>Exportar</Button><Button className="flex-1 gap-2 sm:flex-none" onClick={newCase}><Plus className="size-4"/>Nuevo</Button></div>}
       />
 
@@ -324,7 +326,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
           </div>
         </div>
         <div className="flex gap-1 overflow-x-auto px-2 py-2 sm:px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {([["analisis","Análisis"],["expediente","Expediente"],["fuentes","Fuentes oficiales"],["herramientas","Herramientas"]] as Array<[Tab,string]>).map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={"shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition "+(tab===id?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted hover:text-foreground")}>{label}</button>)}
+          {([["analisis","Análisis"],["expediente","Expediente"],["fuentes","Fuentes jurídicas"],["herramientas","Herramientas"]] as Array<[Tab,string]>).map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={"shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition "+(tab===id?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted hover:text-foreground")}>{label}</button>)}
         </div>
       </Card>
 
@@ -450,14 +452,14 @@ export function JuridicoView({ ping }:{ ping:Ping }){
 
             <Card className="p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <div><p className="text-sm font-bold">Catálogo jurídico gratuito</p><p className="mt-1 text-xs text-muted-foreground">Fuentes oficiales clasificadas por el tipo de acceso que WILLY puede usar de forma verificable.</p></div>
+                <div><p className="text-sm font-bold">Catálogo jurídico y bibliotecas</p><p className="mt-1 text-xs text-muted-foreground">Fuentes oficiales gratuitas y bases profesionales separadas por tipo de acceso. Las fuentes de suscripción solo se automatizan cuando tu licencia lo permite.</p></div>
                 <span className="rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-semibold">{sourceCatalog.length} fuentes</span>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {sourceCatalog.map((s)=><a key={s.id} href={s.url} target="_blank" rel="noreferrer" className="rounded-xl border border-border bg-background p-3 transition hover:border-primary/40 hover:bg-primary/5">
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1"><p className="text-xs font-semibold">{s.name}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{s.authority} · {s.scope}</p></div>
-                    <span className={"shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold "+(s.automatic?"border-emerald-500/40 bg-emerald-500/10 text-emerald-700":"border-border bg-muted text-muted-foreground")}>{s.access==="api"?(s.automatic?"API automática":"API con registro"):s.access==="open-data"?"Datos abiertos":s.access==="portal"?"Portal oficial":"Buscador oficial"}</span>
+                    <span className={"shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold "+(!s.free?"border-amber-500/40 bg-amber-500/10 text-amber-700":s.automatic?"border-emerald-500/40 bg-emerald-500/10 text-emerald-700":"border-border bg-muted text-muted-foreground")}>{!s.free?"Suscripción":s.access==="api"?(s.automatic?"API automática":"API con registro"):s.access==="open-data"?"Datos abiertos":s.access==="portal"?"Portal":"Buscador oficial"}</span>
                   </div>
                   <p className="mt-2 text-[10px] leading-4 text-muted-foreground">{s.note}</p>
                 </a>)}
@@ -511,7 +513,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
               {[
                 ["BOE","https://www.boe.es/"],
                 ["BOJA","https://juntadeandalucia.es/eboja/"],
-                ["CGPJ · Consejo General del Poder Judicial",CGPJ],["CENDOJ",CENDOJ],["TC",TC],["EUR-Lex","https://eur-lex.europa.eu/"],["InfoCuria",CURIA],["HUDOC",HUDOC],["AEPD","https://www.aepd.es/"],
+                ["CGPJ · Consejo General del Poder Judicial",CGPJ],["CENDOJ",CENDOJ],["TC",TC],["TEAC · DYCTEA",TEAC],["EUR-Lex","https://eur-lex.europa.eu/"],["InfoCuria",CURIA],["HUDOC",HUDOC],["AEPD","https://www.aepd.es/"],["Aranzadi LA LEY · suscripción",ARANZADI],
               ].map(([name,url])=><a key={name} href={url} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-md border border-border px-2 py-1.5 text-[10px] font-semibold hover:bg-muted"><span>{name}</span><ExternalLink className="size-3 text-muted-foreground"/></a>)}
             </div>
           </Card>
