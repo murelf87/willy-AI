@@ -741,12 +741,46 @@ export function JuridicoView({ ping }:{ ping:Ping }){
                   <label className="space-y-1"><span className="text-xs font-semibold">Procurador</span><input className={field} value={jurisFilters.procurator||""} onChange={(e)=>setJuris("procurator",e.target.value)} placeholder="Nombre del procurador/a"/></label>
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button className="gap-2" onClick={()=>{const prompt=jurisprudenceResearchPrompt(jurisFilters,caseContext);setModeId("precedentes");setTab("analisis");void send(prompt,"precedentes");}}><Search className="size-4"/>Analizar jurisprudencia y tendencia</Button>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Button className="gap-2" disabled={jurisSearching} onClick={()=>void searchCendoj()}>{jurisSearching?<Loader2 className="size-4 animate-spin"/>:<Search className="size-4"/>}{jurisSearching?"Buscando en CENDOJ…":"Buscar automáticamente en CENDOJ"}</Button>
+                  <Button className="gap-2" variant="outline" onClick={()=>{const prompt=jurisprudenceResearchPrompt(jurisFilters,caseContext);setModeId("precedentes");setTab("analisis");void send(prompt,"precedentes");}}><LibraryBig className="size-4"/>Analizar tendencia</Button>
                   <Button className="gap-2" variant="outline" onClick={()=>{const prompt=jurisprudenceResearchPrompt(jurisFilters,caseContext);setModeId("prognostico");setTab("analisis");void send(prompt,"prognostico");}}><Scale className="size-4"/>Pronóstico del caso</Button>
                 </div>
-                <p className="text-[10px] leading-5 text-muted-foreground">El pronóstico solo muestra un porcentaje cuando existen al menos 5 referencias jurisprudenciales concretas verificadas en el corpus del expediente. Con menos base, WILLY debe negarse a dar falsa precisión.</p>
+                <p className="text-[10px] leading-5 text-muted-foreground">La búsqueda CENDOJ recupera metadatos oficiales y, cuando filtras por juez/magistrado, letrado/abogado, LAJ, procurador o frase exacta, confirma el nombre leyendo el texto oficial. El pronóstico solo muestra porcentaje con base jurisprudencial verificada suficiente.</p>
               </div>
+            </Card>
+
+            <Card className="p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-bold">Resultados CENDOJ · búsqueda automática</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Resultados recuperados del buscador oficial del CGPJ. Fijar una resolución permite a WILLY recuperar después el texto oficial antes de usarla como precedente.</p>
+                </div>
+                <span className="rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-semibold">{jurisResults.length} resultado(s)</span>
+              </div>
+              {jurisSearchNote&&<p className="mt-2 rounded-lg border border-border bg-muted/40 px-2.5 py-2 text-[10px] leading-4 text-muted-foreground">{jurisSearchNote}</p>}
+              {!jurisResults.length&&!jurisSearching&&<div className="mt-3 rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">Pulsa «Buscar automáticamente en CENDOJ». Puedes filtrar por juez/magistrado, ponente, LAJ, abogado/letrado, procurador, órgano, Granada, fecha, ECLI, ROJ y nº de recurso.</div>}
+              <div className="mt-3 max-h-[620px] space-y-2 overflow-y-auto pr-1">
+                {jurisResults.map((r)=><div key={r.reference||r.ecli||r.roj||r.url} className="rounded-xl border border-border bg-background p-3">
+                  <div className="flex flex-wrap items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="text-xs font-bold">{r.roj||"CENDOJ"}{r.ecli?" · "+r.ecli:""}</p>
+                        <span className={"rounded-full border px-1.5 py-0.5 text-[9px] font-bold "+(r.verification==="texto-oficial"?"border-emerald-500/30 bg-emerald-500/10 text-emerald-700":"border-sky-500/30 bg-sky-500/10 text-sky-700")}>{r.verification==="texto-oficial"?"Texto oficial comprobado":"Metadatos oficiales"}</span>
+                      </div>
+                      <p className="mt-1 text-[10px] text-muted-foreground">{[r.organ,r.municipality,r.date,r.resolutionType].filter(Boolean).join(" · ")}</p>
+                      {r.ponente&&<p className="mt-1 text-[10px]"><span className="font-semibold">Ponente:</span> {r.ponente}</p>}
+                      {r.resourceNumber&&<p className="text-[10px]"><span className="font-semibold">Recurso:</span> {r.resourceNumber}</p>}
+                    </div>
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={()=>pinCendoj(r)}>Fijar</Button>
+                  </div>
+                  {r.summary&&<p className="mt-2 text-[11px] leading-5 text-muted-foreground">{r.summary}</p>}
+                  {!!r.matchedInText?.length&&<div className="mt-2 flex flex-wrap gap-1">{r.matchedInText.map((x)=><span key={x} className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">{x}</span>)}</div>}
+                  {r.textSnippet&&<p className="mt-2 rounded-lg bg-muted/50 p-2 text-[10px] leading-4 text-muted-foreground">…{r.textSnippet}…</p>}
+                  <a href={r.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline">Abrir resolución oficial <ExternalLink className="size-3"/></a>
+                </div>)}
+              </div>
+              {jurisSearchUrl&&<a href={jurisSearchUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline">Abrir también la búsqueda original en CENDOJ <ExternalLink className="size-3"/></a>}
             </Card>
 
             <Card className="p-4">
