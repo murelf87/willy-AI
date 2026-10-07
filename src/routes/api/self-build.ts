@@ -136,7 +136,7 @@ async function readContext(root: string, request: string, proposal: string, atta
     const known = new Set(files.map((file) => file.rel));
     const mentioned = (proposal.match(/(?:src|public)\/[A-Za-z0-9_@()./\-]+\.[A-Za-z0-9]+/g) ?? []).filter((entry) => known.has(entry));
     const named = await pathsByName(root, attachmentNames);
-    const focused = focusContext({ files, request, extra: screenshotTexts.join("\n"), boostPaths: [...new Set([...named, ...mentioned])] });
+    const focused = focusContext({ files, request, extra: screenshotTexts.join("\n"), boostPaths: [...new Set([...named, ...mentioned])], budget: 22_000, radius: 16 });
     if (focused.context) return { context: focused.context, paths: focused.paths };
   } catch {
     /* si el localizador falla, se usa el método anterior */
