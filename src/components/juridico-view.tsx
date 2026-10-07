@@ -600,6 +600,85 @@ export function JuridicoView({ ping }:{ ping:Ping }){
             </Card>
           </div>}
 
+          {tab==="jurisprudencia" && <div className="space-y-3">
+            <Card className="overflow-hidden p-0">
+              <div className="border-b border-border bg-gradient-to-r from-primary/10 via-background to-background p-4">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10"><Gavel className="size-5 text-primary"/></div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold">Jurisprudencia avanzada</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Busca por hechos, frase exacta, órgano, sede, sección, fechas, ECLI/ROJ, norma o precepto citado, juez/magistrado, ponente, Letrado de la Administración de Justicia, abogado y procurador. Los resultados no se clasifican a favor/en contra hasta haber leído contenido verificable.</p>
+                  </div>
+                  <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-700">Anti-sentencias falsas activo</span>
+                </div>
+              </div>
+
+              <div className="space-y-4 p-4">
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={()=>setJurisFilters((p)=>({...p,court:"Tribunal Superior de Justicia de Andalucía",seat:"Granada"}))}>TSJ Andalucía · Granada</Button>
+                  <Button size="sm" variant="outline" onClick={()=>setJurisFilters((p)=>({...p,court:"Audiencia Provincial",seat:"Granada"}))}>AP Granada</Button>
+                  <Button size="sm" variant="outline" onClick={()=>setJurisFilters((p)=>({...p,court:"Tribunal Supremo",seat:"Madrid"}))}>Tribunal Supremo</Button>
+                  <Button size="sm" variant="outline" onClick={()=>setJurisFilters((p)=>({...p,court:"Tribunal Constitucional",seat:"Madrid"}))}>Tribunal Constitucional</Button>
+                  <Button size="sm" variant="ghost" onClick={()=>setJurisFilters((p)=>({...p,court:"",seat:"",section:"",judge:"",rapporteur:"",courtClerk:"",lawyer:"",procurator:"",ecli:"",roj:"",caseNumber:""}))}>Limpiar órgano/personas</Button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <label className="space-y-1 sm:col-span-2 xl:col-span-2"><span className="text-xs font-semibold">Texto / concepto jurídico</span><input className={field} value={jurisFilters.text} onChange={(e)=>setJuris("text",e.target.value)} placeholder="Ej.: garantía de indemnidad despido represalia"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Orientación respecto de mi caso</span><select className={field} value={jurisFilters.stance} onChange={(e)=>setJuris("stance",e.target.value as JurisSearchFilters["stance"])}><option value="ambas">A favor y en contra</option><option value="favor">Solo favorables</option><option value="contra">Solo contrarias</option><option value="neutral">Neutrales / mapa completo</option></select></label>
+
+                  <label className="space-y-1"><span className="text-xs font-semibold">Frase exacta</span><input className={field} value={jurisFilters.exactPhrase||""} onChange={(e)=>setJuris("exactPhrase",e.target.value)} placeholder="Frase o doctrina exacta"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Excluir términos</span><input className={field} value={jurisFilters.excludeTerms||""} onChange={(e)=>setJuris("excludeTerms",e.target.value)} placeholder="Términos no deseados"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Actualidad</span><select className={field} value={jurisFilters.freshness} onChange={(e)=>setJuris("freshness",e.target.value as JurisSearchFilters["freshness"])}><option value="1y">Último año</option><option value="3y">Últimos 3 años</option><option value="5y">Últimos 5 años</option><option value="10y">Últimos 10 años</option><option value="cualquiera">Sin límite automático</option></select></label>
+
+                  <label className="space-y-1"><span className="text-xs font-semibold">Desde</span><input type="date" className={field} value={jurisFilters.dateFrom||""} onChange={(e)=>setJuris("dateFrom",e.target.value)}/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Hasta</span><input type="date" className={field} value={jurisFilters.dateTo||""} onChange={(e)=>setJuris("dateTo",e.target.value)}/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Jurisdicción / orden</span><input className={field} value={jurisFilters.jurisdiction||""} onChange={(e)=>setJuris("jurisdiction",e.target.value)} placeholder="Civil, Social, Penal, Contencioso…"/></label>
+
+                  <label className="space-y-1"><span className="text-xs font-semibold">Órgano</span><input className={field} value={jurisFilters.court||""} onChange={(e)=>setJuris("court",e.target.value)} placeholder="TSJ Andalucía, Tribunal Supremo…"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Sede</span><input className={field} value={jurisFilters.seat||""} onChange={(e)=>setJuris("seat",e.target.value)} placeholder="Granada"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Sección</span><input className={field} value={jurisFilters.section||""} onChange={(e)=>setJuris("section",e.target.value)} placeholder="Sección 1ª, 3ª…"/></label>
+
+                  <label className="space-y-1"><span className="text-xs font-semibold">Tipo de resolución</span><select className={field} value={jurisFilters.resolutionType||""} onChange={(e)=>setJuris("resolutionType",e.target.value)}><option value="">Cualquiera</option><option>Sentencia</option><option>Auto</option><option>Providencia</option></select></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">ECLI</span><input className={field} value={jurisFilters.ecli||""} onChange={(e)=>setJuris("ecli",e.target.value)} placeholder="ECLI:ES:…"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">ROJ</span><input className={field} value={jurisFilters.roj||""} onChange={(e)=>setJuris("roj",e.target.value)} placeholder="STS 1234/2026…"/></label>
+
+                  <label className="space-y-1"><span className="text-xs font-semibold">Nº recurso / procedimiento</span><input className={field} value={jurisFilters.caseNumber||""} onChange={(e)=>setJuris("caseNumber",e.target.value)} placeholder="123/2026"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Norma citada</span><input className={field} value={jurisFilters.citedLaw||""} onChange={(e)=>setJuris("citedLaw",e.target.value)} placeholder="Ley 39/2015, ET, LEC…"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Precepto citado</span><input className={field} value={jurisFilters.citedArticle||""} onChange={(e)=>setJuris("citedArticle",e.target.value)} placeholder="art. 24 CE, art. 55.5 ET…"/></label>
+
+                  <label className="space-y-1"><span className="text-xs font-semibold">Materia</span><input className={field} value={jurisFilters.subject||""} onChange={(e)=>setJuris("subject",e.target.value)} placeholder="Despido, urbanismo, consumo…"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Juez / magistrado</span><input className={field} value={jurisFilters.judge||""} onChange={(e)=>setJuris("judge",e.target.value)} placeholder="Nombre y apellidos"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Ponente</span><input className={field} value={jurisFilters.rapporteur||""} onChange={(e)=>setJuris("rapporteur",e.target.value)} placeholder="Magistrado/a ponente"/></label>
+
+                  <label className="space-y-1"><span className="text-xs font-semibold">Letrado/a de la Administración de Justicia</span><input className={field} value={jurisFilters.courtClerk||""} onChange={(e)=>setJuris("courtClerk",e.target.value)} placeholder="Nombre y apellidos"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Letrado / abogado</span><input className={field} value={jurisFilters.lawyer||""} onChange={(e)=>setJuris("lawyer",e.target.value)} placeholder="Nombre del abogado/a"/></label>
+                  <label className="space-y-1"><span className="text-xs font-semibold">Procurador</span><input className={field} value={jurisFilters.procurator||""} onChange={(e)=>setJuris("procurator",e.target.value)} placeholder="Nombre del procurador/a"/></label>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button className="gap-2" onClick={()=>{const prompt=jurisprudenceResearchPrompt(jurisFilters,caseContext);setModeId("precedentes");setTab("analisis");void send(prompt,"precedentes");}}><Search className="size-4"/>Analizar jurisprudencia y tendencia</Button>
+                  <Button className="gap-2" variant="outline" onClick={()=>{const prompt=jurisprudenceResearchPrompt(jurisFilters,caseContext);setModeId("prognostico");setTab("analisis");void send(prompt,"prognostico");}}><Scale className="size-4"/>Pronóstico del caso</Button>
+                </div>
+                <p className="text-[10px] leading-5 text-muted-foreground">El pronóstico solo muestra un porcentaje cuando existen al menos 5 referencias jurisprudenciales concretas verificadas en el corpus del expediente. Con menos base, WILLY debe negarse a dar falsa precisión.</p>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-bold">Buscadores oficiales con estos filtros</p><p className="mt-1 text-xs text-muted-foreground">CENDOJ, Tribunal Constitucional, HUDOC, InfoCuria y TEAC. Abrir el portal no equivale a haber leído una resolución.</p></div><span className="rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-semibold">{officialJurisSearches.length} fuentes</span></div>
+              <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                {officialJurisSearches.map((source)=><div key={source.id} className="rounded-xl border border-border bg-background p-3">
+                  <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><p className="text-xs font-bold">{source.name}</p><p className="mt-1 text-[10px] leading-4 text-muted-foreground">{source.note}</p></div><span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">{source.automatic?"Automática":"Verificación manual"}</span></div>
+                  {!!source.filters.length&&<div className="mt-2 flex max-h-20 flex-wrap gap-1 overflow-y-auto">{source.filters.slice(0,18).map((filter)=><span key={filter} className="rounded-md bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">{filter}</span>)}</div>}
+                  <a href={source.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline">Abrir búsqueda oficial <ExternalLink className="size-3"/></a>
+                </div>)}
+              </div>
+            </Card>
+
+            <Card className="border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-start gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10"><Scale className="size-5 text-primary"/></div><div className="min-w-0 flex-1"><p className="text-sm font-bold">Pronóstico del caso · demanda + jurisprudencia actual</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Lee la demanda y el resto del expediente, compara precedentes favorables y contrarios, pondera jerarquía y actualidad y explica qué factores cambian la estimación. TSJ de Andalucía con sede en Granada queda priorizado cuando sea territorial y materialmente pertinente.</p><div className="mt-3 flex flex-wrap gap-2"><Button size="sm" className="gap-2" onClick={()=>{const prompt=jurisprudenceResearchPrompt({...jurisFilters,court:jurisFilters.court||"Tribunal Superior de Justicia de Andalucía",seat:jurisFilters.seat||"Granada"},caseContext);setModeId("prognostico");setTab("analisis");void send(prompt,"prognostico");}}><Sparkles className="size-3.5"/>Calcular pronóstico</Button><Button size="sm" variant="outline" onClick={()=>fileRef.current?.click()}><Upload className="size-3.5"/>Añadir demanda/sentencias</Button></div></div></div>
+            </Card>
+          </div>}
+
           {tab==="herramientas" && <div className="grid gap-3 md:grid-cols-2">
             {MODES.map((m)=>{const I=m.icon;return <Card key={m.id} className="p-4"><div className="flex items-start gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10"><I className="size-5 text-primary"/></div><div className="min-w-0 flex-1"><p className="text-sm font-bold">{m.name}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{m.desc}</p><Button size="sm" variant="outline" className="mt-3 gap-2" onClick={()=>{setModeId(m.id);setTab("analisis");void send(m.prompt,m.id);}}><Sparkles className="size-3.5"/>Ejecutar sobre expediente</Button></div></div></Card>})}
           </div>}
