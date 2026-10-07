@@ -3,6 +3,91 @@ import { promises as fs } from "node:fs";
 
 
 
+const OFFICIAL_LEGAL_HOSTS = new Set([
+  "www.poderjudicial.es", "poderjudicial.es",
+  "hj.tribunalconstitucional.es", "www.tribunalconstitucional.es", "tribunalconstitucional.es",
+  "juris.curia.europa.eu", "curia.europa.eu",
+  "eur-lex.europa.eu",
+  "hudoc.echr.coe.int",
+  "www.boe.es", "boe.es",
+]);
+
+function decodeBasicHtml(text: string): string {
+  return text
+    .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/(?:p|div|article|section|li|tr|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+async function extractPdfServer(bytes: Uint8Array): Promise<string> {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const task = pdfjs.getDocument({ data: bytes, useWorkerFetch: false, isEvalSupported: false });
+  const doc = await task.promise;
+  const pages: string[] = [];
+  try {
+    for (let pageNo = 1; pageNo <= Math.min(doc.numPages, 300); pageNo += 1) {
+      const page = await doc.getPage(pageNo);
+      const content = await page.getTextContent();
+      const text = content.items
+        .map((item) => ("str" in item ? String(item.str) : ""))
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (text) pages.push("--- Página " + pageNo + " ---\n" + text);
+      if (pages.join("\n").length > 180_000) break;
+    }
+  } finally {
+    await doc.cleanup();
+    await doc.destroy();
+  }
+  return pages.join("\n\n").slice(0, 180_000);
+}
+
+export async function fetchOfficialLegalDocument(rawUrl: string): Promise<{ url: string; title: string; text: string; host: string; verified: true }> {
+  let url: URL;
+  try { url = new URL(rawUrl.trim()); } catch { throw new Error("URL oficial no válida."); }
+  if (url.protocol !== "https:" || !OFFICIAL_LEGAL_HOSTS.has(url.hostname.toLowerCase())) {
+    throw new Error("Solo se admiten URLs HTTPS de fuentes jurídicas oficiales autorizadas (CGPJ/CENDOJ, TC, TJUE/EUR-Lex, TEDH o BOE).");
+  }
+  const response = await fetch(url, {
+    redirect: "follow",
+    headers: { "User-Agent": "WILLY-AI-Juridico/1.0", Accept: "application/pdf,text/html,application/xhtml+xml,*/*;q=0.8" },
+    signal: AbortSignal.timeout(25_000),
+  });
+  if (!response.ok) throw new Error("La fuente oficial respondió " + response.status + ".");
+  const finalUrl = new URL(response.url);
+  if (!OFFICIAL_LEGAL_HOSTS.has(finalUrl.hostname.toLowerCase())) throw new Error("La fuente redirigió fuera de un dominio oficial autorizado.");
+  const length = Number(response.headers.get("content-length") || "0");
+  if (length > 20 * 1024 * 1024) throw new Error("La resolución supera 20 MB.");
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  let text = "";
+  let title = finalUrl.pathname.split("/").pop() || "Resolución oficial";
+  if (contentType.includes("pdf") || finalUrl.pathname.toLowerCase().endsWith(".pdf")) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > 20 * 1024 * 1024) throw new Error("La resolución supera 20 MB.");
+    text = await extractPdfServer(bytes);
+  } else {
+    const html = await response.text();
+    const match = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+    if (match?.[1]) title = decodeBasicHtml(match[1]).slice(0, 240) || title;
+    text = decodeBasicHtml(html).slice(0, 180_000);
+  }
+  if (text.trim().length < 80) throw new Error("No se pudo extraer texto suficiente de la resolución oficial.");
+  return { url: finalUrl.toString(), title, text, host: finalUrl.hostname, verified: true };
+}
+
 export type EuLegalResult = {
   id: string;
   title: string;
