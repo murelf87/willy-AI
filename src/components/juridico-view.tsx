@@ -182,8 +182,34 @@ async function researchAll(query:string):Promise<SearchHit[]>{
   return out.slice(0,36);
 }
 
+async function hydrateResearch(hits: SearchHit[]): Promise<{context:string;verifiedCorpus:string}> {
+  const context:string[]=[];
+  const verified:string[]=[];
+  let boe=0,boja=0,eu=0;
+  for(const h of hits.filter((item)=>item.verification==="metadatos-oficiales").slice(0,8)){
+    try{
+      if(/^BOE-[A-Z]-\d{4}-\d+$/i.test(h.id)&&boe<2){
+        boe++;const d=await api<{ok:true;result:{text:string;url:string}}>({action:"boe-text",id:h.id});
+        const block="[AUTO-BOE-"+boe+"][TEXTO OFICIAL RECUPERADO] "+h.title+"\n"+d.result.url+"\n"+d.result.text.slice(0,24000);
+        context.push(block);verified.push(block);
+      }else if(/^disposition\./i.test(h.id)&&boja<1){
+        boja++;const d=await api<{ok:true;result:{summary:string;body:string;url:string}}>({action:"boja-text",id:h.id});
+        const block="[AUTO-BOJA-"+boja+"][TEXTO OFICIAL RECUPERADO] "+h.title+"\n"+d.result.url+"\n"+(d.result.body||d.result.summary).slice(0,24000);
+        context.push(block);verified.push(block);
+      }else if(/^[0-9][0-9A-Z()_-]{4,39}$/.test(h.id)&&eu<1&&/UE · legislación/i.test(h.kind)){
+        eu++;const d=await api<{ok:true;result:{text:string;url:string}}>({action:"eu-celex-text",celex:h.id});
+        const block="[AUTO-UE-"+eu+"][TEXTO OFICIAL RECUPERADO] "+h.title+"\n"+d.result.url+"\n"+d.result.text.slice(0,24000);
+        context.push(block);verified.push(block);
+      }
+    }catch{
+      // Si falla la recuperación, el resultado sigue siendo solo candidato/metadato y nunca pasa al corpus verificado.
+    }
+  }
+  return {context:context.join("\n\n"),verifiedCorpus:verified.join("\n\n")};
+}
+
 async function askLegal(args:{ caso:CasoJuridico; messages:Message[]; mode:Mode; research:SearchHit[]; signal:AbortSignal }):Promise<{content:string;model:string;quality:"verified"|"corrected"}>{
-  const hydrated=await hydratePinned(args.caso.sources);
+  const [hydrated,autoVerified]=await Promise.all([hydratePinned(args.caso.sources),hydrateResearch(args.research)]);
   const research=args.research.slice(0,18).map((x,i)=>{
     const state=x.verification==="metadatos-oficiales"?"METADATOS OFICIALES · TEXTO PENDIENTE":"PENDIENTE DE VERIFICACIÓN MANUAL";
     return "[CANDIDATA-"+(i+1)+"]["+state+"] "+x.kind+" · "+x.title+"\n"+x.meta+"\n"+x.url;
@@ -201,6 +227,7 @@ async function askLegal(args:{ caso:CasoJuridico; messages:Message[]; mode:Mode;
       "\n=== MODO ===",args.mode.name+": "+args.mode.prompt,"\n=== FICHA ===",meta,
       "\n=== DOCUMENTOS ===",packDocs(args.caso.docs),
       "\n=== FUENTES FIJADAS ===",hydrated.context,
+      "\n=== TEXTOS OFICIALES RECUPERADOS AUTOMÁTICAMENTE ===",autoVerified.context||"Ninguno recuperado automáticamente.",
       "\n=== INVESTIGACIÓN AUTOMÁTICA: CANDIDATAS OFICIALES ===",research,
       "\nREGLA DE CITACIÓN: una candidata con metadatos o un enlace de buscador NO autoriza a afirmar qué resolvió ese tribunal. Si no tienes TEXTO OFICIAL RECUPERADO, escribe PENDIENTE DE VERIFICACIÓN y no inventes identificadores, hechos, ratio, recurso, ponente ni cita.",
     ].join("\n")},
@@ -215,16 +242,16 @@ async function askLegal(args:{ caso:CasoJuridico; messages:Message[]; mode:Mode;
   };
 
   const first=await request(apiMessages);
-  const firstAudit=auditLegalAnswer(first.content,hydrated.verifiedCorpus);
+  const firstAudit=auditLegalAnswer(first.content,[hydrated.verifiedCorpus,autoVerified.verifiedCorpus].filter(Boolean).join("\n\n"));
   if(firstAudit.ok)return {...first,quality:"verified" as const};
 
-  const correction=legalCorrectionPrompt(firstAudit.unverified,hydrated.verifiedCorpus,firstAudit.unverifiedAttributions);
+  const correction=legalCorrectionPrompt(firstAudit.unverified,[hydrated.verifiedCorpus,autoVerified.verifiedCorpus].filter(Boolean).join("\n\n"),firstAudit.unverifiedAttributions);
   const second=await request([
     ...apiMessages,
     {role:"assistant",content:first.content},
     {role:"user",content:correction},
   ]);
-  const secondAudit=auditLegalAnswer(second.content,hydrated.verifiedCorpus);
+  const secondAudit=auditLegalAnswer(second.content,[hydrated.verifiedCorpus,autoVerified.verifiedCorpus].filter(Boolean).join("\n\n"));
   if(secondAudit.ok)return {...second,quality:"corrected" as const};
 
   const blocked=[...secondAudit.unverified,...secondAudit.unverifiedAttributions.slice(0,3)].filter(Boolean).slice(0,6).join(" · ");
