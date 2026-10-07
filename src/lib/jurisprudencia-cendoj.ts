@@ -14,6 +14,7 @@ export type CendojAdvancedFilters = {
   judge?: string;
   lawyer?: string;
   laj?: string;
+  procurator?: string;
   limit?: number;
 };
 
@@ -151,6 +152,7 @@ function needsText(filters: CendojAdvancedFilters): Array<[string, string]> {
   if (text(filters.judge)) out.push(["juez/magistrado", text(filters.judge)]);
   if (text(filters.lawyer)) out.push(["letrado/abogado", text(filters.lawyer)]);
   if (text(filters.laj)) out.push(["LAJ", text(filters.laj)]);
+  if (text(filters.procurator)) out.push(["procurador", text(filters.procurator)]);
   if (text(filters.exactPhrase)) out.push(["frase exacta", text(filters.exactPhrase)]);
   return out;
 }
@@ -208,6 +210,7 @@ function searchSeed(filters: CendojAdvancedFilters): string {
     text(filters.judge, 120),
     text(filters.lawyer, 120),
     text(filters.laj, 120),
+    text(filters.procurator, 120),
     text(filters.municipality, 80),
   ].filter(Boolean);
   return values.join(" ").slice(0, 450) || "jurisprudencia";
@@ -235,6 +238,7 @@ export async function searchCendojAdvanced(raw: CendojAdvancedFilters): Promise<
     judge: text(raw.judge, 140),
     lawyer: text(raw.lawyer, 140),
     laj: text(raw.laj, 140),
+    procurator: text(raw.procurator, 140),
     limit: Math.max(1, Math.min(40, Number(raw.limit) || 20)),
   };
   const seed = searchSeed(filters);
@@ -272,7 +276,7 @@ export async function searchCendojAdvanced(raw: CendojAdvancedFilters): Promise<
     results: results.slice(0, limit),
     officialSearchUrl,
     note: textFilters.length
-      ? "Los filtros de juez/magistrado, letrado/abogado, LAJ o frase exacta se confirman leyendo el texto oficial recuperado; si no puede recuperarse, el resultado se excluye."
+      ? "Los filtros de juez/magistrado, letrado/abogado, LAJ, procurador o frase exacta se confirman leyendo el texto oficial recuperado; si no puede recuperarse, el resultado se excluye."
       : "Resultados obtenidos del buscador oficial CENDOJ y filtrados localmente por sus metadatos públicos.",
   };
 }
