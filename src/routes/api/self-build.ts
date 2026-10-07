@@ -134,7 +134,7 @@ async function readContext(root: string, request: string, proposal: string, atta
   try {
     const files = await readSourceFiles(root);
     const known = new Set(files.map((file) => file.rel));
-    const mentioned = (proposal.match(/(?:src|public)\/[A-Za-z0-9_@()./\-]+\.[A-Za-z0-9]+/g) ?? []).filter((entry) => known.has(entry));
+    const mentioned = (proposal.match(/(?:src|public)\/[A-Za-z0-9_@()./-]+\.[A-Za-z0-9]+/g) ?? []).filter((entry) => known.has(entry));
     const named = await pathsByName(root, attachmentNames);
     const focused = focusContext({ files, request, extra: screenshotTexts.join("\n"), boostPaths: [...new Set([...named, ...mentioned])], budget: 22_000, radius: 16 });
     if (focused.context) return { context: focused.context, paths: focused.paths };
@@ -147,7 +147,7 @@ async function readContext(root: string, request: string, proposal: string, atta
 async function readContextLegacy(root: string, request: string, proposal: string, attachmentNames: string[] = [], screenshotTexts: string[] = []): Promise<{ context: string; paths: string[] }> {
   const fs = await import("node:fs/promises");
   const path = await import("node:path");
-  const mentioned = proposal.match(/(?:src|public)\/[A-Za-z0-9_@()./\-]+\.[A-Za-z0-9]+/g) ?? [];
+  const mentioned = proposal.match(/(?:src|public)\/[A-Za-z0-9_@()./-]+\.[A-Za-z0-9]+/g) ?? [];
   const description = `${request}\n${screenshotTexts.join("\n")}\n${proposal}`;
   const inferred = CONTEXT_GROUPS.filter((group) => group.words.test(description)).flatMap((group) => group.paths);
   const fallback = inferred.length ? [] : ["src/routes/app.tsx", "src/components/app-sections.tsx"];
