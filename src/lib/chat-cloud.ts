@@ -204,6 +204,7 @@ export async function askChatCloud(o: {
   for (const [index, id] of ids.entries()) {
     if (o.signal?.aborted) return null;
     o.notify(`Enviando a ${names.get(id) ?? id}… (el mensaje sale de tu equipo)`);
+    const beforeModel = status?.engines.find((engine) => engine.id === id)?.model ?? "";
     const res = await o.ask(id, o.messages, o.maxTokens ?? 4000, o.compact);
     // Contestó o falló: su estado (lista / sin cuota gratis) puede haber cambiado, y los botones de arriba y abajo lo reflejan.
     announce(CHAT_STATUS_EVENT);
@@ -216,6 +217,9 @@ export async function askChatCloud(o: {
       continue;
     }
     if (res.ok) {
+      if (beforeModel && res.model && beforeModel !== res.model) {
+        o.notify(`Cambio automático de modelo en ${names.get(id) ?? id}: ${beforeModel} → ${res.model}.`);
+      }
       o.onText(res.data);
       o.onAnswered?.(res.engine, res.model);
       o.notify(`Respuesta de ${res.engine} (${res.model}).`);
@@ -223,6 +227,13 @@ export async function askChatCloud(o: {
     }
     const reason = shortFailure(res);
     failures.push(`${names.get(id) ?? id}: ${reason}`);
+    try {
+      const after = await o.status();
+      const afterModel = after?.engines.find((engine) => engine.id === id)?.model ?? "";
+      if (beforeModel && afterModel && beforeModel !== afterModel) {
+        o.notify(`${names.get(id) ?? id} ha preparado cambio automático para el siguiente intento: ${beforeModel} → ${afterModel}.`);
+      }
+    } catch { /* el aviso de cambio no debe bloquear el relevo */ }
     const next = ids[index + 1];
     if (next) o.notify(`${names.get(id) ?? id}: ${reason}. Paso sola a ${names.get(next) ?? next}…`);
   }
