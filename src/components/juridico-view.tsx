@@ -13,10 +13,12 @@ import { Button } from "@/components/ui/button";
 import { SectionHead as Head } from "@/components/section-ui";
 import { PanelCard as Card } from "@/components/panel-card";
 import type { Ping } from "@/types/domain";
+import { buildLegalProtocol, recommendedLegalSourceIds, type LegalVerification } from "@/lib/juridico-quality";
+import { auditLegalAnswer, legalCorrectionPrompt } from "@/lib/juridico-verification";
 
 type DocFile = { id: string; name: string; size: number; type: string; text: string; hash: string; uploadedAt: number };
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: number; model?: string; mode?: string };
-type LegalSource = { id: string; title: string; url: string; kind: string; official: boolean; addedAt: number; meta?: string };
+type LegalSource = { id: string; title: string; url: string; kind: string; official: boolean; addedAt: number; meta?: string; verification: LegalVerification };
 type CasoJuridico = {
   id: string; nombre: string; area: string; jurisdiccion: string; posicion: string; objetivo: string;
   contraparte: string; fechaHechos: string; deadline: string; notas: string;
@@ -24,12 +26,12 @@ type CasoJuridico = {
 };
 type Tab = "analisis" | "expediente" | "fuentes" | "herramientas";
 type Mode = { id: string; name: string; desc: string; prompt: string; icon: typeof Scale };
-type SearchHit = { id: string; title: string; url: string; kind: string; meta: string; official: boolean };
+type SearchHit = { id: string; title: string; url: string; kind: string; meta: string; official: boolean; verification: LegalVerification };
 
 type BoeResult = { id: string; title: string; rank: string; number: string; department: string; publicationDate: string; effectiveDate: string; exhausted: boolean; consolidatedState: string; url: string };
 type BojaResult = { id: string; date: string; organisation: string; section: string; summary: string; number: string; url: string };
 type EuResult = { id: string; title: string; ecli?: string; date?: string; type: "legislation" | "case-law"; url: string };
-type SourceCatalogItem = { id:string; name:string; authority:string; scope:string; access:"api"|"open-data"|"search"|"portal"; automatic:boolean; free:boolean; url:string; note:string };
+type SourceCatalogItem = { id:string; name:string; authority:string; scope:string; access:"api"|"open-data"|"search"|"portal"; automatic:boolean; free:boolean; url:string; note:string; tier?:"fuente-primaria"|"jurisprudencia"|"doctrina-oficial"|"biblioteca-profesional"; topics?:string[] };
 
 const LEGACY_KEY = "willy-juridico-casos";
 const uid = () => crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
