@@ -249,6 +249,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
   const [researching,setResearching]=useState(false);
   const [autoResearch,setAutoResearch]=useState(true);
   const [lastModel,setLastModel]=useState("");
+  const [lastQuality,setLastQuality]=useState<"verified"|"corrected"|null>(null);
   const [sourceCatalog,setSourceCatalog]=useState<SourceCatalogItem[]>([]);
   const [copied,setCopied]=useState<string|null>(null);
   const fileRef=useRef<HTMLInputElement>(null);
@@ -259,6 +260,8 @@ export function JuridicoView({ ping }:{ ping:Ping }){
   const mode=MODES.find((m)=>m.id===modeId)||MODES[0]!;
   const score=caso?readiness(caso):0;
   const urgent=caso?.deadline?new Date(caso.deadline+"T23:59:59").getTime()-Date.now()<7*86400000:false;
+  const recommendedIds=useMemo(()=>new Set(recommendedLegalSourceIds(caso?.area||"",caso?.jurisdiccion||"")),[caso?.area,caso?.jurisdiccion]);
+  const orderedCatalog=useMemo(()=>[...sourceCatalog].sort((a,b)=>Number(recommendedIds.has(b.id))-Number(recommendedIds.has(a.id))||a.name.localeCompare(b.name,"es")),[sourceCatalog,recommendedIds]);
 
   useEffect(()=>{
     let alive=true;
@@ -296,7 +299,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
     try{const r=await researchAll(s);setHits(r);return r;}catch(e){setError(e instanceof Error?e.message:"Falló la investigación oficial.");return[];}finally{setResearching(false);}
   };
 
-  const pin=(h:SearchHit)=>{if(!caso||caso.sources.some((s)=>s.id===h.id))return;patch({sources:[...caso.sources,{id:h.id,title:h.title,url:h.url,kind:h.kind,official:h.official,addedAt:Date.now(),meta:h.meta}]});ping("Fuente oficial fijada.");};
+  const pin=(h:SearchHit)=>{if(!caso||caso.sources.some((s)=>s.id===h.id))return;patch({sources:[...caso.sources,{id:h.id,title:h.title,url:h.url,kind:h.kind,official:h.official,addedAt:Date.now(),meta:h.meta,verification:h.verification}]});ping(h.verification==="metadatos-oficiales"?"Fuente oficial fijada · texto pendiente de verificar.":"Ruta oficial fijada · requiere verificación manual.");};
 
   const send=async(forced?:string,forcedMode?:string)=>{
     if(!caso||sending)return;const text=(forced??input).trim();if(!text)return;
@@ -307,7 +310,8 @@ export function JuridicoView({ ping }:{ ping:Ping }){
     try{
       const research=autoResearch?await doResearch([caso.area,caso.objetivo,text].filter(Boolean).join(" ")):hits;
       const reply=await askLegal({caso:{...caso,messages:history},messages:history,mode:active,research,signal:controller.signal});
-      setLastModel(reply.model);
+      setLastModel(reply.model);setLastQuality(reply.quality);
+      if(reply.quality==="corrected")ping("Control jurídico: se descartó un primer borrador con referencias no verificadas y se regeneró.");
       const assistant:Message={id:uid(),role:"assistant",content:reply.content,createdAt:Date.now(),model:reply.model,mode:active.id};
       setCasos((prev)=>prev.map((c)=>c.id===caso.id?{...c,messages:[...history,assistant],updatedAt:Date.now()}:c));
     }catch(e){if((e as Error)?.name!=="AbortError")setError(e instanceof Error?e.message:"No se pudo completar el análisis.");}
@@ -360,7 +364,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
                 <span className="rounded-full border border-border bg-background px-2 py-0.5">{caso.area}</span>
                 <span className="rounded-full border border-border bg-background px-2 py-0.5">{caso.jurisdiccion}</span>
                 <span className="rounded-full border border-border bg-background px-2 py-0.5">{caso.posicion}</span>
-                {lastModel&&<span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5">IA: {lastModel}</span>}
+                {lastModel&&<span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5">IA: {lastModel}</span>}{lastQuality&&<span className={"rounded-full border px-2 py-0.5 "+(lastQuality==="verified"?"border-emerald-500/30 bg-emerald-500/10 text-emerald-700":"border-amber-500/30 bg-amber-500/10 text-amber-700")}>{lastQuality==="verified"?"Control de citas superado":"Regenerada por control de citas"}</span>}
               </div>
             </div>
             <div className="grid w-full grid-cols-2 gap-1.5 text-center sm:grid-cols-4 xl:w-auto">
@@ -480,7 +484,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
                 <div className="max-h-[430px] space-y-2 overflow-y-auto pr-1">
                   {!hits.length&&<p className="rounded-lg border border-dashed border-border p-5 text-center text-xs text-muted-foreground">Haz una búsqueda para obtener normativa y jurisprudencia europea candidata.</p>}
                   {hits.map((h)=><div key={h.kind+h.id} className="rounded-xl border border-border bg-background p-3">
-                    <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase tracking-wide text-primary">{h.kind}</p><p className="mt-1 text-xs font-semibold leading-5">{h.title}</p><p className="mt-1 text-[10px] text-muted-foreground">{h.meta}</p></div><button onClick={()=>pin(h)} disabled={caso.sources.some((s)=>s.id===h.id)} className="rounded-md border border-border px-2 py-1 text-[10px] font-semibold hover:bg-muted disabled:opacity-40">{caso.sources.some((s)=>s.id===h.id)?"Fijada":"Fijar"}</button></div>
+                    <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1"><p className="text-[10px] font-bold uppercase tracking-wide text-primary">{h.kind}</p><span className={"rounded-full border px-1.5 py-0.5 text-[9px] font-semibold "+(h.verification==="metadatos-oficiales"?"border-sky-500/30 bg-sky-500/10 text-sky-700":"border-amber-500/30 bg-amber-500/10 text-amber-700")}>{h.verification==="metadatos-oficiales"?"Metadatos oficiales":"Pendiente manual"}</span></div><p className="mt-1 text-xs font-semibold leading-5">{h.title}</p><p className="mt-1 text-[10px] text-muted-foreground">{h.meta}</p></div><button onClick={()=>pin(h)} disabled={caso.sources.some((s)=>s.id===h.id)} className="rounded-md border border-border px-2 py-1 text-[10px] font-semibold hover:bg-muted disabled:opacity-40">{caso.sources.some((s)=>s.id===h.id)?"Fijada":"Fijar"}</button></div>
                     <a href={h.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[10px] text-primary hover:underline">Abrir fuente oficial <ExternalLink className="size-3"/></a>
                   </div>)}
                 </div>
@@ -491,7 +495,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
                 <p className="mt-1 text-xs text-muted-foreground">El texto recuperable de estas fuentes se incorpora al contexto del dictamen.</p>
                 <div className="mt-3 max-h-[430px] space-y-2 overflow-y-auto">
                   {!caso.sources.length&&<p className="rounded-lg border border-dashed border-border p-5 text-center text-xs text-muted-foreground">Todavía no has fijado fuentes.</p>}
-                  {caso.sources.map((s)=><div key={s.id} className="rounded-lg border border-border bg-background p-3"><div className="flex items-start gap-2"><div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase text-primary">{s.kind}</p><p className="mt-1 text-xs font-semibold">{s.title}</p><p className="mt-1 text-[10px] text-muted-foreground">{s.meta}</p></div><button onClick={()=>patch({sources:caso.sources.filter((x)=>x.id!==s.id)})} className="text-muted-foreground hover:text-destructive"><X className="size-3.5"/></button></div><a className="mt-2 inline-flex items-center gap-1 text-[10px] text-primary hover:underline" target="_blank" rel="noreferrer" href={s.url}>Abrir <ExternalLink className="size-3"/></a></div>)}
+                  {caso.sources.map((s)=><div key={s.id} className="rounded-lg border border-border bg-background p-3"><div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1"><p className="text-[10px] font-bold uppercase text-primary">{s.kind}</p><span className={"rounded-full border px-1.5 py-0.5 text-[9px] font-semibold "+(s.verification==="texto-oficial"?"border-emerald-500/30 bg-emerald-500/10 text-emerald-700":s.verification==="metadatos-oficiales"?"border-sky-500/30 bg-sky-500/10 text-sky-700":"border-amber-500/30 bg-amber-500/10 text-amber-700")}>{s.verification==="texto-oficial"?"Texto oficial":s.verification==="metadatos-oficiales"?"Metadatos · texto pendiente":"Verificación manual"}</span></div><p className="mt-1 text-xs font-semibold">{s.title}</p><p className="mt-1 text-[10px] text-muted-foreground">{s.meta}</p></div><button onClick={()=>patch({sources:caso.sources.filter((x)=>x.id!==s.id)})} className="text-muted-foreground hover:text-destructive"><X className="size-3.5"/></button></div><a className="mt-2 inline-flex items-center gap-1 text-[10px] text-primary hover:underline" target="_blank" rel="noreferrer" href={s.url}>Abrir <ExternalLink className="size-3"/></a></div>)}
                 </div>
               </Card>
             </div>
@@ -502,9 +506,9 @@ export function JuridicoView({ ping }:{ ping:Ping }){
                 <span className="rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-semibold">{sourceCatalog.length} fuentes</span>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {sourceCatalog.map((s)=><a key={s.id} href={s.url} target="_blank" rel="noreferrer" className="rounded-xl border border-border bg-background p-3 transition hover:border-primary/40 hover:bg-primary/5">
+                {orderedCatalog.map((s)=><a key={s.id} href={s.url} target="_blank" rel="noreferrer" className={"rounded-xl border bg-background p-3 transition hover:border-primary/40 hover:bg-primary/5 "+(recommendedIds.has(s.id)?"border-primary/40 ring-1 ring-primary/10":"border-border")}>
                   <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1"><p className="text-xs font-semibold">{s.name}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{s.authority} · {s.scope}</p></div>
+                    <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1"><p className="text-xs font-semibold">{s.name}</p>{recommendedIds.has(s.id)&&<span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">Recomendada para este caso</span>}</div><p className="mt-0.5 text-[10px] text-muted-foreground">{s.authority} · {s.scope}{s.tier?` · ${s.tier.replaceAll("-"," ")}`:""}</p></div>
                     <span className={"shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold "+(!s.free?"border-amber-500/40 bg-amber-500/10 text-amber-700":s.automatic?"border-emerald-500/40 bg-emerald-500/10 text-emerald-700":"border-border bg-muted text-muted-foreground")}>{!s.free?"Suscripción":s.access==="api"?(s.automatic?"API automática":"API con registro"):s.access==="open-data"?"Datos abiertos":s.access==="portal"?"Portal":"Buscador oficial"}</span>
                   </div>
                   <p className="mt-2 text-[10px] leading-4 text-muted-foreground">{s.note}</p>
