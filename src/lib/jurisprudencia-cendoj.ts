@@ -181,6 +181,22 @@ async function fetchOfficial(url: string, timeout = 20_000): Promise<string> {
   return decodeResponse(response);
 }
 
+export async function getCendojDocumentText(rawUrl: string): Promise<{ text: string; url: string }> {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new Error("URL CENDOJ no válida.");
+  }
+  if (url.protocol !== "https:" || url.hostname !== "www.poderjudicial.es" || !url.pathname.startsWith("/search/documento/")) {
+    throw new Error("Solo se permiten documentos oficiales CENDOJ.");
+  }
+  const html = await fetchOfficial(url.toString(), 20_000);
+  const body = decodeHtml(html);
+  if (!body || body.length < 100) throw new Error("CENDOJ no devolvió texto utilizable.");
+  return { text: body.slice(0, 180_000), url: url.toString() };
+}
+
 function searchSeed(filters: CendojAdvancedFilters): string {
   const values = [
     text(filters.query, 240),
