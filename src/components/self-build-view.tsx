@@ -412,6 +412,7 @@ export function SelfBuildView({ ping }: { ping: Ping }) {
               variant="secondary"
               label="Que la IA lo entienda exactamente"
               value={request}
+              images={images}
               onApply={(text) => {
                 setRequest(text);
                 const found = deriveChecks(text);

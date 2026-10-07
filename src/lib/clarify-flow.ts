@@ -26,14 +26,14 @@ export type ClarifyResult = {
 
 const MAX_ATTEMPTS = 3;
 
-export async function clarify(chat: ChatFn, input: { text: string; context: ClarifyContext; answers?: Answer[] }): Promise<ClarifyResult> {
+export async function clarify(chat: ChatFn, input: { text: string; context: ClarifyContext; answers?: Answer[]; imageContext?: string }): Promise<ClarifyResult> {
   const text = input.text.trim();
   const signals = ambiguitySignals(text, input.context);
   const answered = !!input.answers?.length;
   let strict = false;
   let reason = "";
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    const reply = await chat(buildClarifyMessages({ text, context: input.context, signals, ...(answered ? { answers: input.answers! } : {}), strict }), attempt);
+    const reply = await chat(buildClarifyMessages({ text, context: input.context, signals, ...(input.imageContext ? { imageContext: input.imageContext } : {}), ...(answered ? { answers: input.answers! } : {}), strict }), attempt);
     if (!reply.ok) {
       reason = reply.error;
       continue;

@@ -163,8 +163,16 @@ const SYSTEM = (context: ClarifyContext) =>
     "(máximo 3 dudas y solo las que cambiarían el resultado; o «ninguna»)",
   ].join("\n");
 
-export function buildClarifyMessages(input: { text: string; context: ClarifyContext; signals?: Signal[]; answers?: Answer[]; strict?: boolean }): ChatMessage[] {
+export function buildClarifyMessages(input: { text: string; context: ClarifyContext; signals?: Signal[]; answers?: Answer[]; imageContext?: string; strict?: boolean }): ChatMessage[] {
   const parts: string[] = [`Tipo de texto: ${CONTEXT_TITLE[input.context]}.`];
+  if (input.imageContext?.trim()) {
+    parts.push([
+      "CONTEXTO VISUAL DE LAS IMÁGENES ADJUNTAS:",
+      input.imageContext.trim().slice(0, 12000),
+      "Usa este contexto para resolver referencias como «esto», «aquí», «esa tarjeta», «ese botón» o «como en la imagen».",
+      "No inventes nada que no esté en el texto del propietario o en el contexto visual. La imagen seguirá adjunta a la petición final.",
+    ].join("\n"));
+  }
   if (input.signals?.length) parts.push(`Puntos que pueden malinterpretarse (resuélvelos con lo que dice el texto o pregúntalos):\n${input.signals.map((s) => `- «${s.quote}»: ${s.why}`).join("\n")}`);
   parts.push(`<<<TEXTO\n${input.text.trim().slice(0, 6000)}\nTEXTO>>>`);
   if (input.answers?.length) parts.push(`RESPUESTAS DEL PROPIETARIO A TUS DUDAS (úsalas; ya NO preguntes nada más, escribe DUDAS: ninguna):\n${input.answers.map((a) => `- ${a.question} → ${a.answer}`).join("\n")}`);

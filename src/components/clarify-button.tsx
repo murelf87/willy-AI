@@ -8,6 +8,7 @@ import { useSettings } from "@/lib/workspace-store";
 import { aiService } from "@/services/ai-service";
 import { planChain } from "@/services/orchestrator";
 import { clarify, type ChatFn, type ClarifyResult } from "@/lib/clarify-flow";
+import { describePictures, type PreparedImage } from "@/lib/vision";
 import { CONTEXT_TITLE, ambiguitySignals, describeLiterals, type Answer, type ClarifyContext } from "@/lib/clarify";
 
 type Phase = "leyendo" | "dudas" | "listo";
@@ -26,6 +27,7 @@ export function ClarifyButton({
   compact = false,
   variant = "ghost",
   className = "",
+  images = [],
 }: {
   value: string;
   onApply: (text: string) => void;
@@ -35,6 +37,8 @@ export function ClarifyButton({
   compact?: boolean;
   variant?: "ghost" | "secondary" | "outline";
   className?: string;
+  /** Imágenes ligadas a la petición. Se muestran aquí y la IA de aclarado recibe su descripción visual. */
+  images?: PreparedImage[];
 }) {
   const [settings] = useSettings();
   const [open, setOpen] = useState(false);
@@ -43,6 +47,9 @@ export function ClarifyButton({
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [draft, setDraft] = useState("");
   const [working, setWorking] = useState(false);
+  const [visionStage, setVisionStage] = useState("");
+  const [visionWarning, setVisionWarning] = useState("");
+  const visualContext = useRef("");
   // Minimizada: la IA sigue trabajando y la ventana se queda como un aviso pequeño abajo a la derecha.
   const [minimized, setMinimized] = useState(false);
   const original = useRef("");
@@ -86,6 +93,7 @@ export function ClarifyButton({
     setOpen(false);
     setMinimized(false);
     setWorking(false);
+    setVisionStage("");
   };
 
   /** El modelo que mejor razona de los instalados; si uno falla o se niega, entra el siguiente. */
@@ -104,8 +112,34 @@ export function ClarifyButton({
     abort.current = new AbortController();
     setWorking(true);
     setPhase("leyendo");
+    let imageContext = visualContext.current;
+    if (images.length && !imageContext) {
+      setVisionWarning("");
+      setVisionStage(`Mirando ${images.length === 1 ? "la imagen adjunta" : `las ${images.length} imágenes adjuntas`}…`);
+      const seen = await describePictures({
+        endpoint: settings.endpoint,
+        currentModel: settings.model,
+        pictures: images,
+        ...(abort.current ? { signal: abort.current.signal } : {}),
+        onStage: setVisionStage,
+      });
+      if (abort.current?.signal.aborted) return;
+      if (seen.ok) {
+        imageContext = seen.text;
+        visualContext.current = seen.text;
+        setVisionStage("Imagen entendida y vinculada a la petición.");
+      } else {
+        setVisionWarning(seen.error);
+        setVisionStage("La imagen sigue adjunta, pero no pude interpretarla automáticamente.");
+      }
+    }
     const chat = await makeChat();
-    const res = await clarify(chat, { text: original.current, context, ...(given?.length ? { answers: given } : {}) });
+    const res = await clarify(chat, {
+      text: original.current,
+      context,
+      ...(imageContext ? { imageContext } : {}),
+      ...(given?.length ? { answers: given } : {}),
+    });
     if (abort.current?.signal.aborted) return;
     setResult(res);
     setDraft(res.instruction);
@@ -118,8 +152,11 @@ export function ClarifyButton({
   const start = () => {
     // Si ya había una minimizada, el botón simplemente la vuelve a abrir (no empieza otra ni pierde lo hecho).
     if (open && minimized) { setMinimized(false); return; }
-    if (!value.trim()) return;
+    if (!value.trim() && images.length === 0) return;
     original.current = value;
+    visualContext.current = "";
+    setVisionStage("");
+    setVisionWarning("");
     setResult(null);
     setMinimized(false);
     setOpen(true);
@@ -161,7 +198,7 @@ export function ClarifyButton({
         variant={variant}
         size={iconOnly ? "icon" : compact ? "sm" : "default"}
         className={`${iconOnly ? "size-8 shrink-0" : "gap-2"} ${className}`}
-        disabled={!(open && minimized) && (!value.trim() || working)}
+        disabled={!(open && minimized) && ((!value.trim() && images.length === 0) || working)}
         onClick={start}
         aria-label={open && minimized ? "Volver a abrir «Aclarar con IA» (sigue en segundo plano)" : "Que la IA lo entienda exactamente"}
         title={open && minimized ? "Sigue trabajando en segundo plano: pulsa para verlo" : "Escribe con tus palabras y la IA lo convierte en una instrucción precisa, sin ambigüedades"}
@@ -186,8 +223,27 @@ export function ClarifyButton({
 
               <div className="mb-3 rounded-md border border-border bg-background p-2 text-xs">
                 <p className="mb-1 font-semibold text-muted-foreground">Tus palabras</p>
-                <p className="whitespace-pre-wrap break-words">{original.current}</p>
+                <p className="whitespace-pre-wrap break-words">{original.current || "La petición se apoya en la imagen adjunta."}</p>
               </div>
+
+              {images.length > 0 && (
+                <div className="mb-3 rounded-lg border border-primary/25 bg-primary/5 p-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold">Imagen adjunta a esta petición</p>
+                    <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{images.length} {images.length === 1 ? "imagen" : "imágenes"}</span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {images.map((image, index) => (
+                      <figure key={`${image.name}-${index}`} className="overflow-hidden rounded-lg border border-border bg-background">
+                        <img src={image.dataUrl} alt={image.name} className="max-h-56 w-full bg-muted/30 object-contain" />
+                        <figcaption className="truncate border-t border-border px-2 py-1.5 text-[10px] text-muted-foreground">{image.name}</figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                  {visionStage && <p className="mt-2 text-[11px] font-medium text-primary">{visionStage}</p>}
+                  {visionWarning && <p className="mt-1 text-[11px] leading-5 text-amber-700 dark:text-amber-300">La captura permanece vinculada. Interpretación automática pendiente: {visionWarning}</p>}
+                </div>
+              )}
 
               {phase === "leyendo" && (
                 <div className="space-y-2 text-xs">
