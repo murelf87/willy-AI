@@ -231,13 +231,33 @@ try {
   $env:WILLY_RUNTIME_MODE = 'source'
 
   Write-Host '[4/4] Iniciando WILLY en http://localhost:3000 ...'
-  $outLog = Join-Path $root 'servidor.log'
-  $errLog = Join-Path $root 'servidor-error.log'
-  Set-Content -LiteralPath $outLog -Value '' -Encoding UTF8
-  Set-Content -LiteralPath $errLog -Value '' -Encoding UTF8
+
+  # Cada arranque usa sus propios logs. Un proceso huérfano de una ejecución anterior
+  # puede conservar un handle abierto; reutilizar siempre servidor.log hacía fallar el inicio.
+  $runStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+  $outLog = Join-Path $root ("servidor-$runStamp.log")
+  $errLog = Join-Path $root ("servidor-error-$runStamp.log")
+  $pidFile = Join-Path $root 'servidor.pid'
+
+  # Si una versión nueva del lanzador dejó registrado un servidor que ya no responde,
+  # se detiene SOLO ese PID y solo si sigue siendo node ejecutando el entrypoint de WILLY.
+  if (Test-Path $pidFile) {
+    $oldPidText = (Get-Content -LiteralPath $pidFile -Raw -ErrorAction SilentlyContinue).Trim()
+    $oldPid = 0
+    if ([int]::TryParse($oldPidText, [ref]$oldPid) -and $oldPid -gt 0) {
+      $oldProc = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $oldPid) -ErrorAction SilentlyContinue
+      if ($oldProc -and $oldProc.Name -ieq 'node.exe' -and $oldProc.CommandLine -match '\.output\\server\\index\.mjs') {
+        Write-Host "Cerrando una instancia anterior de WILLY que quedó sin responder (PID $oldPid)..." -ForegroundColor Yellow
+        Stop-Process -Id $oldPid -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 400
+      }
+    }
+    Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+  }
 
   $nodeExe = (Get-Command node.exe).Source
   $server = Start-Process -FilePath $nodeExe -ArgumentList '".output\server\index.mjs"' -WorkingDirectory $repo -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru -WindowStyle Hidden
+  Set-Content -LiteralPath $pidFile -Value ([string]$server.Id) -Encoding ASCII
 
   try {
     $ready = $false
@@ -310,6 +330,12 @@ try {
     Read-Host | Out-Null
   } finally {
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
+    if ($pidFile -and (Test-Path $pidFile)) {
+      $pidText = (Get-Content -LiteralPath $pidFile -Raw -ErrorAction SilentlyContinue).Trim()
+      if ($server -and $pidText -eq [string]$server.Id) {
+        Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+      }
+    }
   }
 } catch {
   $originalError = $_.Exception.Message
