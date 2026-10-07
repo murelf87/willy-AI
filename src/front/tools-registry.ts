@@ -3,7 +3,7 @@
 // en camino, «pendiente». Fuentes: pantallas de «WILLY AI», Mi yo en IA y voces de «AVATAR AI»
 // (claude/avatar-ai-capacidades-para-front.md) y las fuentes de datos en tiempo real (lib/data-catalog.ts).
 import {
-  BookOpen, Bot, Cloud, Code2, Database, FileSearch, FileText, Github, Globe, Headphones, Image as ImageIcon, KeyRound, Languages,
+  BookOpen, Bot, Cloud, Code2, Database, FileSearch, FileText, Gauge, Github, Globe, Headphones, Image as ImageIcon, KeyRound, Languages,
   Mic, Palette, PenLine, Presentation, Puzzle, Scale, ScanText, Search, Sparkles, Subtitles, UserRound, Video, Volume2, Wand2, Zap, Clapperboard, AudioLines,
   type LucideIcon,
 } from "lucide-react";
@@ -93,6 +93,7 @@ export const TOOLS: Tool[] = [
   // ── Datos y web
   { id: "fuentes-datos", name: "Fuentes de datos en tiempo real", desc: `${CATALOG.length} fuentes gratuitas y sin clave que tu IA consulta desde el Chat`, categories: ["datos"], icon: Database, availability: "disponible", action: { kind: "fuentes-datos" }, owner: "WILLY AI" },
   { id: "buscar-internet", name: "Buscar en internet", desc: "WILLY busca, lee las mejores páginas y responde citando las fuentes", categories: ["datos"], icon: Search, availability: "disponible", action: { kind: "chat", text: "Busca en internet: " }, owner: "WILLY AI" },
+  { id: "test-velocidad", name: "Test de velocidad Pro", desc: "Velocímetro profesional: descarga, subida, ping, jitter, pérdida, estabilidad e historial", categories: ["datos"], icon: Gauge, availability: "disponible", action: { kind: "view", view: "velocidad" }, owner: "WILLY AI" },
   ...dataSourceTools,
   // ── Desarrollo
   { id: "open-codesign", name: "Diseño IA · Open CoDesign", desc: "Chat de diseño con vista previa en vivo, edición tocando elementos y Ollama local gratis", categories: ["desarrollo", "creacion"], icon: Palette, availability: "disponible", action: { kind: "view", view: "diseno" }, owner: "WILLY AI" },

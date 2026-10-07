@@ -33,6 +33,7 @@ import { Route as ApiRemoteStatusRouteImport } from './routes/api/remote-status'
 import { Route as ApiSelfAuditRouteImport } from './routes/api/self-audit'
 import { Route as ApiSelfBuildRouteImport } from './routes/api/self-build'
 import { Route as ApiSistemaRouteImport } from './routes/api/sistema'
+import { Route as ApiSpeedtestRouteImport } from './routes/api/speedtest'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiVocesRouteImport } from './routes/api/voces'
 import { Route as ApiYoutubeRouteImport } from './routes/api/youtube'
@@ -157,6 +158,11 @@ const ApiSistemaRoute = ApiSistemaRouteImport.update({
   path: '/api/sistema',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSpeedtestRoute = ApiSpeedtestRouteImport.update({
+  id: '/api/speedtest',
+  path: '/api/speedtest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
   id: '/api/tts',
   path: '/api/tts',
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
   '/api/sistema': typeof ApiSistemaRoute
+  '/api/speedtest': typeof ApiSpeedtestRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/voces': typeof ApiVocesRoute
   '/api/youtube': typeof ApiYoutubeRoute
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
   '/api/sistema': typeof ApiSistemaRoute
+  '/api/speedtest': typeof ApiSpeedtestRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/voces': typeof ApiVocesRoute
   '/api/youtube': typeof ApiYoutubeRoute
@@ -257,6 +265,7 @@ export interface FileRoutesById {
   '/api/self-audit': typeof ApiSelfAuditRoute
   '/api/self-build': typeof ApiSelfBuildRoute
   '/api/sistema': typeof ApiSistemaRoute
+  '/api/speedtest': typeof ApiSpeedtestRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/voces': typeof ApiVocesRoute
   '/api/youtube': typeof ApiYoutubeRoute
@@ -288,6 +297,7 @@ export interface FileRouteTypes {
     | '/api/self-audit'
     | '/api/self-build'
     | '/api/sistema'
+    | '/api/speedtest'
     | '/api/tts'
     | '/api/voces'
     | '/api/youtube'
@@ -317,6 +327,7 @@ export interface FileRouteTypes {
     | '/api/self-audit'
     | '/api/self-build'
     | '/api/sistema'
+    | '/api/speedtest'
     | '/api/tts'
     | '/api/voces'
     | '/api/youtube'
@@ -346,6 +357,7 @@ export interface FileRouteTypes {
     | '/api/self-audit'
     | '/api/self-build'
     | '/api/sistema'
+    | '/api/speedtest'
     | '/api/tts'
     | '/api/voces'
     | '/api/youtube'
@@ -376,6 +388,7 @@ export interface RootRouteChildren {
   ApiSelfAuditRoute: typeof ApiSelfAuditRoute
   ApiSelfBuildRoute: typeof ApiSelfBuildRoute
   ApiSistemaRoute: typeof ApiSistemaRoute
+  ApiSpeedtestRoute: typeof ApiSpeedtestRoute
   ApiTtsRoute: typeof ApiTtsRoute
   ApiVocesRoute: typeof ApiVocesRoute
   ApiYoutubeRoute: typeof ApiYoutubeRoute
@@ -551,6 +564,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSistemaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/speedtest': {
+      id: '/api/speedtest'
+      path: '/api/speedtest'
+      fullPath: '/api/speedtest'
+      preLoaderRoute: typeof ApiSpeedtestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tts': {
       id: '/api/tts'
       path: '/api/tts'
@@ -600,6 +620,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSelfAuditRoute: ApiSelfAuditRoute,
   ApiSelfBuildRoute: ApiSelfBuildRoute,
   ApiSistemaRoute: ApiSistemaRoute,
+  ApiSpeedtestRoute: ApiSpeedtestRoute,
   ApiTtsRoute: ApiTtsRoute,
   ApiVocesRoute: ApiVocesRoute,
   ApiYoutubeRoute: ApiYoutubeRoute,

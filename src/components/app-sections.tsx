@@ -30,6 +30,7 @@ import { BookView } from "@/components/book-view";
 import { SuperIAView } from "@/components/superia-view";
 import { ProjectsView } from "@/components/projects-view";
 import { JuridicoView } from "@/components/juridico-view";
+import { SpeedTestView } from "@/components/speedtest-view";
 import { SelfBuildView } from "@/components/self-build-view";
 import { SettingsView } from "@/components/settings-view";
 import { IntelligenceCenter } from "@/components/intelligence-center";
@@ -51,7 +52,7 @@ export type View =
   | "herramientas" | "documentacion" | "ajustes" | "cuenta"
   | "github" | "instalacion" | "demo" | "licencias" | "remoto" | "diseno"
   | "lectura" | "ocr" | "avatar" | "personaje" | "influencer" | "traducir" | "extras" | "libros" | "transcribir" | "doblaje"
-  | "juridico";
+  | "juridico" | "velocidad";
 
 export const VIEW_TITLES: Record<View, string> = {
   chat: "Chats",
@@ -82,6 +83,7 @@ export const VIEW_TITLES: Record<View, string> = {
   instalacion: "Acceso directo",
   demo: "Demo para cliente",
   juridico: "Análisis Jurídico",
+  velocidad: "Test de velocidad Pro",
 };
 
 /** Traduce la clave de icono de cada proyecto a su icono real. */
@@ -351,6 +353,16 @@ export function SectionView({ view, ping, onNewProject, onOpenProject, onLogout,
       <section className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background p-2 sm:p-4 lg:p-5" aria-label={VIEW_TITLES[view]}>
         <div className="mx-auto w-full max-w-[1600px] min-w-0">
           <JuridicoView ping={ping} />
+        </div>
+      </section>
+    );
+  }
+
+  if (view === "velocidad") {
+    return (
+      <section className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background p-2 sm:p-4 lg:p-5" aria-label={VIEW_TITLES[view]}>
+        <div className="mx-auto w-full max-w-[1500px] min-w-0">
+          <SpeedTestView ping={ping} />
         </div>
       </section>
     );

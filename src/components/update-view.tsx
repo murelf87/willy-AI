@@ -1,11 +1,8 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { CheckCircle2, Download, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SystemInfo } from "@/lib/maintenance-client";
 import { systemAction } from "@/lib/maintenance-client";
-
-// Actualizaciones (Ajustes → Sistema). Comprueba GitHub Releases y, si hay versión nueva,
-// descarga e instala automáticamente desde el propio servidor de WILLY (solo desde localhost).
 
 const REPO = "murelf87/willy-AI";
 const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
@@ -15,7 +12,6 @@ const dateText = (iso: string): string => {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("es-ES", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 };
 
-/** Compara versiones semver simples: devuelve true si latest > current */
 const isNewer = (current: string, latest: string): boolean => {
   const parse = (v: string): [number, number, number] => {
     const parts = v.replace(/^v/, "").split(".").map(Number);
@@ -40,6 +36,7 @@ type CheckState =
 export function UpdateView({ info }: { info: SystemInfo | null }) {
   const last = info?.lastUpdate ?? null;
   const [check, setCheck] = useState<CheckState>({ status: "idle" });
+  const currentLabel = info ? `WILLY AI v${info.version} · r${info.revision}` : "";
 
   const checkUpdate = async () => {
     setCheck({ status: "checking" });
@@ -50,53 +47,27 @@ export function UpdateView({ info }: { info: SystemInfo | null }) {
       const latestVer = (data.tag_name ?? "").replace(/^v/, "");
       if (!latestVer) throw new Error("No se encontró la versión en GitHub.");
       const currentVer = info?.version ?? "0.0.0";
-      if (isNewer(currentVer, latestVer)) {
-        setCheck({ status: "update-available", version: latestVer });
-      } else {
-        setCheck({ status: "up-to-date", version: latestVer });
-      }
+      setCheck(isNewer(currentVer, latestVer)
+        ? { status: "update-available", version: latestVer }
+        : { status: "up-to-date", version: latestVer });
     } catch (e) {
       setCheck({ status: "error", msg: e instanceof Error ? e.message : "Error desconocido" });
     }
   };
 
   const installUpdate = async () => {
-    setCheck((prev) => ({ ...prev, status: "installing" } as CheckState));
+    setCheck({ status: "installing" });
     try {
-      const result = await systemAction("instalar-actualizacion") as { ok: boolean; message?: string; error?: string; latestVersion?: string };
-      if (result.ok) {
-        setCheck({ status: "done", version: result.latestVersion ?? "" });
-      } else {
-        setCheck({ status: "error", msg: result.error ?? "No se pudo instalar la actualización." });
-      }
+      const result = await systemAction("instalar-actualizacion") as { ok: boolean; error?: string; latestVersion?: string };
+      setCheck(result.ok
+        ? { status: "done", version: result.latestVersion ?? "" }
+        : { status: "error", msg: result.error ?? "No se pudo instalar la actualización." });
     } catch (e) {
       setCheck({ status: "error", msg: e instanceof Error ? e.message : "Error desconocido" });
     }
   };
 
   const isBusy = check.status === "checking" || check.status === "installing";
-
-  const versionSpanRef = useRef<HTMLSpanElement>(null);
-  const versionWarningRef = useRef<HTMLParagraphElement>(null);
-  const versionMainRef = useRef<HTMLParagraphElement>(null);
-  const [versionError, setVersionError] = useState<string | null>(null);
-
-  const handleUpdateVersion = () => {
-    if (!info) {
-      setVersionError("Información de versión no disponible.");
-      return;
-    }
-    const expected = `v${info.version} · r${info.revision}`;
-    const spanText = versionSpanRef.current?.textContent?.trim() ?? "";
-    const warningText = versionWarningRef.current?.textContent?.trim() ?? "";
-    const mainText = versionMainRef.current?.textContent?.trim() ?? "";
-    const mismatched = [spanText, warningText, mainText].some((t) => !t.includes(expected));
-    if (mismatched) {
-      setVersionError("Las versiones mostradas no coinciden. Acción no completada.");
-    } else {
-      setVersionError(null);
-    }
-  };
 
   return (
     <section className="rounded-lg border border-border bg-card p-4">
@@ -106,105 +77,69 @@ export function UpdateView({ info }: { info: SystemInfo | null }) {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Actualizaciones</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground" ref={versionMainRef}>
-            {info
-              ? `Tienes WILLY AI ${info.version} (revisión ${info.revision}).`
-              : "No se pudo leer la versión: el servidor de WILLY no respondió."}
-            {last?.at ? ` La última actualización (${last.version}) se instaló el ${dateText(last.at)}.` : ""}
-          </p>
+          {info ? (
+            <>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Versión instalada y sincronizada</p>
+              <p className="mt-0.5 break-words text-sm font-bold text-green-600 dark:text-green-400">{currentLabel}</p>
+              {last?.at && <p className="mt-1 text-xs leading-5 text-muted-foreground">Última instalación registrada el {dateText(last.at)}.</p>}
+            </>
+          ) : (
+            <p className="mt-1 text-xs leading-5 text-destructive">No se pudo leer la versión actual: el servidor de WILLY no respondió.</p>
+          )}
         </div>
         {info && (
-          <span className="rounded-full border border-border bg-background px-3 py-1 font-mono text-xs font-semibold text-green-500" ref={versionSpanRef}>
+          <span className="w-fit rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 font-mono text-xs font-bold text-green-600 dark:text-green-400">
             v{info.version} · r{info.revision}
           </span>
         )}
-        {info && info.version !== "0.0.47" && (
-          <p className="mt-1 text-xs text-red-500" ref={versionWarningRef}>
-            Advertencia: la versión mostrada no coincide con la versión establecida (0.0.47).
-          </p>
-        )}
       </div>
 
-      {/* Botón comprobar */}
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button
-          size="sm"
-          variant="secondary"
-          className="gap-2"
-          disabled={isBusy || check.status === "done"}
-          onClick={() => void checkUpdate()}
-        >
-          {check.status === "checking" ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="size-3.5" />
-          )}
-          {check.status === "checking" ? "Comprobando…" : "Comprobar actualización"}
+        <Button size="sm" variant="secondary" className="gap-2" disabled={isBusy || check.status === "done"} onClick={() => void checkUpdate()}>
+          {check.status === "checking" ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+          {check.status === "checking" ? "Sincronizando…" : "Comprobar sincronización"}
         </Button>
 
-        {check.status === "up-to-date" && (
+        {check.status === "up-to-date" && info && (
           <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
             <CheckCircle2 className="size-3.5" />
-            Ya tienes la última versión ({check.version})
+            Sin cambios pendientes · {currentLabel}
           </span>
         )}
 
         {check.status === "done" && (
           <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
             <CheckCircle2 className="size-3.5" />
-            Instalador en marcha{check.version ? ` (v${check.version})` : ""}. Sigue las instrucciones en pantalla.
+            Sincronización iniciada. WILLY volverá a abrirse cuando termine.
           </span>
         )}
 
-        {check.status === "error" && (
-          <span className="text-xs text-destructive">
-            {check.msg}
-          </span>
-        )}
+        {check.status === "error" && <span className="text-xs text-destructive">{check.msg}</span>}
       </div>
 
-      {/* Banner de actualización disponible + botón instalar */}
       {check.status === "update-available" && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-3">
           <div>
-            <p className="text-sm font-semibold text-primary">¡Nueva versión disponible: v{check.version}!</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              WILLY descargará e instalará la nueva versión automáticamente. Puede cerrarse unos segundos y volver a abrirse.
-            </p>
+            <p className="text-sm font-semibold text-primary">Hay cambios disponibles para sincronizar.</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">WILLY hará copia de seguridad, sincronizará el código y solo mostrará el nuevo estado después de arrancar correctamente.</p>
           </div>
           <Button size="sm" className="gap-2" disabled={isBusy} onClick={() => void installUpdate()}>
-            <Download className="size-3.5" />
-            {`Actualizar a v${check.version}`}
+            <Download className="size-3.5" />Sincronizar
           </Button>
         </div>
       )}
 
-      {/* Banner instalando */}
       {check.status === "installing" && (
         <div className="mt-3 flex items-center gap-3 rounded-md border border-border bg-muted/30 px-4 py-3">
           <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
-          <p className="text-xs text-muted-foreground">Descargando e instalando la actualización… puede tardar unos minutos.</p>
+          <p className="text-xs text-muted-foreground">Sincronizando versión…</p>
         </div>
-      )}
-
-      {last && last.notes.length > 0 && (
-        <details className="mt-3 rounded-md border border-border bg-background p-3">
-          <summary className="cursor-pointer text-xs font-semibold">Qué trajo la última actualización</summary>
-          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-            {last.notes.map((note) => <li key={note}>{note}</li>)}
-          </ul>
-        </details>
       )}
 
       <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
         <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-        <span>
-          Las actualizaciones hacen una copia de seguridad antes de instalar. Si algo falla, WILLY vuelve solo a como estaba.
-          Solo funciona desde el propio ordenador donde está instalado WILLY.
-        </span>
+        <span>Antes de instalar cambios WILLY hace una copia de seguridad. Si algo falla, vuelve automáticamente a la versión funcional anterior.</span>
       </p>
-        {versionError && <p className="mt-2 text-xs text-red-500">{versionError}</p>}
-        <Button size="sm" onClick={handleUpdateVersion}>Actualizar versión de texto</Button>
     </section>
   );
 }
