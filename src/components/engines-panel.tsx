@@ -39,7 +39,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
     const result = await engineCommand(action, payload);
     if (result.status) setStatus(result.status);
     else await refresh();
-    setNotes((current) => ({ ...current, [id]: result.ok ? note ?? (result.model ? `Clave válida. Modelo elegido: ${result.model}.` : "") : result.error ?? "No se pudo completar." }));
+    setNotes((current) => ({ ...current, [id]: result.ok ? note ?? (result.model ? `API válida. Selección automática activa · referencia inicial: ${result.model}. WILLY puede cambiar de modelo solo cuando lo necesite.` : "") : result.error ?? "No se pudo completar." }));
     if (action === "engines-save-key" && result.ok) setKeys((current) => ({ ...current, [id]: "" }));
     setBusy("");
   };
@@ -87,9 +87,15 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold">{engine.name}</span>
                     <span className={state.tone}>{state.text}</span>
-                    {engine.hasKey && <span className="text-muted-foreground">clave ····{engine.last4}{engine.model ? ` · ${engine.model}` : ""} · {engine.used}/{engine.cap} hoy</span>}
+                    {engine.hasKey && <span className="text-muted-foreground">clave ····{engine.last4} · selección automática · {engine.used}/{engine.cap} hoy</span>}
                   </div>
                   <p className="mt-1 leading-5 text-muted-foreground">{engine.dataNote}</p>
+                  {engine.hasKey && (
+                    <p className="mt-1 rounded-md border border-border bg-muted/40 px-2 py-1.5 leading-5">
+                      <span className="font-semibold text-primary">Modelo: Automático</span>
+                      {engine.model ? <span className="text-muted-foreground"> · {engine.usingAlternative ? `cambio automático: ${engine.baseModel || "anterior"} → ${engine.model}` : `referencia actual: ${engine.model}`}{engine.usingAlternative && engine.alternativeUntil ? ` · vuelve a reevaluar a las ${hour(engine.alternativeUntil)}` : ""}</span> : <span className="text-muted-foreground"> · WILLY elegirá el mejor al usar esta API</span>}
+                    </p>
+                  )}
                   {engine.hasKey && engine.reason && engine.enabled && !engine.available && <p className="mt-1 leading-5 text-amber-600">{engine.reason}</p>}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <a href={engine.keyUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border border-border px-2 py-1 font-semibold hover:bg-muted">Conseguir API</a>
@@ -117,7 +123,7 @@ export function EnginesPanel({ ping }: { ping: (message: string) => void }) {
               );
             })}
           </ul>
-          <p className="text-xs leading-5 text-muted-foreground">Pulsa «Probar» después de guardar cada credencial. Entre los motores con acceso gratuito o cuota inicial están OpenRouter, Gemini, Groq, Mistral, Cohere, NVIDIA, Cerebras, ModelScope, Cloudflare, Hugging Face, SiliconFlow y Qwen/Alibaba. DeepSeek, Z.AI, Kimi, MiniMax y OpenAI pueden requerir saldo según la cuenta; WILLY detecta cuota/pago y pasa al siguiente motor. ChatGPT Plus no incluye consumos de API.</p>
+          <p className="text-xs leading-5 text-muted-foreground">Pulsa «Probar» después de guardar cada credencial. «Probar» solo detecta una referencia inicial: no fija el modelo; WILLY puede cambiarlo automáticamente según disponibilidad y fallos. Entre los motores con acceso gratuito o cuota inicial están OpenRouter, Gemini, Groq, Mistral, Cohere, NVIDIA, Cerebras, ModelScope, Cloudflare, Hugging Face, SiliconFlow y Qwen/Alibaba. DeepSeek, Z.AI, Kimi, MiniMax y OpenAI pueden requerir saldo según la cuenta; WILLY detecta cuota/pago y pasa al siguiente motor. ChatGPT Plus no incluye consumos de API.</p>
         </div>
       )}
     </details>
