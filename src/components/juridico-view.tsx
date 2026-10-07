@@ -129,47 +129,65 @@ function packDocs(docs: DocFile[]): string {
 function inline(text:string,key:string):ReactNode { const parts=text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g); return <span key={key}>{parts.map((p,i)=>p.startsWith("**")&&p.endsWith("**")?<strong key={i}>{p.slice(2,-2)}</strong>:p.startsWith("`")&&p.endsWith("`")?<code key={i} className="rounded bg-muted px-1 py-0.5 text-[.9em]">{p.slice(1,-1)}</code>:<span key={i}>{p}</span>)}</span>; }
 function markdown(text:string):ReactNode[] { return text.split("\n").map((line,i)=>line.startsWith("### ")?<h3 key={i} className="mb-1 mt-4 text-sm font-bold">{line.slice(4)}</h3>:line.startsWith("## ")?<h2 key={i} className="mb-1.5 mt-5 border-b border-border pb-1.5 text-base font-bold">{line.slice(3)}</h2>:line.startsWith("# ")?<h1 key={i} className="mb-2 mt-5 text-lg font-bold">{line.slice(2)}</h1>:/^[-*] /.test(line)?<li key={i} className="ml-5 list-disc text-sm leading-6">{inline(line.slice(2),"li"+i)}</li>:/^\d+\. /.test(line)?<li key={i} className="ml-5 list-decimal text-sm leading-6">{inline(line.replace(/^\d+\. /,""),"ol"+i)}</li>:!line.trim()?<div key={i} className="h-2"/>:<p key={i} className="text-sm leading-6">{inline(line,"p"+i)}</p>); }
 
-async function hydratePinned(sources: LegalSource[]): Promise<string> {
+async function hydratePinned(sources: LegalSource[]): Promise<{context:string;verifiedCorpus:string}> {
   const chunks:string[]=[];
+  const verified:string[]=[];
   let boe=0, boja=0, eu=0;
-  for(const s of sources.slice(0,8)){
+  for(const s of sources.slice(0,10)){
     try{
-      if(/^BOE-[A-Z]-\d{4}-\d+$/i.test(s.id) && boe<3){
+      if(/^BOE-[A-Z]-\d{4}-\d+$/i.test(s.id) && boe<4){
         boe++; const d=await api<{ok:true;result:{text:string;url:string}}>({action:"boe-text",id:s.id});
-        chunks.push("[BOE-"+boe+"] "+s.title+"\n"+d.result.url+"\n"+d.result.text.slice(0,28000));
+        const block="[BOE-"+boe+"][TEXTO OFICIAL RECUPERADO] "+s.title+"\n"+d.result.url+"\n"+d.result.text.slice(0,30000);
+        chunks.push(block); verified.push(block);
       } else if(/^disposition\./i.test(s.id) && boja<3){
         boja++; const d=await api<{ok:true;result:{summary:string;body:string;url:string}}>({action:"boja-text",id:s.id});
-        chunks.push("[BOJA-"+boja+"] "+s.title+"\n"+d.result.url+"\n"+(d.result.body||d.result.summary).slice(0,28000));
-      } else if(/^[0-9][0-9A-Z()_-]{4,39}$/.test(s.id) && eu<2 && /UE|EUR/i.test(s.kind)){
+        const block="[BOJA-"+boja+"][TEXTO OFICIAL RECUPERADO] "+s.title+"\n"+d.result.url+"\n"+(d.result.body||d.result.summary).slice(0,30000);
+        chunks.push(block); verified.push(block);
+      } else if(/^[0-9][0-9A-Z()_-]{4,39}$/.test(s.id) && eu<3 && /UE|EUR|TJUE/i.test(s.kind)){
         eu++; const d=await api<{ok:true;result:{text:string;url:string}}>({action:"eu-celex-text",celex:s.id});
-        chunks.push("[UE-"+eu+"] "+s.title+"\n"+d.result.url+"\n"+d.result.text.slice(0,28000));
+        const block="[UE-"+eu+"][TEXTO OFICIAL RECUPERADO] "+s.title+"\n"+d.result.url+"\n"+d.result.text.slice(0,30000);
+        chunks.push(block); verified.push(block);
       } else {
-        chunks.push("[FUENTE] "+s.title+"\n"+s.url+"\n"+(s.meta||"Metadatos oficiales; contenido no incorporado automáticamente."));
+        const state=s.verification==="metadatos-oficiales"?"METADATOS OFICIALES · TEXTO NO RECUPERADO":"PENDIENTE DE VERIFICACIÓN MANUAL";
+        chunks.push("[FUENTE]["+state+"] "+s.title+"\n"+s.url+"\n"+(s.meta||"Contenido no incorporado automáticamente. No atribuirle proposiciones concretas sin abrir y verificar."));
       }
-    }catch{ chunks.push("[FUENTE] "+s.title+"\n"+s.url+"\n[No se pudo recuperar el texto completo.]"); }
+    }catch{
+      chunks.push("[FUENTE][PENDIENTE DE VERIFICACIÓN] "+s.title+"\n"+s.url+"\n[No se pudo recuperar el texto completo. No usar como soporte concluyente.]");
+    }
   }
-  return chunks.length?chunks.join("\n\n"):"No hay fuentes oficiales fijadas.";
+  return {
+    context:chunks.length?chunks.join("\n\n"):"No hay fuentes oficiales fijadas.",
+    verifiedCorpus:verified.join("\n\n"),
+  };
 }
 
 async function researchAll(query:string):Promise<SearchHit[]>{
   const q=query.trim().slice(0,500); if(!q)return[];
-  const [boe,boja,eulaw,eucase]=await Promise.allSettled([
+  const [boe,boja,eulaw,eucase,links]=await Promise.allSettled([
     api<{ok:true;results:BoeResult[]}>({action:"boe-search",query:q,limit:7}),
     api<{ok:true;results:BojaResult[]}>({action:"boja-search",query:q,limit:7}),
     api<{ok:true;results:EuResult[]}>({action:"eu-law-search",query:q,limit:6}),
     api<{ok:true;results:EuResult[]}>({action:"eu-case-search",query:q,limit:6}),
+    api<{ok:true;links:Array<{id:string;name:string;kind:string;url:string;note:string}>}>({action:"official-links",query:q}),
   ]);
   const out:SearchHit[]=[];
-  if(boe.status==="fulfilled") for(const x of boe.value.results||[])out.push({id:x.id,title:x.title,url:x.url,kind:"BOE · legislación",meta:[x.rank,x.number,x.publicationDate?dateEs(x.publicationDate):"",x.consolidatedState].filter(Boolean).join(" · "),official:true});
-  if(boja.status==="fulfilled") for(const x of boja.value.results||[])out.push({id:x.id,title:x.summary,url:x.url,kind:"BOJA · Andalucía",meta:[x.organisation,x.section,x.date].filter(Boolean).join(" · "),official:true});
-  if(eulaw.status==="fulfilled") for(const x of eulaw.value.results||[])out.push({id:x.id,title:x.title,url:x.url,kind:"UE · legislación",meta:[x.id,x.date].filter(Boolean).join(" · "),official:true});
-  if(eucase.status==="fulfilled") for(const x of eucase.value.results||[])out.push({id:x.id,title:x.title,url:x.url,kind:"TJUE/TG · jurisprudencia",meta:[x.ecli,x.date].filter(Boolean).join(" · "),official:true});
-  return out.slice(0,24);
+  if(boe.status==="fulfilled") for(const x of boe.value.results||[])out.push({id:x.id,title:x.title,url:x.url,kind:"BOE · legislación",meta:[x.rank,x.number,x.publicationDate?dateEs(x.publicationDate):"",x.consolidatedState].filter(Boolean).join(" · "),official:true,verification:"metadatos-oficiales"});
+  if(boja.status==="fulfilled") for(const x of boja.value.results||[])out.push({id:x.id,title:x.summary,url:x.url,kind:"BOJA · Andalucía",meta:[x.organisation,x.section,x.date].filter(Boolean).join(" · "),official:true,verification:"metadatos-oficiales"});
+  if(eulaw.status==="fulfilled") for(const x of eulaw.value.results||[])out.push({id:x.id,title:x.title,url:x.url,kind:"UE · legislación",meta:[x.id,x.date].filter(Boolean).join(" · "),official:true,verification:"metadatos-oficiales"});
+  if(eucase.status==="fulfilled") for(const x of eucase.value.results||[])out.push({id:x.id,title:x.title,url:x.url,kind:"TJUE/TG · jurisprudencia",meta:[x.ecli,x.date].filter(Boolean).join(" · "),official:true,verification:"metadatos-oficiales"});
+  if(links.status==="fulfilled") for(const x of links.value.links||[]){
+    if(out.some((hit)=>hit.id===x.id))continue;
+    out.push({id:"portal-"+x.id,title:x.name,url:x.url,kind:x.kind,meta:x.note,official:true,verification:"manual-pendiente"});
+  }
+  return out.slice(0,36);
 }
 
-async function askLegal(args:{ caso:CasoJuridico; messages:Message[]; mode:Mode; research:SearchHit[]; signal:AbortSignal }):Promise<{content:string;model:string}>{
-  const pinned=await hydratePinned(args.caso.sources);
-  const research=args.research.slice(0,12).map((x,i)=>"[CANDIDATA-"+(i+1)+"] "+x.kind+" · "+x.title+"\n"+x.meta+"\n"+x.url).join("\n\n")||"Sin investigación automática para esta consulta.";
+async function askLegal(args:{ caso:CasoJuridico; messages:Message[]; mode:Mode; research:SearchHit[]; signal:AbortSignal }):Promise<{content:string;model:string;quality:"verified"|"corrected"}>{
+  const hydrated=await hydratePinned(args.caso.sources);
+  const research=args.research.slice(0,18).map((x,i)=>{
+    const state=x.verification==="metadatos-oficiales"?"METADATOS OFICIALES · TEXTO PENDIENTE":"PENDIENTE DE VERIFICACIÓN MANUAL";
+    return "[CANDIDATA-"+(i+1)+"]["+state+"] "+x.kind+" · "+x.title+"\n"+x.meta+"\n"+x.url;
+  }).join("\n\n")||"Sin investigación automática para esta consulta.";
   const meta=[
     "Expediente: "+args.caso.nombre,"Área: "+args.caso.area,"Jurisdicción: "+args.caso.jurisdiccion,
     "Posición: "+args.caso.posicion,"Contraparte: "+(args.caso.contraparte||"no indicada"),
@@ -178,17 +196,39 @@ async function askLegal(args:{ caso:CasoJuridico; messages:Message[]; mode:Mode;
   ].join("\n");
   const apiMessages:Array<{role:"system"|"user"|"assistant";content:string}>=[
     {role:"system",content:[
-      LEGAL_SYSTEM,"\n=== MODO ===",args.mode.name+": "+args.mode.prompt,"\n=== FICHA ===",meta,
-      "\n=== DOCUMENTOS ===",packDocs(args.caso.docs),"\n=== FUENTES FIJADAS Y VERIFICABLES ===",pinned,
+      LEGAL_SYSTEM,
+      "\n"+buildLegalProtocol({area:args.caso.area,jurisdiccion:args.caso.jurisdiccion,posicion:args.caso.posicion,deadline:args.caso.deadline}),
+      "\n=== MODO ===",args.mode.name+": "+args.mode.prompt,"\n=== FICHA ===",meta,
+      "\n=== DOCUMENTOS ===",packDocs(args.caso.docs),
+      "\n=== FUENTES FIJADAS ===",hydrated.context,
       "\n=== INVESTIGACIÓN AUTOMÁTICA: CANDIDATAS OFICIALES ===",research,
-      "\nLas candidatas automáticas NO se presumen aplicables. Debes comprobar materia, jurisdicción, temporalidad y rango antes de apoyarte en ellas.",
+      "\nREGLA DE CITACIÓN: una candidata con metadatos o un enlace de buscador NO autoriza a afirmar qué resolvió ese tribunal. Si no tienes TEXTO OFICIAL RECUPERADO, escribe PENDIENTE DE VERIFICACIÓN y no inventes identificadores, hechos, ratio, recurso, ponente ni cita.",
     ].join("\n")},
     ...args.messages.map((m)=>({role:m.role,content:m.content})),
   ];
-  const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:apiMessages,kind:"juridico"}),signal:args.signal});
-  const data=await res.json().catch(()=>({})) as {content?:string;model?:string;error?:string};
-  if(!res.ok||data.error)throw new Error(data.error||"Error "+res.status);
-  return {content:data.content?.trim()||"(Sin respuesta del modelo)",model:data.model||"desconocido"};
+
+  const request=async(messages:Array<{role:"system"|"user"|"assistant";content:string}>)=>{
+    const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages,kind:"juridico"}),signal:args.signal});
+    const data=await res.json().catch(()=>({})) as {content?:string;model?:string;error?:string};
+    if(!res.ok||data.error)throw new Error(data.error||"Error "+res.status);
+    return {content:data.content?.trim()||"(Sin respuesta del modelo)",model:data.model||"desconocido"};
+  };
+
+  const first=await request(apiMessages);
+  const firstAudit=auditLegalAnswer(first.content,hydrated.verifiedCorpus);
+  if(firstAudit.ok)return {...first,quality:"verified" as const};
+
+  const correction=legalCorrectionPrompt(firstAudit.unverified,hydrated.verifiedCorpus,firstAudit.unverifiedAttributions);
+  const second=await request([
+    ...apiMessages,
+    {role:"assistant",content:first.content},
+    {role:"user",content:correction},
+  ]);
+  const secondAudit=auditLegalAnswer(second.content,hydrated.verifiedCorpus);
+  if(secondAudit.ok)return {...second,quality:"corrected" as const};
+
+  const blocked=[...secondAudit.unverified,...secondAudit.unverifiedAttributions.slice(0,3)].filter(Boolean).slice(0,6).join(" · ");
+  throw new Error("WILLY bloqueó la respuesta jurídica porque seguía conteniendo jurisprudencia o atribuciones no verificadas"+(blocked?": "+blocked:"")+". No se ha mostrado como válida.");
 }
 
 const field="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition focus:border-primary";
