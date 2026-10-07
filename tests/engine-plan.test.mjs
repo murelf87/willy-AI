@@ -6,7 +6,7 @@ registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith('@/')) return next(new URL('../src/' + specifier.slice(2) + '.ts', import.meta.url).href, context);
   return next(specifier, context);
 }});
-const { attemptStep, shouldRelay, buildSequence } = await import('../src/lib/engine-plan.ts');
+const { attemptStep, shouldRelay, buildSequence, maxAttemptsFor } = await import('../src/lib/engine-plan.ts');
 const steps = ['first', 'second', 'third'].map(id => ({ kind: 'cloud', id, key: 'cloud:' + id, label: id }));
 test('compilation and format repairs stay on the same provider', () => {
   for (let i = 0; i < 12; i++) assert.equal(attemptStep(steps, new Set()).id, 'first');
@@ -28,4 +28,11 @@ test('local-only work also keeps its first model', () => {
   const local = buildSequence(null, ['coder', 'backup']);
   for (let i = 0; i < 12; i++) assert.equal(attemptStep(local, new Set()).key, 'local:coder');
   assert.equal(attemptStep(local, new Set(['local:coder'])).key, 'local:backup');
+});
+
+test('attempt budget can reach later configured providers', () => {
+  const many = Array.from({ length: 10 }, (_, i) => ({ kind: 'cloud', id: 'p' + i, key: 'cloud:p' + i, label: 'p' + i }));
+  const budget = maxAttemptsFor(6, many);
+  assert.ok(budget > 24, 'budget must not keep the old hard cap of 24');
+  assert.ok(budget <= 72, 'budget remains bounded');
 });
