@@ -217,15 +217,18 @@ async function askLegal(args:{ caso:CasoJuridico; messages:Message[]; mode:Mode;
     const state=x.verification==="metadatos-oficiales"?"METADATOS OFICIALES · TEXTO PENDIENTE":"PENDIENTE DE VERIFICACIÓN MANUAL";
     return "[CANDIDATA-"+(i+1)+"]["+state+"] "+x.kind+" · "+x.title+"\n"+x.meta+"\n"+x.url;
   }).join("\n\n")||"Sin investigación automática para esta consulta.";
+  const verifiedCorpus=[hydrated.verifiedCorpus,autoVerified.verifiedCorpus].filter(Boolean).join("\n\n");
   const meta=[
     "Expediente: "+args.caso.nombre,"Área: "+args.caso.area,"Jurisdicción: "+args.caso.jurisdiccion,
     "Posición: "+args.caso.posicion,"Contraparte: "+(args.caso.contraparte||"no indicada"),
     "Objetivo: "+(args.caso.objetivo||"no indicado"),"Fecha de hechos: "+(args.caso.fechaHechos||"no indicada"),
     "Plazo crítico conocido: "+(args.caso.deadline||"no indicado"),"Notas: "+(args.caso.notas||"ninguna"),
   ].join("\n");
+  const prognosisBlock=args.mode.id==="prognostico"?prognosisPrompt(meta,args.messages.at(-1)?.content||args.mode.prompt,verifiedCorpus):"";
   const apiMessages:Array<{role:"system"|"user"|"assistant";content:string}>=[
     {role:"system",content:[
       LEGAL_SYSTEM,
+      prognosisBlock?("\n"+prognosisBlock):"",
       "\n"+buildLegalProtocol({area:args.caso.area,jurisdiccion:args.caso.jurisdiccion,posicion:args.caso.posicion,deadline:args.caso.deadline}),
       "\n=== MODO ===",args.mode.name+": "+args.mode.prompt,"\n=== FICHA ===",meta,
       "\n=== DOCUMENTOS ===",packDocs(args.caso.docs),
@@ -245,20 +248,25 @@ async function askLegal(args:{ caso:CasoJuridico; messages:Message[]; mode:Mode;
   };
 
   const first=await request(apiMessages);
-  const firstAudit=auditLegalAnswer(first.content,[hydrated.verifiedCorpus,autoVerified.verifiedCorpus].filter(Boolean).join("\n\n"));
-  if(firstAudit.ok)return {...first,quality:"verified" as const};
+  const firstAudit=auditLegalAnswer(first.content,verifiedCorpus);
+  const firstPrognosis=args.mode.id==="prognostico"?auditPrognosisAnswer(first.content,verifiedCorpus):{ok:true,error:""};
+  if(firstAudit.ok&&firstPrognosis.ok)return {...first,quality:"verified" as const};
 
-  const correction=legalCorrectionPrompt(firstAudit.unverified,[hydrated.verifiedCorpus,autoVerified.verifiedCorpus].filter(Boolean).join("\n\n"),firstAudit.unverifiedAttributions);
+  const corrections:string[]=[];
+  if(!firstAudit.ok)corrections.push(legalCorrectionPrompt(firstAudit.unverified,verifiedCorpus,firstAudit.unverifiedAttributions));
+  if(!firstPrognosis.ok)corrections.push("CONTROL DE PRONÓSTICO: "+firstPrognosis.error+" Reescribe sin porcentaje numérico; usa BASE INSUFICIENTE PARA PORCENTAJE FIABLE y tendencia cualitativa.");
   const second=await request([
     ...apiMessages,
     {role:"assistant",content:first.content},
-    {role:"user",content:correction},
+    {role:"user",content:corrections.join("\n\n")},
   ]);
-  const secondAudit=auditLegalAnswer(second.content,[hydrated.verifiedCorpus,autoVerified.verifiedCorpus].filter(Boolean).join("\n\n"));
-  if(secondAudit.ok)return {...second,quality:"corrected" as const};
+  const secondAudit=auditLegalAnswer(second.content,verifiedCorpus);
+  const secondPrognosis=args.mode.id==="prognostico"?auditPrognosisAnswer(second.content,verifiedCorpus):{ok:true,error:""};
+  if(secondAudit.ok&&secondPrognosis.ok)return {...second,quality:"corrected" as const};
 
   const blocked=[...secondAudit.unverified,...secondAudit.unverifiedAttributions.slice(0,3)].filter(Boolean).slice(0,6).join(" · ");
-  throw new Error("WILLY bloqueó la respuesta jurídica porque seguía conteniendo jurisprudencia o atribuciones no verificadas"+(blocked?": "+blocked:"")+". No se ha mostrado como válida.");
+  const prognosisError=!secondPrognosis.ok?(" · "+secondPrognosis.error):"";
+  throw new Error("WILLY bloqueó la respuesta jurídica porque seguía conteniendo jurisprudencia o atribuciones no verificadas"+(blocked?": "+blocked:"")+prognosisError+". No se ha mostrado como válida.");
 }
 
 const field="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition focus:border-primary";
