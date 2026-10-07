@@ -223,7 +223,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
       try{
         const data=await api<{ok:true;cases:unknown[]}>({action:"cases-load"});
         let next=Array.isArray(data.cases)?data.cases.map((x)=>normalizeCase((x||{}) as Partial<CasoJuridico>)):[];
-        if(!next.length){ try{const raw=localStorage.getItem(LEGACY_KEY);const old=raw?JSON.parse(raw) as Partial<CasoJuridico>[]:[];if(Array.isArray(old))next=old.map(normalizeCase);}catch{} }
+        if(!next.length){ try{const raw=localStorage.getItem(LEGACY_KEY);const old=raw?JSON.parse(raw) as Partial<CasoJuridico>[]:[];if(Array.isArray(old))next=old.map(normalizeCase);}catch{ /* almacenamiento antiguo ilegible: continúa con servidor */ } }
         if(!alive)return; setCasos(next);setCasoId(next[0]?.id||null);
       }catch(e){if(alive)setError(e instanceof Error?e.message:"No se pudieron cargar los expedientes.");}
       finally{if(alive)setLoaded(true);}
@@ -231,7 +231,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
     return()=>{alive=false;};
   },[]);
 
-  useEffect(()=>{ if(!loaded)return; const t=window.setTimeout(()=>{void api({action:"cases-save",cases:casos}).catch(()=>undefined);try{localStorage.setItem(LEGACY_KEY,JSON.stringify(casos));}catch{}},500);return()=>window.clearTimeout(t);},[casos,loaded]);
+  useEffect(()=>{ if(!loaded)return; const t=window.setTimeout(()=>{void api({action:"cases-save",cases:casos}).catch(()=>undefined);try{localStorage.setItem(LEGACY_KEY,JSON.stringify(casos));}catch{ /* el guardado del servidor sigue siendo la fuente principal */ }},500);return()=>window.clearTimeout(t);},[casos,loaded]);
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},[caso?.messages.length,sending]);
 
   const patch=useCallback((p:Partial<CasoJuridico>)=>{if(!casoId)return;setCasos((prev)=>prev.map((c)=>c.id===casoId?{...c,...p,updatedAt:Date.now()}:c));},[casoId]);
