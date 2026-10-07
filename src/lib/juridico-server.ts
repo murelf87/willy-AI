@@ -112,7 +112,7 @@ async function extractPdfServer(bytes: Uint8Array): Promise<string> {
     }
   } finally {
     await doc.cleanup();
-    await doc.destroy();
+    await task.destroy();
   }
   return pages.join("\n\n").slice(0, 180_000);
 }
