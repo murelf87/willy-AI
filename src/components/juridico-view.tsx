@@ -641,6 +641,14 @@ export function JuridicoView({ ping }:{ ping:Ping }){
                   <Button size="sm" variant="ghost" onClick={()=>setJurisFilters((p)=>({...p,court:"",seat:"",section:"",judge:"",rapporteur:"",courtClerk:"",lawyer:"",procurator:"",ecli:"",roj:"",caseNumber:""}))}>Limpiar órgano/personas</Button>
                 </div>
 
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+                  <div className="flex flex-wrap items-start gap-2">
+                    <div className="min-w-0 flex-1"><p className="text-xs font-bold">Incorporar sentencia/resolución oficial al corpus verificado</p><p className="mt-1 text-[10px] leading-4 text-muted-foreground">Pega una URL HTTPS de CENDOJ/CGPJ, Tribunal Constitucional, EUR-Lex/InfoCuria, HUDOC o BOE. Willy valida el dominio, descarga el documento y extrae el texto. Solo entonces puede contar como texto oficial en el pronóstico.</p></div>
+                    <span className="rounded-full border border-emerald-500/30 bg-background px-2 py-1 text-[9px] font-bold text-emerald-700">Texto oficial</span>
+                  </div>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row"><input className={field+" min-w-0 flex-1"} value={officialUrl} onChange={(e)=>setOfficialUrl(e.target.value)} placeholder="https://www.poderjudicial.es/... resolución CENDOJ"/><Button size="sm" className="gap-2" disabled={!officialUrl.trim()||verifyingOfficial} onClick={()=>void verifyOfficialUrl()}>{verifyingOfficial?<Loader2 className="size-3.5 animate-spin"/>:<ShieldCheck className="size-3.5"/>}{verifyingOfficial?"Verificando…":"Verificar y fijar"}</Button></div>
+                </div>
+
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   <label className="space-y-1 sm:col-span-2 xl:col-span-2"><span className="text-xs font-semibold">Texto / concepto jurídico</span><input className={field} value={jurisFilters.text} onChange={(e)=>setJuris("text",e.target.value)} placeholder="Ej.: garantía de indemnidad despido represalia"/></label>
                   <label className="space-y-1"><span className="text-xs font-semibold">Orientación respecto de mi caso</span><select className={field} value={jurisFilters.stance} onChange={(e)=>setJuris("stance",e.target.value as JurisSearchFilters["stance"])}><option value="ambas">A favor y en contra</option><option value="favor">Solo favorables</option><option value="contra">Solo contrarias</option><option value="neutral">Neutrales / mapa completo</option></select></label>
