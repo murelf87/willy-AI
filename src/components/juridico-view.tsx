@@ -20,7 +20,7 @@ import { auditPrognosisAnswer, prognosisPrompt } from "@/lib/juridico-prognosis"
 
 type DocFile = { id: string; name: string; size: number; type: string; text: string; hash: string; uploadedAt: number };
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: number; model?: string; mode?: string };
-type LegalSource = { id: string; title: string; url: string; kind: string; official: boolean; addedAt: number; meta?: string; verification: LegalVerification };
+type LegalSource = { id: string; title: string; url: string; kind: string; official: boolean; addedAt: number; meta?: string; verification: LegalVerification; verifiedText?: string };
 type CasoJuridico = {
   id: string; nombre: string; area: string; jurisdiccion: string; posicion: string; objetivo: string;
   contraparte: string; fechaHechos: string; deadline: string; notas: string;
@@ -138,7 +138,10 @@ async function hydratePinned(sources: LegalSource[]): Promise<{context:string;ve
   let boe=0, boja=0, eu=0;
   for(const s of sources.slice(0,10)){
     try{
-      if(/^BOE-[A-Z]-\d{4}-\d+$/i.test(s.id) && boe<4){
+      if(s.verification==="texto-oficial"&&s.verifiedText?.trim()){
+        const block="[FUENTE VERIFICADA][TEXTO OFICIAL RECUPERADO] "+s.title+"\n"+s.url+"\n"+s.verifiedText.slice(0,40000);
+        chunks.push(block);verified.push(block);
+      } else if(/^BOE-[A-Z]-\d{4}-\d+$/i.test(s.id) && boe<4){
         boe++; const d=await api<{ok:true;result:{text:string;url:string}}>({action:"boe-text",id:s.id});
         const block="[BOE-"+boe+"][TEXTO OFICIAL RECUPERADO] "+s.title+"\n"+d.result.url+"\n"+d.result.text.slice(0,30000);
         chunks.push(block); verified.push(block);
@@ -289,6 +292,8 @@ export function JuridicoView({ ping }:{ ping:Ping }){
   const [lastModel,setLastModel]=useState("");
   const [lastQuality,setLastQuality]=useState<"verified"|"corrected"|null>(null);
   const [sourceCatalog,setSourceCatalog]=useState<SourceCatalogItem[]>([]);
+  const [officialUrl,setOfficialUrl]=useState("");
+  const [verifyingOfficial,setVerifyingOfficial]=useState(false);
   const [jurisFilters,setJurisFilters]=useState<JurisSearchFilters>({
     text:"",
     exactPhrase:"",
@@ -376,6 +381,20 @@ export function JuridicoView({ ping }:{ ping:Ping }){
   };
 
   const pin=(h:SearchHit)=>{if(!caso||caso.sources.some((s)=>s.id===h.id))return;patch({sources:[...caso.sources,{id:h.id,title:h.title,url:h.url,kind:h.kind,official:h.official,addedAt:Date.now(),meta:h.meta,verification:h.verification}]});ping(h.verification==="metadatos-oficiales"?"Fuente oficial fijada · texto pendiente de verificar.":"Ruta oficial fijada · requiere verificación manual.");};
+
+  const verifyOfficialUrl=async()=>{
+    if(!caso||!officialUrl.trim()||verifyingOfficial)return;
+    setVerifyingOfficial(true);setError("");
+    try{
+      const data=await api<{ok:true;result:{url:string;title:string;text:string;host:string;verified:true}}>({action:"official-document",url:officialUrl.trim()});
+      const id="official-"+uid();
+      const source:LegalSource={id,title:data.result.title,url:data.result.url,kind:"Resolución oficial · "+data.result.host,official:true,addedAt:Date.now(),meta:"Texto recuperado directamente de dominio oficial autorizado.",verification:"texto-oficial",verifiedText:data.result.text};
+      patch({sources:[...caso.sources,source]});
+      setOfficialUrl("");
+      ping("Resolución oficial verificada e incorporada al expediente.");
+    }catch(e){setError(e instanceof Error?e.message:"No se pudo verificar la resolución oficial.");}
+    finally{setVerifyingOfficial(false);}
+  };
 
   const send=async(forced?:string,forcedMode?:string)=>{
     if(!caso||sending)return;const text=(forced??input).trim();if(!text)return;
