@@ -15,7 +15,8 @@ import { PanelCard as Card } from "@/components/panel-card";
 import type { Ping } from "@/types/domain";
 import { buildLegalProtocol, recommendedLegalSourceIds, type LegalVerification } from "@/lib/juridico-quality";
 import { auditLegalAnswer, legalCorrectionPrompt } from "@/lib/juridico-verification";
-import { buildOfficialJurisprudenceSearches, jurisprudenceResearchPrompt, type JurisSearchFilters } from "@/lib/jurisprudencia-search";
+import { buildOfficialJurisprudenceSearches, jurisprudenceResearchPrompt, normalizeJurisFilters, type JurisSearchFilters } from "@/lib/jurisprudencia-search";
+import type { CendojAdvancedResult } from "@/lib/jurisprudencia-cendoj";
 import { auditPrognosisAnswer, prognosisPrompt } from "@/lib/juridico-prognosis";
 
 type DocFile = { id: string; name: string; size: number; type: string; text: string; hash: string; uploadedAt: number };
@@ -135,7 +136,7 @@ function markdown(text:string):ReactNode[] { return text.split("\n").map((line,i
 async function hydratePinned(sources: LegalSource[]): Promise<{context:string;verifiedCorpus:string}> {
   const chunks:string[]=[];
   const verified:string[]=[];
-  let boe=0, boja=0, eu=0;
+  let boe=0, boja=0, eu=0, cendoj=0;
   for(const s of sources.slice(0,10)){
     try{
       if(s.verification==="texto-oficial"&&s.verifiedText?.trim()){
@@ -152,6 +153,10 @@ async function hydratePinned(sources: LegalSource[]): Promise<{context:string;ve
       } else if(/^[0-9][0-9A-Z()_-]{4,39}$/.test(s.id) && eu<3 && /UE|EUR|TJUE/i.test(s.kind)){
         eu++; const d=await api<{ok:true;result:{text:string;url:string}}>({action:"eu-celex-text",celex:s.id});
         const block="[UE-"+eu+"][TEXTO OFICIAL RECUPERADO] "+s.title+"\n"+d.result.url+"\n"+d.result.text.slice(0,30000);
+        chunks.push(block); verified.push(block);
+      } else if(/^https:\/\/www\.poderjudicial\.es\/search\/documento\//i.test(s.url) && cendoj<4){
+        cendoj++; const d=await api<{ok:true;result:{text:string;url:string}}>({action:"cendoj-document-text",url:s.url});
+        const block="[CENDOJ-"+cendoj+"][TEXTO OFICIAL RECUPERADO] "+s.title+"\n"+d.result.url+"\n"+d.result.text.slice(0,32000);
         chunks.push(block); verified.push(block);
       } else {
         const state=s.verification==="metadatos-oficiales"?"METADATOS OFICIALES · TEXTO NO RECUPERADO":"PENDIENTE DE VERIFICACIÓN MANUAL";
@@ -294,6 +299,10 @@ export function JuridicoView({ ping }:{ ping:Ping }){
   const [sourceCatalog,setSourceCatalog]=useState<SourceCatalogItem[]>([]);
   const [officialUrl,setOfficialUrl]=useState("");
   const [verifyingOfficial,setVerifyingOfficial]=useState(false);
+  const [jurisResults,setJurisResults]=useState<CendojAdvancedResult[]>([]);
+  const [jurisSearching,setJurisSearching]=useState(false);
+  const [jurisSearchUrl,setJurisSearchUrl]=useState("");
+  const [jurisSearchNote,setJurisSearchNote]=useState("");
   const [jurisFilters,setJurisFilters]=useState<JurisSearchFilters>({
     text:"",
     exactPhrase:"",
@@ -381,6 +390,56 @@ export function JuridicoView({ ping }:{ ping:Ping }){
   };
 
   const pin=(h:SearchHit)=>{if(!caso||caso.sources.some((s)=>s.id===h.id))return;patch({sources:[...caso.sources,{id:h.id,title:h.title,url:h.url,kind:h.kind,official:h.official,addedAt:Date.now(),meta:h.meta,verification:h.verification}]});ping(h.verification==="metadatos-oficiales"?"Fuente oficial fijada · texto pendiente de verificar.":"Ruta oficial fijada · requiere verificación manual.");};
+
+  const searchCendoj=async()=>{
+    if(jurisSearching)return;
+    setJurisSearching(true);setError("");
+    try{
+      const normalized=normalizeJurisFilters(jurisFilters);
+      const queryParts=[
+        normalized.text,normalized.subject,normalized.citedLaw,normalized.citedArticle,normalized.section,
+        normalized.excludeTerms?normalized.excludeTerms.split(/\s+/).filter(Boolean).map((x)=>"-"+x).join(" "):"",
+      ].filter(Boolean);
+      const organ=/tribunal superior de justicia de andaluc/i.test(normalized.court||"")?"Tribunal Superior de Justicia":normalized.court||"";
+      const data=await api<{ok:true;results:CendojAdvancedResult[];officialSearchUrl:string;note:string}>({
+        action:"cendoj-advanced-search",
+        filters:{
+          query:queryParts.join(" "),
+          exactPhrase:normalized.exactPhrase,
+          jurisdiction:normalized.jurisdiction,
+          organ,
+          municipality:normalized.seat,
+          resolutionType:normalized.resolutionType,
+          dateFrom:normalized.dateFrom,
+          dateTo:normalized.dateTo,
+          roj:normalized.roj,
+          ecli:normalized.ecli,
+          resourceNumber:normalized.caseNumber,
+          ponente:normalized.rapporteur,
+          judge:normalized.judge,
+          lawyer:normalized.lawyer,
+          laj:normalized.courtClerk,
+          procurator:normalized.procurator,
+          limit:30,
+        },
+      });
+      setJurisResults(Array.isArray(data.results)?data.results:[]);
+      setJurisSearchUrl(data.officialSearchUrl||"");
+      setJurisSearchNote(data.note||"");
+      ping((data.results?.length||0)+" resolución(es) CENDOJ encontradas con los filtros.");
+    }catch(e){setError(e instanceof Error?e.message:"Falló la búsqueda avanzada en CENDOJ.");setJurisResults([]);}
+    finally{setJurisSearching(false);}
+  };
+
+  const pinCendoj=(result:CendojAdvancedResult)=>{
+    if(!caso)return;
+    const id="cendoj-"+(result.reference||result.ecli||result.roj||uid());
+    if(caso.sources.some((s)=>s.id===id||s.url===result.url)){ping("Esa resolución ya está fijada.");return;}
+    const meta=[result.organ,result.municipality,result.date,result.ponente&&("Ponente: "+result.ponente),result.resourceNumber&&("Recurso: "+result.resourceNumber)].filter(Boolean).join(" · ");
+    const title=[result.roj,result.ecli].filter(Boolean).join(" · ")||"Resolución CENDOJ";
+    patch({sources:[...caso.sources,{id,title,url:result.url,kind:"CENDOJ · jurisprudencia",official:true,addedAt:Date.now(),meta,verification:result.verification}]});
+    ping("Resolución CENDOJ fijada. WILLY recuperará su texto oficial antes de usarla como precedente verificado.");
+  };
 
   const verifyOfficialUrl=async()=>{
     if(!caso||!officialUrl.trim()||verifyingOfficial)return;
