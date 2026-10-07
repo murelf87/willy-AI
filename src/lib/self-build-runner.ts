@@ -16,7 +16,8 @@ import { cloudChat, engineStatus, type CallResult } from "@/lib/engines-client";
 import { attemptStep, buildSequence, maxAttemptsFor, shouldRelay } from "@/lib/engine-plan";
 import { APP_VERSION } from "@/lib/version";
 import { readSelfBuild, writeSelfBuild, type WillyImprovement } from "@/lib/self-build-store";
-import { fullLessonsSection, type OwnerBrain } from "@/lib/owner-brain-shared";
+import { type OwnerBrain } from "@/lib/owner-brain-shared";
+import { composeOwnerContract } from "@/lib/self-build-contract";
 import { progressInfo, type ProgressInfo } from "@/lib/self-build-progress";
 
 export type SelfBuildJob = {
@@ -36,9 +37,9 @@ export const JOB_EVENT = "willy-self-build-job";
 const JOB_KEY = "willy-self-build-job-v1";
 /** Intentos completos (modelo + aplicación + comprobación) antes de rendirse. */
 const MAX_ATTEMPTS = 6;
-const REQUIRED_OWNER_RULES = 121;
 const SAME_MODEL_REPAIR_LIMIT = 4;
 const FORMAT_REPAIR_LIMIT = 3;
+const TEMPORARY_FAILURE_LIMIT = 2;
 
 let current: SelfBuildJob | null = null;
 
@@ -189,9 +190,7 @@ Ejemplo (cambiar un texto):
 >>>>>>> REPLACE
 \`\`\`
 Responde SOLO con los bloques de código (sin explicaciones antes ni después).
-Reglas: la cabecera SIEMPRE lleva la ruta; sin diffs de git; sin "...", sin "resto igual"; sin inventar rutas.
-Rutas permitidas: ${input.sourcePaths.join(", ") || "las incluidas en el contexto"}.
-Conserva todo lo que ya funciona y respeta el tema oscuro azul/violeta.
+Reglas: la cabecera SIEMPRE lleva la ruta; sin diffs de git; sin "...", sin "resto igual".\nPara MODIFICAR un archivo existente usa únicamente rutas que aparezcan en el contexto: ${input.sourcePaths.join(", ") || "las incluidas en el contexto"}.\nSi la mejora NECESITA un archivo nuevo, puedes crearlo completo bajo src/components/, src/lib/, src/services/, src/hooks/ o public/. No inventes reemplazos sobre archivos que no hayas visto.\nConserva todo lo que ya funciona y respeta el tema oscuro azul/violeta.
 
 Instrucciones permanentes del dueño:
 ${input.instructions}`;
@@ -255,7 +254,7 @@ function rulesFingerprint(text: string): string {
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
-async function loadOwnerContract(fallbackInstructions: string): Promise<{ rules: string; count: number; fingerprint: string; updatedAt: string }> {
+async function loadOwnerContract(fallbackInstructions: string): Promise<{ rules: string; count: number; complete: boolean; warning: string; fingerprint: string; updatedAt: string }> {
   const res = await fetch("/api/self-build", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -265,12 +264,16 @@ async function loadOwnerContract(fallbackInstructions: string): Promise<{ rules:
   const data = (await res.json()) as { ok?: boolean; brain?: OwnerBrain; error?: string };
   if (!res.ok || !data.ok || !data.brain) throw new Error(data.error ?? "No se pudieron cargar las reglas del dueño.");
   const lessons = Array.isArray(data.brain.lessons) ? data.brain.lessons : [];
-  if (lessons.length < REQUIRED_OWNER_RULES) {
-    throw new Error(`Autoconstrucción requiere las ${REQUIRED_OWNER_RULES} reglas del dueño y solo ha cargado ${lessons.length}. No se inicia ningún cambio hasta recuperar el contrato completo.`);
-  }
-  const instructions = data.brain.instructions.trim() || fallbackInstructions.trim();
-  const rules = [instructions, fullLessonsSection(lessons)].filter(Boolean).join("\n\n");
-  return { rules, count: lessons.length, fingerprint: rulesFingerprint(rules), updatedAt: data.brain.updatedAt ?? "" };
+  const contract = composeOwnerContract(data.brain.instructions, fallbackInstructions, lessons);
+  if (!contract.rules.trim()) throw new Error("El contrato del dueño está vacío.");
+  return {
+    rules: contract.rules,
+    count: contract.count,
+    complete: contract.complete,
+    warning: contract.warning,
+    fingerprint: rulesFingerprint(contract.rules),
+    updatedAt: data.brain.updatedAt ?? "",
+  };
 }
 
 async function finishSuccess(args: {
@@ -474,7 +477,7 @@ async function runImprovement(
 
   const started = Date.now();
   const update = (pct: number, step: string, detail: string, remaining: number | null = null) =>
-    set({ id: item.id, pct, step, detail, remaining, startedAt: started, done: false });
+    set({ id: item.id, pct: Math.max(0, Math.min(94, pct)), step, detail, remaining, startedAt: started, done: false });
 
   const finishWithError = (step: string, detail: string, files?: GeneratedFile[]) => {
     set({ id: item.id, pct: 100, step, detail, remaining: 0, startedAt: started, done: true, error: detail });
@@ -511,7 +514,7 @@ async function runImprovement(
     finishWithError("Reglas incompletas", error instanceof Error ? error.message : "No se pudo cargar el contrato completo del dueño.");
     return;
   }
-  update(8, "Contrato verificado", `${ownerContract.count} reglas completas cargadas · huella ${ownerContract.fingerprint}. Ninguna IA puede trabajar sin este contrato.`);
+  update(8, ownerContract.complete ? "Contrato verificado" : "Contrato cargado íntegro", `${ownerContract.complete ? `${ownerContract.count} reglas/entradas verificadas` : ownerContract.warning} · huella ${ownerContract.fingerprint}. Todas las IA reciben exactamente el mismo contrato completo disponible.`);
 
   update(10, "Análisis", "Leyendo el código real relacionado con la mejora…");
 
@@ -561,6 +564,7 @@ async function runImprovement(
   const avoidedCloudModels = new Map<string, Set<string>>();
   const candidateFailures = new Map<string, number>();
   const formatFailures = new Map<string, number>();
+  const temporaryFailures = new Map<string, number>();
   const pinnedCloudModels = new Map<string, string>();
   const rules = ownerContract.rules;
   const avoidCloudModel = (providerId: string, modelName: string) => {
@@ -572,7 +576,7 @@ async function runImprovement(
 
   let attemptsMade = 0;
   const usedEngines = new Set<string>();
-  const handleFailure = (step: (typeof sequence)[number], failure: { error: string; kind?: Parameters<typeof shouldRelay>[0]; retryAt?: number }, pct: number): boolean => {
+  const handleFailure = async (step: (typeof sequence)[number], failure: { error: string; kind?: Parameters<typeof shouldRelay>[0]; retryAt?: number }, pct: number): Promise<boolean> => {
     diagnosis = `El motor ${step.label} falló: ${failure.error}`;
     if (shouldRelay(failure.kind)) {
       unusable.add(step.key);
@@ -580,10 +584,21 @@ async function runImprovement(
       update(pct, next ? "Cambiando de IA" : "Sin IA disponible", `${failure.error}${next ? ` Continúa ${next.label} con el diagnóstico acumulado.` : " No quedan motores disponibles."}`);
       return true;
     }
-    // No confundir saturación temporal o caída de red con cuota agotada, ni repetir llamadas durante el cooldown.
-    const wait = failure.retryAt ? ` Puede volver a probarse a partir de ${new Date(failure.retryAt).toLocaleTimeString("es-ES")}.` : "";
-    finishWithError("Trabajo pausado", `${diagnosis}.${wait} No se ha cambiado de IA. La propuesta se conserva para reanudarla; comprueba la disponibilidad antes de reintentar.`, lastFiles);
-    return false;
+    const failures = (temporaryFailures.get(step.key) ?? 0) + 1;
+    temporaryFailures.set(step.key, failures);
+    const retryAt = failure.retryAt ?? 0;
+    const waitMs = retryAt > Date.now() ? retryAt - Date.now() : 0;
+    if (failures < TEMPORARY_FAILURE_LIMIT && waitMs <= 12_000) {
+      update(pct, "Reintentando la misma IA", `${failure.error} Reintento ${failures}/${TEMPORARY_FAILURE_LIMIT} con ${step.label}${waitMs > 0 ? ` en ${Math.ceil(waitMs / 1000)} s` : ""}.`);
+      if (waitMs > 0) await sleep(Math.max(500, waitMs));
+      return true;
+    }
+    // Un fallo temporal no puede dejar toda Autoconstrucción parada: tras intentarlo con el mismo motor,
+    // se aparta solo durante ESTE trabajo y se continúa con el siguiente disponible.
+    unusable.add(step.key);
+    const next = attemptStep(sequence, unusable);
+    update(pct, next ? "Continuando con otra IA" : "Sin IA disponible", `${failure.error} ${step.label} queda apartado solo para este trabajo tras ${failures} fallo(s) temporales.${next ? ` Continúa ${next.label} automáticamente.` : ""}`);
+    return true;
   };
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -629,7 +644,7 @@ async function runImprovement(
     });
 
     if (!result.ok) {
-      if (!handleFailure(step, result, bandStart + 13)) return;
+      if (!(await handleFailure(step, result, bandStart + 13))) return;
       continue;
     }
 
@@ -659,11 +674,11 @@ async function runImprovement(
         { role: "assistant", content: answer.slice(0, 80_000) },
         {
           role: "user",
-          content: `Reformula TU MISMA solución sin explicaciones. Devuelve SOLO bloques SEARCH/REPLACE o archivos completos. La PRIMERA línea de cada bloque debe llevar una ruta literal. Para un parche: \`\`\`replace RUTA. Para archivo completo: \`\`\`lenguaje RUTA. Elige RUTA EXACTAMENTE de esta lista: ${sourcePaths.join(", ")}. Después usa <<<<<<< SEARCH / ======= / >>>>>>> REPLACE y copia SEARCH literalmente del código recibido. Si solo hay una ruta, úsala obligatoriamente. No cambies la solución: solo su formato.`,
+          content: `Reformula TU MISMA solución sin explicaciones. Devuelve SOLO bloques SEARCH/REPLACE o archivos completos. La PRIMERA línea de cada bloque debe llevar una ruta literal. Para un parche: \`\`\`replace RUTA. Para archivo completo: \`\`\`lenguaje RUTA. Para modificar un archivo existente, elige RUTA EXACTAMENTE de esta lista: ${sourcePaths.join(", ")}. Si tu solución realmente necesita crear un archivo nuevo, usa una ruta segura bajo src/components/, src/lib/, src/services/, src/hooks/ o public/ y entrega el archivo COMPLETO. Después usa <<<<<<< SEARCH / ======= / >>>>>>> REPLACE y copia SEARCH literalmente del código recibido. Si solo hay una ruta, úsala obligatoriamente. No cambies la solución: solo su formato.`,
         },
       ], avoidModels, effectiveModel, true);
       if (!repaired.ok) {
-        if (!handleFailure(step, repaired, bandStart + 13)) return;
+        if (!(await handleFailure(step, repaired, bandStart + 13))) return;
         continue;
       }
       if (repaired.ok) {
@@ -698,7 +713,16 @@ async function runImprovement(
           update(bandStart + 13, "Insistiendo con la misma IA", `${effectiveModel} aún no entregó un cambio aplicable. WILLY mantiene exactamente el mismo modelo y le da otro ciclo de reparación (${failures}/${FORMAT_REPAIR_LIMIT}).`);
         }
       } else {
-        update(bandStart + 13, refusal ? "Revisando la respuesta" : "Reintentando", `WILLY continúa con ${effectiveModel} y el diagnóstico del intento anterior…`);
+        const key = step.key;
+        const failures = (formatFailures.get(key) ?? 0) + 1;
+        formatFailures.set(key, failures);
+        if (failures >= FORMAT_REPAIR_LIMIT) {
+          unusable.add(step.key);
+          const next = attemptStep(sequence, unusable);
+          update(bandStart + 13, next ? "Cambiando de modelo" : "Sin modelo disponible", `${effectiveModel} agotó ${failures} reparaciones de formato.${next ? ` Continúa ${next.label}.` : ""}`);
+        } else {
+          update(bandStart + 13, refusal ? "Revisando la respuesta" : "Reintentando", `WILLY continúa con ${effectiveModel} y el diagnóstico del intento anterior (${failures}/${FORMAT_REPAIR_LIMIT})…`);
+        }
       }
       continue;
     }
