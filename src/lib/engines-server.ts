@@ -332,7 +332,7 @@ export async function recentCalls(dir: string, limit = 40): Promise<CallLog[]> {
   }
 }
 
-export type PublicEngine = { id: string; name: string; hasKey: boolean; last4: string; enabled: boolean; model: string; available: boolean; reason: string; cooldownUntil: number; used: number; cap: number; keyUrl: string; dataNote: string; credentialHint: string };
+export type PublicEngine = { id: string; name: string; hasKey: boolean; last4: string; enabled: boolean; model: string; baseModel: string; usingAlternative: boolean; alternativeUntil: number; available: boolean; reason: string; cooldownUntil: number; used: number; cap: number; keyUrl: string; dataNote: string; credentialHint: string };
 export type PublicStatus = { master: boolean; mode: "calidad" | "ahorro"; dailyCap: number; engines: PublicEngine[] };
 
 export function availability(state: EnginesFile, id: string, now: number): { ok: boolean; reason: string } {
@@ -363,6 +363,9 @@ export function publicStatus(state: EnginesFile, now: number, providers: Provide
         last4: engine?.key ? engine.key.slice(-4) : "",
         enabled: engine?.enabled !== false,
         model: engine?.alt && engine.alt.until > now ? engine.alt.model : (engine?.model ?? ""),
+        baseModel: engine?.model ?? "",
+        usingAlternative: Boolean(engine?.alt && engine.alt.until > now && engine.alt.model !== (engine?.model ?? "")),
+        alternativeUntil: engine?.alt && engine.alt.until > now ? engine.alt.until : 0,
         available: av.ok,
         reason: canUse && state.master ? av.reason : canUse ? "" : engine?.key ? "Desactivado." : "",
         cooldownUntil: engine && now < engine.cooldownUntil ? engine.cooldownUntil : 0,
