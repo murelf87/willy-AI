@@ -2,7 +2,7 @@
 // OpenAI opcional de pago por uso. Las claves se guardan SOLO en este equipo (nunca vuelven a la pantalla). Cada motor sale
 // de la rueda cuando se agota su cuota, pide pago o rechaza la clave, y se vuelve a probar solo cuando toca.
 
-export type ProviderId = "openai" | "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia" | "xai" | "deepseek" | "cerebras" | "zai" | "kimi" | "modelscope" | "cloudflare" | "huggingface" | "siliconflow" | "minimax";
+export type ProviderId = "openai" | "perplexity" | "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia" | "xai" | "deepseek" | "cerebras" | "zai" | "kimi" | "modelscope" | "cloudflare" | "huggingface" | "siliconflow" | "minimax";
 
 export type Provider = {
   id: ProviderId;
@@ -42,6 +42,20 @@ export const PROVIDERS: Provider[] = [
     prefer: ["^gpt-6-astra$", "^gpt-6\\.1-sol$", "^gpt-6-sol$", "^gpt-5\\.3-codex$", "^gpt-6-luna$"],
     maxOutput: 12000,
     timeoutMs: 240_000,
+  },
+  // Perplexity Agent API: investigación web con fuentes. De pago por uso; se prioriza en Jurídico solo si el dueño guarda su clave.
+  {
+    id: "perplexity",
+    name: "Perplexity · Agent API",
+    baseUrl: "https://api.perplexity.ai/v1",
+    keyUrl: "https://console.perplexity.ai/",
+    dataNote: "API oficial de Perplexity. Es de pago por uso (tokens y búsquedas); WILLY solo la usa si guardas tu propia clave. En Jurídico se limita a Sonar para investigación web con fuentes.",
+    credentialHint: "pplx-…",
+    fallbackModels: ["perplexity/sonar"],
+    allowListedOnly: true,
+    prefer: ["^perplexity/sonar$"],
+    maxOutput: 9000,
+    timeoutMs: 180_000,
   },
   // 1. OpenRouter: múltiples modelos :free, contexto grande (hasta 128k), mejor para código largo.
   // Orden de preferencia: Qwen3-Coder (especializado en código) > DeepSeek-R1 (razonador) > Llama 3.3 70B > Gemma > otros.
@@ -735,11 +749,13 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   const request = async (maxTokens: number) => {
     try {
       const isOpenAI = provider.id === "openai";
+      const isPerplexity = provider.id === "perplexity";
+      const usesResponses = isOpenAI || isPerplexity;
       const system = sent.filter((message) => message.role === "system").map((message) => message.content).join("\n\n");
       const input = sent
         .filter((message) => message.role !== "system")
         .map((message) => ({ role: message.role, content: message.content }));
-      const res = await fetchImpl(isOpenAI ? `${auth.baseUrl}/responses` : `${auth.baseUrl}/chat/completions`, {
+      const res = await fetchImpl(usesResponses ? `${auth.baseUrl}/responses` : `${auth.baseUrl}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.token}`, ...(provider.id === "openrouter" ? { "HTTP-Referer": "http://localhost:3000", "X-Title": "WILLY AI" } : {}) },
         body: JSON.stringify(isOpenAI
@@ -763,7 +779,16 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
                 },
               },
             }
-          : { model, messages: sent, max_tokens: maxTokens, temperature: opts.temperature ?? 0.2, stream: false }),
+          : isPerplexity
+            ? {
+                model,
+                instructions: system,
+                input,
+                max_output_tokens: maxTokens,
+                store: false,
+                tools: [{ type: "web_search" }, { type: "fetch_url" }],
+              }
+            : { model, messages: sent, max_tokens: maxTokens, temperature: opts.temperature ?? 0.2, stream: false }),
         signal: AbortSignal.timeout(provider.timeoutMs ?? 120_000),
       });
       status = res.status;
@@ -814,7 +839,7 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   if (status >= 200 && status < 300) {
     let content = "";
     try {
-      if (provider.id === "openai") {
+      if (provider.id === "openai" || provider.id === "perplexity") {
         content = openAIResponseText(body);
       } else {
         const parsed = JSON.parse(body) as { choices?: Array<{ message?: { content?: unknown } }> };
