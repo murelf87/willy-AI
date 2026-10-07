@@ -17,7 +17,7 @@ import {
   searchEuCaseLaw,
   searchEuLegislation,
 } from "@/lib/juridico-server";
-import { searchCendojAdvanced, type CendojAdvancedFilters } from "@/lib/jurisprudencia-cendoj";
+import { getCendojDocumentText, searchCendojAdvanced, type CendojAdvancedFilters } from "@/lib/jurisprudencia-cendoj";
 
 export const Route = createFileRoute("/api/juridico")({
   server: {
@@ -94,6 +94,10 @@ export const Route = createFileRoute("/api/juridico")({
             const raw = (body["filters"] && typeof body["filters"] === "object" ? body["filters"] : {}) as CendojAdvancedFilters;
             const result = await searchCendojAdvanced(raw);
             return Response.json({ ok: true, ...result }, { headers: { "Cache-Control": "no-store" } });
+          }
+          if (action === "cendoj-document-text") {
+            const result = await getCendojDocumentText(String(body["url"] ?? ""));
+            return Response.json({ ok: true, result }, { headers: { "Cache-Control": "no-store" } });
           }
           if (action === "official-document") {
             const result = await fetchOfficialLegalDocument(String(body["url"] ?? ""));
