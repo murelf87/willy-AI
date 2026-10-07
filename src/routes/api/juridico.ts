@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { blockForeignSite } from "@/lib/same-origin";
 import {
+  fetchOfficialLegalDocument,
   getBoeAuxTable,
   getBoeDailySummary,
   getBoeLegislationText,
@@ -87,6 +88,10 @@ export const Route = createFileRoute("/api/juridico")({
           if (action === "official-links") {
             const query = String(body["query"] ?? "").trim();
             return Response.json({ ok: true, links: officialLegalLinks(query) }, { headers: { "Cache-Control": "no-store" } });
+          }
+          if (action === "official-document") {
+            const result = await fetchOfficialLegalDocument(String(body["url"] ?? ""));
+            return Response.json({ ok: true, result }, { headers: { "Cache-Control": "no-store" } });
           }
           if (action === "source-catalog") {
             return Response.json({ ok: true, sources: legalSourceCatalog() }, { headers: { "Cache-Control": "no-store" } });
