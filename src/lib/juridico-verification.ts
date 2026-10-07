@@ -2,6 +2,7 @@ export type LegalReferenceAudit = {
   ok: boolean;
   references: string[];
   unverified: string[];
+  unverifiedAttributions: string[];
 };
 
 function norm(value: string): string {
@@ -49,20 +50,43 @@ export function extractConcreteLegalReferences(text: string): string[] {
   return unique(refs);
 }
 
-export function auditLegalAnswer(answer: string, verifiedCorpus: string): LegalReferenceAudit {
-  const references = extractConcreteLegalReferences(answer);
-  if (!references.length) return { ok: true, references: [], unverified: [] };
-  const trusted = norm(verifiedCorpus);
-  const unverified = references.filter((reference) => !trusted.includes(norm(reference)));
-  return { ok: unverified.length === 0, references, unverified };
+function extractJudicialAttributions(text: string): string[] {
+  const court = /\b(?:TRIBUNAL SUPREMO|TRIBUNAL CONSTITUCIONAL|TJUE|TRIBUNAL DE JUSTICIA|TEDH|TRIBUNAL EUROPEO DE DERECHOS HUMANOS|AUDIENCIA NACIONAL|TRIBUNAL SUPERIOR DE JUSTICIA|AUDIENCIA PROVINCIAL)\b/i;
+  const attribution = /\b(?:HA\s+(?:DECLARADO|ESTABLECIDO|SEÑALADO|AFIRMADO|CONSIDERADO|RESUELTO)|VIENE\s+(?:DECLARANDO|SOSTENIENDO)|DOCTRINA|JURISPRUDENCIA|CRITERIO\s+(?:CONSOLIDADO|REITERADO))\b/i;
+  return unique(
+    text
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter((line) => line && court.test(line) && attribution.test(line) && !/PENDIENTE DE VERIFICACI[ÓO]N/i.test(line)),
+  );
 }
 
-export function legalCorrectionPrompt(unverified: string[], verifiedCorpus: string): string {
+export function auditLegalAnswer(answer: string, verifiedCorpus: string): LegalReferenceAudit {
+  const references = extractConcreteLegalReferences(answer);
+  const trusted = norm(verifiedCorpus);
+  const unverified = references.filter((reference) => !trusted.includes(norm(reference)));
+  const attributionLines = extractJudicialAttributions(answer);
+  const unverifiedAttributions = attributionLines.filter((line) => {
+    const refs = extractConcreteLegalReferences(line);
+    return refs.length === 0 || refs.some((ref) => !trusted.includes(norm(ref)));
+  });
+  return {
+    ok: unverified.length === 0 && unverifiedAttributions.length === 0,
+    references,
+    unverified,
+    unverifiedAttributions,
+  };
+}
+
+export function legalCorrectionPrompt(unverified: string[], verifiedCorpus: string, unverifiedAttributions: string[] = []): string {
   const allowed = extractConcreteLegalReferences(verifiedCorpus);
   return [
     "CONTROL DE CALIDAD JURÍDICO: tu borrador anterior ha sido RECHAZADO porque contenía referencias concretas no verificadas.",
     "Referencias prohibidas/no verificadas:",
-    ...unverified.map((ref) => "- " + ref),
+    ...(unverified.length ? unverified.map((ref) => "- " + ref) : ["- Ninguna referencia identificada"]),
+    "",
+    "Atribuciones jurisprudenciales no verificadas:",
+    ...(unverifiedAttributions.length ? unverifiedAttributions.map((line) => "- " + line.slice(0, 300)) : ["- Ninguna"]),
     "",
     "Reescribe la respuesta completa.",
     "No repitas ninguna de las referencias anteriores.",
