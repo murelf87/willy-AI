@@ -149,7 +149,7 @@ export function ExternalAiPanel({ ai, compact = false, onClose, keysOnly = false
       if (tested.status) ai.putStatus(tested.status);
       setKeys((current) => ({ ...current, [id]: "" }));
       if (chosen && !chosen.includes(id)) ai.saveChosen([...chosen, id]);
-      setKeyNote((current) => ({ ...current, [id]: tested.ok ? `✓ Lista${tested.model ? ` (modelo ${tested.model})` : ""}. Ya está en tu lista.` : `Guardada, pero la prueba dijo: ${tested.error ?? "sin respuesta"}` }));
+      setKeyNote((current) => ({ ...current, [id]: tested.ok ? `✓ Lista · modelo automático${tested.model ? ` · referencia inicial ${tested.model}` : ""}. WILLY cambiará solo si hace falta.` : `Guardada, pero la prueba dijo: ${tested.error ?? "sin respuesta"}` }));
     } catch {
       setKeyNote((current) => ({ ...current, [id]: "⚠️ No se pudo hablar con WILLY. Vuelve a intentarlo." }));
     } finally {
@@ -207,7 +207,7 @@ export function ExternalAiPanel({ ai, compact = false, onClose, keysOnly = false
                   {!keysOnly && <input type="checkbox" checked={on} onChange={() => toggle(id)} aria-label={`Usar ${e.name}`} className="size-4 shrink-0 accent-primary" />}
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-foreground">{on && !keysOnly ? `${pos + 1}. ` : ""}{e.name}</p>
-                    <p className="truncate text-[10px] text-muted-foreground">{e.model || "modelo automático"}{e.cap ? ` · hoy ${e.used}/${e.cap}` : ""}</p>
+                    <p className="truncate text-[10px] text-muted-foreground">{e.usingAlternative ? `Automático · cambió ${e.baseModel || "modelo anterior"} → ${e.model}` : e.model ? `Automático · referencia ${e.model}` : "Automático · elige modelo al usarlo"}{e.cap ? ` · hoy ${e.used}/${e.cap}` : ""}</p>
                   </div>
                   <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] ${TONE[state.tone]}`} title={state.text}>{state.tone === "ok" ? <><Check className="mr-0.5 inline size-3" />lista</> : <span className="inline-block max-w-[7.5rem] truncate align-bottom">{state.text}</span>}</span>
                   {on && !keysOnly && marked.length > 1 && (
