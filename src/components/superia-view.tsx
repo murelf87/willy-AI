@@ -1574,7 +1574,7 @@ export function SuperIAView() {
                   <p className="mb-1 text-[11px] font-semibold text-muted-foreground">
                     Súper IA{solvedBy ? ` · ${solvedBy}` : ""} · {running ? "trabajando…" : liveNote === "detenido" ? "detenido" : "no ha podido"}
                   </p>
-                  {answer ? <AnswerBody text={answer} onOpenFile={openFile} streaming={running} /> : running ? <ThinkingDots label="Pensando" /> : null}
+                  {answer ? <AnswerBody text={answer} onOpenFile={openFile} streaming={running} reveal={!running} /> : running ? <ThinkingDots label="Pensando" /> : null}
                   {progressBar}
                 </article>
               )}

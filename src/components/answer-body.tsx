@@ -6,7 +6,7 @@
 // tablas, citas/avisos y separadores — en vez de una línea por párrafo sin más. Es solo presentación: el contenido semántico
 // (lo que escribió la IA) no cambia, solo cómo se dibuja.
 
-import { createElement, useState, type ReactNode } from "react";
+import { createElement, useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, CheckCircle2, ChevronDown, Circle, Copy, Download, FileCode2, ListChecks } from "lucide-react";
 import { copyText, downloadFile } from "@/lib/workspace-store";
 
@@ -17,32 +17,83 @@ function pathOf(info: string): string | null {
   return info.trim().match(/([\w./@()[\]-]+\.[A-Za-z0-9]+)(?:\s*)$/)?.[1] ?? null;
 }
 
-export function AnswerBody({ text, onOpenFile, streaming = false }: {
+function useProgressiveAnswer(text: string, reveal: boolean): { text: string; writing: boolean } {
+  const [shown, setShown] = useState(reveal ? "" : text);
+  const timer = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    if (!reveal || reduced || !text.trim()) {
+      setShown(text);
+      return;
+    }
+
+    let pos = 0;
+    setShown("");
+    const baseStep = Math.max(8, Math.min(56, Math.ceil(text.length / 180)));
+
+    const tick = () => {
+      if (pos >= text.length) return;
+      let next = Math.min(text.length, pos + baseStep);
+      const newline = text.indexOf("\n", pos);
+      if (newline >= pos && newline < next + 12) next = newline + 1;
+      else {
+        const space = text.indexOf(" ", next);
+        if (space > next && space - next <= 10) next = space + 1;
+      }
+      pos = Math.max(pos + 1, next);
+      setShown(text.slice(0, pos));
+      if (pos < text.length) {
+        const pause = text[pos - 1] === "\n" ? 60 : /[.!?…]/.test(text[pos - 1] ?? "") ? 42 : 24;
+        timer.current = window.setTimeout(tick, pause);
+      }
+    };
+
+    timer.current = window.setTimeout(tick, 70);
+    return () => {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = null;
+    };
+  }, [text, reveal]);
+
+  return { text: shown, writing: reveal && shown.length < text.length };
+}
+
+export function AnswerBody({ text, onOpenFile, streaming = false, reveal = false }: {
   text: string;
   /** Si hay taller (SUPER WILLY): los archivos se abren allí en vez de enseñarse aquí. */
   onOpenFile?: (path: string) => void;
   /** Mientras la IA escribe, el último bloque puede estar a medias. */
   streaming?: boolean;
+  /** Respuesta recién terminada: aparece progresivamente en lugar de mostrarse de golpe. */
+  reveal?: boolean;
 }) {
+  const progressive = useProgressiveAnswer(text, reveal && !streaming);
+  const renderedText = streaming ? text : progressive.text;
+  const writing = streaming || progressive.writing;
   const nodes: ReactNode[] = [];
   let last = 0;
   let k = 0;
   let m: RegExpExecArray | null;
   FENCE.lastIndex = 0;
-  while ((m = FENCE.exec(text))) {
-    if (m.index > last) nodes.push(<Prose key={`t${k++}`} text={text.slice(last, m.index)} />);
+  while ((m = FENCE.exec(renderedText))) {
+    if (m.index > last) nodes.push(<Prose key={`t${k++}`} text={renderedText.slice(last, m.index)} />);
     const info = (m[1] ?? "").trim();
     const code = (m[2] ?? "").replace(/\n$/, "");
     const path = pathOf(info);
-    const open = streaming && m.index + m[0].length >= text.length && !m[0].endsWith("```");
+    const open = writing && m.index + m[0].length >= renderedText.length && !m[0].endsWith("```");
     // Rev23: el bloque «plan» (qué tareas ha terminado WILLY) no es código para leer: una línea que lo dice.
     if (/^plan(?:-json)?$/i.test(info)) nodes.push(<PlanNote key={`p${k++}`} json={/json/i.test(info)} writing={open} done={(code.match(/^\s*hecho:\s*(.+)$/im)?.[1] ?? "").split(",").filter((x) => x.trim()).length} />);
     else if (path && onOpenFile) nodes.push(<FileChip key={`f${k++}`} path={path} lines={code.split("\n").length} writing={open} onOpen={() => onOpenFile(path)} />);
     else nodes.push(<CodeBlock key={`c${k++}`} path={path} lang={path ? "" : info} code={code} />);
     last = m.index + m[0].length;
   }
-  if (last < text.length) nodes.push(<Prose key={`t${k++}`} text={text.slice(last)} />);
-  return <div className="min-w-0 space-y-1.5">{nodes}</div>;
+  if (last < renderedText.length) nodes.push(<Prose key={`t${k++}`} text={renderedText.slice(last)} />);
+  return <div className="min-w-0 space-y-1.5">{nodes}{writing && <span aria-hidden="true" className="ml-0.5 inline-block animate-pulse text-primary">▍</span>}</div>;
 }
 
 function PlanNote({ json, writing, done }: { json: boolean; writing: boolean; done: number }) {

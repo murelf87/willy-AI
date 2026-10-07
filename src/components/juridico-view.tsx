@@ -10,6 +10,7 @@ import {
   TriangleAlert, Upload, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AnswerBody } from "@/components/answer-body";
 import { SectionHead as Head } from "@/components/section-ui";
 import { PanelCard as Card } from "@/components/panel-card";
 import type { Ping } from "@/types/domain";
@@ -309,6 +310,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
   const [autoResearch,setAutoResearch]=useState(true);
   const [lastModel,setLastModel]=useState("");
   const [lastQuality,setLastQuality]=useState<"verified"|"corrected"|null>(null);
+  const [latestRevealId,setLatestRevealId]=useState<string|null>(null);
   const [sourceCatalog,setSourceCatalog]=useState<SourceCatalogItem[]>([]);
   const [officialUrl,setOfficialUrl]=useState("");
   const [verifyingOfficial,setVerifyingOfficial]=useState(false);
@@ -481,6 +483,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
       setLastModel(reply.model);setLastQuality(reply.quality);
       if(reply.quality==="corrected")ping("Control jurídico: se descartó un primer borrador con referencias no verificadas y se regeneró.");
       const assistant:Message={id:uid(),role:"assistant",content:reply.content,createdAt:Date.now(),model:reply.model,mode:active.id};
+      setLatestRevealId(assistant.id);
       setCasos((prev)=>prev.map((c)=>c.id===caso.id?{...c,messages:[...history,assistant],updatedAt:Date.now()}:c));
     }catch(e){if((e as Error)?.name!=="AbortError")setError(e instanceof Error?e.message:"No se pudo completar el análisis.");}
     finally{abortRef.current=null;setSending(false);}
@@ -607,7 +610,7 @@ export function JuridicoView({ ping }:{ ping:Ping }){
               </div>}
               {caso.messages.map((m)=><div key={m.id} className={"flex "+(m.role==="user"?"justify-end":"justify-start")}>
                 <div className={"max-w-[96%] overflow-hidden rounded-2xl px-3 py-3 sm:max-w-[92%] sm:px-4 "+(m.role==="user"?"bg-primary text-primary-foreground":"border border-border bg-background")}>
-                  {m.role==="assistant"?<div className="space-y-0.5">{markdown(m.content)}</div>:<p className="whitespace-pre-wrap text-sm leading-6">{m.content}</p>}
+                  {m.role==="assistant"?<AnswerBody text={m.content} reveal={latestRevealId===m.id}/>:<p className="whitespace-pre-wrap text-sm leading-6">{m.content}</p>}
                   {m.role==="assistant"&&<div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-2 text-[10px] text-muted-foreground"><span>Modelo: {m.model||"—"}</span><button className="ml-auto inline-flex items-center gap-1 hover:text-foreground" onClick={()=>{void navigator.clipboard.writeText(m.content);setCopied(m.id);window.setTimeout(()=>setCopied(null),1200);}}>{copied===m.id?<Check className="size-3"/>:<Copy className="size-3"/>}{copied===m.id?"Copiado":"Copiar"}</button></div>}
                 </div>
               </div>)}

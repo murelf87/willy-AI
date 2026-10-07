@@ -55,7 +55,7 @@ function ownerSystem(): string {
   ].join("\n");
 }
 
-type MsgItem = { who: "you" | "willy"; time: string; text: string; by?: string; generating?: boolean; files?: { path: string; lang?: string; content: string }[]; download?: { name: string; url: string; size: number }; engine?: boolean; suggest?: Suggestion[]; webOffer?: { query: string; question: string }; sources?: { title: string; url: string }[]; vision?: string;
+type MsgItem = { who: "you" | "willy"; time: string; text: string; by?: string; generating?: boolean; reveal?: boolean; files?: { path: string; lang?: string; content: string }[]; download?: { name: string; url: string; size: number }; engine?: boolean; suggest?: Suggestion[]; webOffer?: { query: string; question: string }; sources?: { title: string; url: string }[]; vision?: string;
   /** Rev21: el mensaje era una PROJECT ACTION (construir o cambiar un proyecto): se ofrece «Abrir en Súper IA». */
   projectAction?: StoredProjectAction & { key?: string } };
 
@@ -268,23 +268,23 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
         const result = await cloudChat(nextEngine, aiMessages as Parameters<typeof cloudChat>[1], 8000);
         if (result.ok) {
           newText = result.data.trim();
-          updateAt(idx, (m) => ({ ...m, generating: false, text: newText, by: `${nextEngine} · ${result.model}` }));
+          updateAt(idx, (m) => ({ ...m, generating: false, reveal: true, text: newText, by: `${nextEngine} · ${result.model}` }));
           setThumbs((t) => { const n = { ...t }; delete n[idx]; return n; });
           ping(`↻ Respuesta de ${nextEngine}.`);
         } else {
-          updateAt(idx, (m) => ({ ...m, generating: false, text: `⚠️ ${nextEngine} no ha podido responder: ${result.error}` }));
+          updateAt(idx, (m) => ({ ...m, generating: false, reveal: true, text: `⚠️ ${nextEngine} no ha podido responder: ${result.error}` }));
           ping(`${nextEngine} no ha podido responder.`);
         }
       } else {
         // Si no hay otro motor externo, usar local
         let localText = "";
         await chatLocalStream({ endpoint: settings.endpoint, model: settings.model, messages: aiMessages, onDelta: (d) => { localText += d; updateAt(idx, (m) => ({ ...m, text: localText })); }, signal: controller.signal });
-        updateAt(idx, (m) => ({ ...m, generating: false, text: localText.trim() || m.text, by: `Tu equipo · ${settings.model}` }));
+        updateAt(idx, (m) => ({ ...m, generating: false, reveal: false, text: localText.trim() || m.text, by: `Tu equipo · ${settings.model}` }));
         setThumbs((t) => { const n = { ...t }; delete n[idx]; return n; });
         ping("↻ Respuesta de tu IA local.");
       }
     } catch (e) {
-      updateAt(idx, (m) => ({ ...m, generating: false, text: `⚠️ No pude reintentar: ${e instanceof Error ? e.message : String(e)}` }));
+      updateAt(idx, (m) => ({ ...m, generating: false, reveal: true, text: `⚠️ No pude reintentar: ${e instanceof Error ? e.message : String(e)}` }));
     } finally {
       abortRef.current = null;
       setBusy(false);
@@ -323,12 +323,12 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
       });
       let full: string;
       try { full = await run(8192); } catch (error) { if (controller.signal.aborted || started) throw error; full = await run(); }
-      updateLast((m) => ({ ...m, generating: false, text: m.text.trimEnd() || full }));
+      updateLast((m) => ({ ...m, generating: false, reveal: !started, text: m.text.trimEnd() || full }));
       ping(`Respuesta con ${pages.length} fuente(s) de internet.`);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      if (controller.signal.aborted) updateLast((m) => ({ ...m, generating: false, text: `${m.text.trimEnd()}\n\n⏹️ Detenido.` }));
-      else updateLast((m) => ({ ...m, generating: false, text: `⚠️ No he podido ${source ? "consultar la fuente de datos" : "buscar en internet"}: ${detail}` }));
+      if (controller.signal.aborted) updateLast((m) => ({ ...m, generating: false, reveal: !started, text: `${m.text.trimEnd()}\n\n⏹️ Detenido.` }));
+      else updateLast((m) => ({ ...m, generating: false, reveal: !started, text: `⚠️ No he podido ${source ? "consultar la fuente de datos" : "buscar en internet"}: ${detail}` }));
     } finally {
       setBusy(false);
     }
@@ -409,12 +409,12 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
         const mb = (built.size / (1024 * 1024)).toFixed(1);
         updateLast((m) => ({
           ...m,
-          generating: false,
+          generating: false, reveal: true,
           download: { name: built.name, url: built.url, size: built.size },
           text: `✅ Listo. He generado el instalador de la versión ${built.version} (${mb} MB) en tu equipo. Pulsa «Descargar» aquí mismo, ejecuta el archivo y se instala solo: cierra la versión anterior, la sustituye y abre WILLY AI en localhost:3000 sin que tengas que hacer nada más.`,
         }));
       } else {
-        updateLast((m) => ({ ...m, generating: false, text: `⚠️ No he podido generar el instalador en este momento. ${built.error}` }));
+        updateLast((m) => ({ ...m, generating: false, reveal: true, text: `⚠️ No he podido generar el instalador en este momento. ${built.error}` }));
       }
       ping("Instalador preparado en el chat.");
       setBusy(false);
@@ -447,7 +447,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
         const prepared = await Promise.all(pictureFiles.map((entry, index) => prepareImage(entry.file, entry.name || `imagen-${index + 1}.jpg`)));
         const seen = await describePictures({ endpoint: settings.endpoint, currentModel: settings.model, pictures: prepared, signal: controller.signal, onStage: (stage) => updateLast((m) => ({ ...m, text: stage })) });
         if (!seen.ok) {
-          updateLast((m) => ({ ...m, generating: false, text: controller.signal.aborted ? "⏹️ Detenido." : `⚠️ ${seen.error}` }));
+          updateLast((m) => ({ ...m, generating: false, reveal: true, text: controller.signal.aborted ? "⏹️ Detenido." : `⚠️ ${seen.error}` }));
           setBusy(false);
           return;
         }
@@ -455,7 +455,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
         setMessages((prev) => prev.map((m, i) => (i === prev.length - 2 ? { ...m, vision: visionNote } : m)));
         updateLast((m) => ({ ...m, text: "" }));
       } catch (error) {
-        updateLast((m) => ({ ...m, generating: false, text: controller.signal.aborted ? "⏹️ Detenido." : `⚠️ No pude leer las imágenes: ${error instanceof Error ? error.message : String(error)}` }));
+        updateLast((m) => ({ ...m, generating: false, reveal: true, text: controller.signal.aborted ? "⏹️ Detenido." : `⚠️ No pude leer las imágenes: ${error instanceof Error ? error.message : String(error)}` }));
         setBusy(false);
         return;
       }
@@ -463,6 +463,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
 
     // Motor local real (Ollama / LM Studio), sin conexiones externas.
     let streamed = false;
+    let streamEvents = 0;
     try {
       // Adjuntos de cualquier formato (PDF, Word, EPUB, código…), sin tope de 200 KB: se lee el archivo entero y se le pasa al modelo lo
       // que le cabe según su memoria de contexto, avisando de lo que se recorta.
@@ -491,6 +492,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
       ];
       const onAiDelta = (delta: string) => {
         streamed = true;
+        streamEvents += 1;
         updateLast((m) => ({ ...m, text: m.text + delta }));
       };
       // IA externa (Gemini, Groq…): SOLO si la eliges en el chat y el interruptor general de motores externos está activo. Si responde, se
@@ -507,7 +509,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
         status: engineStatus,
         ask: (id, msgs, maxTokens) => cloudChat(id, msgs, maxTokens),
         notify: ping,
-        onText: (text) => { streamed = true; updateLast((m) => ({ ...m, text })); },
+        onText: (text) => { streamed = true; streamEvents += 1; updateLast((m) => ({ ...m, text })); },
         signal: controller.signal,
         ...(smartOn ? { smart: { text: sent, kind: detectTask(sent), labelOf: (k: string) => TASK_LABELS[k as keyof typeof TASK_LABELS] ?? k, hasAttachments: carried.some((f) => !f.file.type.startsWith("image/")), installed: smartInstalled, localPlan: (k: string) => planChain(k as Parameters<typeof planChain>[0], undefined, smartInstalled) } } : {}),
         onLocal: (m) => { smartLocal = m; },
@@ -536,7 +538,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
       const by = cloudFull !== null ? (cloudBy || "IA externa") : `Tu equipo · ${usedLocal}`;
 
       // Si trae archivos, se ven y se descargan en el propio mensaje: el Chat no los guarda en ningún proyecto (eso es Súper IA).
-      updateLast((m) => ({ ...m, by, generating: false, text: m.text.trimEnd() || full }));
+      updateLast((m) => ({ ...m, by, generating: false, reveal: streamEvents <= 1, text: m.text.trimEnd() || full }));
       ping(cloudFull !== null ? `Respuesta completada con ${cloudBy || "la IA externa que elegiste"}.` : "Respuesta completada con tu IA local.");
       // Etiqueta automática: solo si el hilo no tiene etiqueta aún y el usuario acaba de enviar el primer mensaje.
       try {
@@ -549,17 +551,17 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
       const detail = error instanceof Error ? error.message : String(error);
       if (stopped()) {
         // Stop pulsado: se conserva lo ya escrito y se marca como detenido.
-        updateLast((m) => ({ ...m, generating: false, text: `${m.text.trimEnd()}\n\n⏹️ Generación detenida.` }));
+        updateLast((m) => ({ ...m, generating: false, reveal: streamEvents <= 1, text: `${m.text.trimEnd()}\n\n⏹️ Generación detenida.` }));
         ping("Generación detenida. Puedes seguir escribiendo cuando quieras.");
       } else if (streamed) {
-        updateLast((m) => ({ ...m, generating: false, text: `${m.text.trimEnd()}\n\n⚠️ La conexión con la IA se ha interrumpido: ${detail}` }));
+        updateLast((m) => ({ ...m, generating: false, reveal: false, text: `${m.text.trimEnd()}\n\n⚠️ La conexión con la IA se ha interrumpido: ${detail}` }));
         ping("Conexión con la IA interrumpida.");
       } else {
         const info = classifyEngineError(detail);
         const engineDown = info.kind === "parado" || info.kind === "otro";
         updateLast((m) => ({
           ...m,
-          generating: false,
+          generating: false, reveal: true,
           ...(engineDown ? { engine: true } : {}),
           text: explainEngineError(info.kind, settings.model, detail, info.arch),
         }));
@@ -724,7 +726,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
                 ) : null
               }
             >
-              {m.text && <AnswerBody text={m.text} streaming={Boolean(m.generating)} />}
+              {m.text && <AnswerBody text={m.text} streaming={Boolean(m.generating)} reveal={Boolean(m.reveal)} />}
               {m.projectAction && (
                 <ProjectActionCard
                   action={m.projectAction}
