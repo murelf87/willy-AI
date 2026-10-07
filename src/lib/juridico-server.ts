@@ -256,6 +256,9 @@ export function legalSourceCatalog(): LegalSourceDescriptor[] {
     { id:"congreso", name:"Congreso · Datos abiertos", authority:"Congreso de los Diputados", scope:"España · parlamentario", access:"open-data", automatic:false, free:true, url:"https://www.congreso.es/es/opendata", note:"CSV/JSON/XML de iniciativas, intervenciones y actividad parlamentaria." },
     { id:"senado", name:"Senado · Datos abiertos", authority:"Senado de España", scope:"España · parlamentario", access:"open-data", automatic:false, free:true, url:"https://www.senado.es/web/relacionesciudadanos/datosabiertos/index.html", note:"XML reutilizable de iniciativas, votaciones, sesiones y composición." },
     { id:"aepd", name:"AEPD · Datos abiertos", authority:"Agencia Española de Protección de Datos", scope:"España · privacidad", access:"open-data", automatic:false, free:true, url:"https://www.aepd.es/la-agencia/datos-abiertos", note:"Informes jurídicos y conjuntos documentales abiertos." },
+    { id:"teac", name:"TEAC · DYCTEA", authority:"Tribunal Económico-Administrativo Central", scope:"España · tributario", access:"search", automatic:false, free:true, url:"https://serviciostelematicosext.hacienda.gob.es/TEAC/DYCTEA/", note:"Base oficial de doctrina, criterios y resoluciones económico-administrativas. Consulta pública; verifica siempre la resolución original." },
+    { id:"aranzadi", name:"Aranzadi LA LEY · Bases de datos jurídicas", authority:"Aranzadi LA LEY", scope:"España · legislación, jurisprudencia y doctrina", access:"portal", automatic:false, free:false, url:"https://www.aranzadilaley.es/productos/bases-de-datos-juridicas", note:"Fuente profesional de suscripción. Sus servicios LegalTech contemplan acceso vía API o navegador según contrato/consumo; WILLY no descarga ni reutiliza contenido licenciado sin las credenciales y derechos del cliente." },
+    { id:"legalteca", name:"Legalteca · Biblioteca jurídica digital", authority:"Aranzadi LA LEY", scope:"España · doctrina y libros jurídicos", access:"portal", automatic:false, free:false, url:"https://www.aranzadilaley.es/productos/legalteca", note:"Biblioteca profesional de suscripción. Se muestra como acceso documental; cualquier automatización queda condicionada a la licencia contratada." },
     { id:"cgpj", name:"CGPJ · Consejo General del Poder Judicial", authority:"Consejo General del Poder Judicial", scope:"España · información institucional", access:"portal", automatic:false, free:true, url:"https://www.poderjudicial.es/", note:"Consulta del portal oficial. Los documentos institucionales no equivalen a sentencias; verifica el documento original antes de citarlo. Sin recuperación automática integrada." },
     { id:"cendoj", name:"CENDOJ", authority:"CGPJ", scope:"España · jurisprudencia", access:"search", automatic:false, free:true, url:"https://www.poderjudicial.es/search/indexAN.jsp", note:"Buscador oficial; no se asume una API pública no documentada." },
     { id:"tc", name:"Tribunal Constitucional", authority:"Tribunal Constitucional", scope:"España · constitucional", access:"search", automatic:false, free:true, url:"https://hj.tribunalconstitucional.es/", note:"Buscador oficial de jurisprudencia constitucional." },
@@ -396,7 +399,7 @@ export async function saveLegalCases(cases: unknown): Promise<{ count: number; b
 export function legalServerStatus() {
   return {
     checkedAt: new Date().toISOString(),
-    officialSources: ["BOE", "BORME", "BOJA", "CELLAR/EUR-Lex", "Congreso", "Senado", "CGPJ", "CENDOJ", "Tribunal Constitucional", "InfoCuria", "HUDOC", "AEPD"],
+    officialSources: ["BOE", "BORME", "BOJA", "CELLAR/EUR-Lex", "Congreso", "Senado", "CGPJ", "CENDOJ", "Tribunal Constitucional", "InfoCuria", "HUDOC", "AEPD", "TEAC · DYCTEA"],
     freeApis: [
       { id: "boe-law", name: "BOE Legislación consolidada", auth: "sin clave", active: true, endpoint: "https://www.boe.es/datosabiertos/api/legislacion-consolidada" },
       { id: "boe-daily", name: "BOE Sumario diario", auth: "sin clave", active: true, endpoint: "https://www.boe.es/datosabiertos/api/boe/sumario/{fecha}" },
@@ -414,6 +417,11 @@ export function legalServerStatus() {
       { id: "curia", name: "InfoCuria", api: false },
       { id: "hudoc", name: "HUDOC", api: false },
       { id: "aepd", name: "AEPD Datos Abiertos", api: false },
+      { id: "teac", name: "TEAC · DYCTEA", api: false },
+    ],
+    licensedSources: [
+      { id: "aranzadi", name: "Aranzadi LA LEY", api: "según contrato", automatic: false, free: false, url: "https://www.aranzadilaley.es/productos/bases-de-datos-juridicas" },
+      { id: "legalteca", name: "Legalteca", api: false, automatic: false, free: false, url: "https://www.aranzadilaley.es/productos/legalteca" },
     ],
     storageHint: juridicoDir(),
   };
