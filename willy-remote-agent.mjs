@@ -465,6 +465,19 @@ async function approve(id, allow) {
   return { approved: true, result };
 }
 
+async function waitForApprovalResult(id, timeoutMs = APPROVAL_TTL_MS) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const entry = approvals.get(id);
+    if (!entry) throw new Error("Solicitud de aprobación no encontrada.");
+    if (entry.status === "completed") return { approved: true, result: entry.result };
+    if (entry.status === "denied") return { approved: false, denied: true };
+    if (entry.status === "expired") return { approved: false, expired: true };
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return { approved: false, expired: true };
+}
+
 async function handleMcp(req, res, payload) {
   const id = payload.id ?? null;
   const method = String(payload.method || "");
@@ -497,10 +510,12 @@ async function handleMcp(req, res, payload) {
     if (needsApproval(def)) {
       const entry = createApproval(name, args, { requester: "mcp", ip: req.socket?.remoteAddress || "" });
       await audit("approval.requested", { id: entry.id, kind: name, meta: entry.meta });
-      return reply({
-        content: [{ type: "text", text: JSON.stringify({ pendingApproval: true, approvalId: entry.id, message: "Pendiente de aprobación local en WILLY." }) }],
-        isError: false,
-      });
+      const decision = await waitForApprovalResult(entry.id);
+      if (decision.approved) {
+        return reply({ content: [{ type: "text", text: JSON.stringify(decision.result) }], isError: false });
+      }
+      const reason = decision.denied ? "Acción denegada por el usuario." : "La aprobación caducó.";
+      return reply({ content: [{ type: "text", text: reason }], isError: true });
     }
     try {
       const result = await executeAction(name, args, { requester: "mcp", ip: req.socket?.remoteAddress || "" });
