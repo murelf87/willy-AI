@@ -9,7 +9,7 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const PORT = Number(process.env.WILLY_AGENT_PORT || 4050);
-const BIND = process.env.WILLY_AGENT_BIND || '127.0.0.1';
+const BIND = '127.0.0.1';
 const ROOT = process.env.WILLY_ROOT || process.cwd();
 const DATA_DIR = path.join(ROOT, 'datos-privados', 'willy-agent');
 const AUDIT_FILE = path.join(DATA_DIR, 'audit.jsonl');
@@ -24,9 +24,13 @@ const tools = [
   t('fs_read','Lee un archivo de texto. Requiere aprobación.',{path:'string',offset:'number?',length:'number?'}),
   t('fs_write','Escribe o añade texto a un archivo. Requiere aprobación.',{path:'string',content:'string',mode:'rewrite|append?'}),
   t('fs_replace','Reemplazo exacto SEARCH/REPLACE. Requiere aprobación.',{path:'string',search:'string',replace:'string',expected_replacements:'number?'}),
+  t('fs_mkdir','Crea una carpeta. Requiere aprobación.',{path:'string'}),
+  t('fs_copy','Copia archivo o carpeta. Requiere aprobación.',{source:'string',destination:'string',overwrite:'boolean?'}),
+  t('fs_move','Mueve o renombra archivo o carpeta. Requiere aprobación.',{source:'string',destination:'string',overwrite:'boolean?'}),
   t('fs_delete','Elimina archivo o carpeta. Requiere aprobación.',{path:'string',recursive:'boolean?'}),
   t('shell_run','Ejecuta PowerShell/shell y devuelve salida. Requiere aprobación.',{command:'string',cwd:'string?',timeout_ms:'number?'}),
   t('process_list','Lista procesos. Requiere aprobación.',{}),
+  t('process_start','Inicia un proceso en segundo plano. Requiere aprobación.',{command:'string',cwd:'string?'}),
   t('process_kill','Finaliza un proceso por PID. Requiere aprobación.',{pid:'number',force:'boolean?'}),
   t('open_url','Abre una URL http/https. Requiere aprobación.',{url:'string'}),
   t('screen_capture','Captura la pantalla en PNG. Requiere aprobación.',{}),
@@ -74,6 +78,9 @@ async function runTool(name,args){
   if(name==='fs_replace'){
     const file=resolvePath(args.path);const search=String(args.search||'');const repl=String(args.replace||'');const expected=Math.max(1,Number(args.expected_replacements||1));let current=await fs.readFile(file,'utf8');const count=current.split(search).length-1;if(!search||count!==expected)throw new Error('Coincidencias SEARCH: '+count+'; esperadas: '+expected+'.');current=current.split(search).join(repl);await fs.writeFile(file,current,'utf8');return{content:text({ok:true,path:file,replacements:count})};
   }
+  if(name==='fs_mkdir'){const dir=resolvePath(args.path);await fs.mkdir(dir,{recursive:true});return{content:text({ok:true,path:dir})};}
+  if(name==='fs_copy'){const source=resolvePath(args.source);const destination=resolvePath(args.destination);if(!args.overwrite){try{await fs.access(destination);throw new Error('El destino ya existe.');}catch(e){if(e instanceof Error&&e.message==='El destino ya existe.')throw e;}}await fs.cp(source,destination,{recursive:true,force:Boolean(args.overwrite)});return{content:text({ok:true,source,destination})};}
+  if(name==='fs_move'){const source=resolvePath(args.source);const destination=resolvePath(args.destination);if(args.overwrite)await fs.rm(destination,{recursive:true,force:true}).catch(()=>{});await fs.mkdir(path.dirname(destination),{recursive:true});await fs.rename(source,destination).catch(async()=>{await fs.cp(source,destination,{recursive:true,force:true});await fs.rm(source,{recursive:true,force:true});});return{content:text({ok:true,source,destination})};}
   if(name==='fs_delete'){const target=resolvePath(args.path);await fs.rm(target,{recursive:Boolean(args.recursive),force:false});return{content:text({ok:true,path:target})};}
   if(name==='shell_run'){
     const command=String(args.command||'');if(!command)throw new Error('Comando vacío.');const cwd=args.cwd?resolvePath(args.cwd):process.cwd();const timeout=Math.max(1000,Math.min(300000,Number(args.timeout_ms||60000)));const win=process.platform==='win32';const exe=win?'powershell.exe':'/bin/sh';const av=win?['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-Command',command]:['-lc',command];const r=await execFileAsync(exe,av,{cwd,timeout,windowsHide:true,maxBuffer:1024*1024});return{content:text({cwd,stdout:String(r.stdout||''),stderr:String(r.stderr||'')})};
@@ -82,6 +89,7 @@ async function runTool(name,args){
     if(process.platform==='win32'){const r=await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-Command','Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine | ConvertTo-Json -Depth 3'],{windowsHide:true,maxBuffer:2*1024*1024});return{content:text(JSON.parse(r.stdout||'[]'))};}
     const r=await execFileAsync('/bin/sh',['-lc','ps -eo pid,ppid,comm,args'],{maxBuffer:2*1024*1024});return{content:text(String(r.stdout||''))};
   }
+  if(name==='process_start'){const command=String(args.command||'');if(!command)throw new Error('Comando vacío.');const cwd=args.cwd?resolvePath(args.cwd):process.cwd();const { spawn }=await import('node:child_process');const child=spawn(command,{cwd,shell:true,detached:true,stdio:'ignore',windowsHide:true});child.unref();return{content:text({ok:true,pid:child.pid||null,command,cwd})};}
   if(name==='process_kill'){
     const pid=Number(args.pid);if(!Number.isInteger(pid)||pid<=0)throw new Error('PID no válido.');if(process.platform==='win32'){const av=['/PID',String(pid),'/T'];if(args.force)av.push('/F');await execFileAsync('taskkill.exe',av,{windowsHide:true});}else process.kill(pid,args.force?'SIGKILL':'SIGTERM');return{content:text({ok:true,pid})};
   }
