@@ -1,0 +1,43 @@
+name: WILLY Remote Agent check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "willy-agent-server.mjs"
+      - "src/lib/remote-access-server.ts"
+      - "src/routes/api/remote-access.ts"
+      - "src/components/remote-access-view.tsx"
+      - "src/lib/version.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/willy-remote-agent-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "willy-agent-server.mjs"
+      - "src/lib/remote-access-server.ts"
+      - "src/routes/api/remote-access.ts"
+      - "src/components/remote-access-view.tsx"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Validate agent syntax
+        run: node --check willy-agent-server.mjs
+      - name: Install
+        run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
+      - name: Build WILLY
+        run: npm run build
