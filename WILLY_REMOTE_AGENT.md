@@ -47,7 +47,7 @@ Todas las herramientas que acceden o modifican el equipo pasan por la cola de ap
 
 ## Conexión desde fuera del PC
 
-Para no exponer puertos públicos, se recomienda conectar el endpoint local mediante un túnel MCP seguro. ChatGPT admite MCP remoto y Secure MCP Tunnel según el plan y los permisos disponibles.
+Para no exponer puertos públicos, conecta el endpoint local mediante un túnel MCP seguro cuando el cliente que vayas a usar lo soporte. La disponibilidad de MCP remoto/escritura depende del cliente, plan y permisos configurados.
 
 ## Arranque
 
@@ -60,5 +60,5 @@ También puede iniciarse manualmente con Node:
 Variables opcionales:
 
 - WILLY_AGENT_PORT: puerto, por defecto 4050.
-- WILLY_AGENT_BIND: interfaz, por defecto 127.0.0.1.
+- El agente fuerza `127.0.0.1` como interfaz de escucha. No admite cambiar el bind desde variables de entorno.
 - WILLY_ROOT: raíz de datos de WILLY.
