@@ -303,6 +303,7 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
       setMessages((m) => [...m, { who: "willy", time, text: "", generating: true }]);
     }
     updateLast((m) => ({ ...m, generating: true, text: source ? `📡 Consultando ${query}…` : `🔎 Buscando en internet: «${query}»…` }));
+    let started = false;
     try {
       const res = await fetch("/api/fetch-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(source ? { connector: source.connector, params: source.params } : { ask: query }), signal: controller.signal });
       const data = (await res.json().catch(() => ({}))) as { error?: string; source?: string; results?: { title: string; url: string; snippet: string }[]; pages?: { title: string; url: string; text: string }[] };
@@ -312,7 +313,6 @@ export function ChatPanel({ ping, settings, updateSettings, threadId, onBusy, em
       updateLast((m) => ({ ...m, text: `📚 He leído ${pages.length} fuente(s) (${data.source ?? "internet"}). Preparando la respuesta…`, sources: pages.map((p) => ({ title: p.title, url: p.url })) }));
       const prompt = buildWebPrompt(question, pages);
       const model = await resolveLocalModel(settings.endpoint, settings.model);
-      let started = false;
       const run = (numCtx?: number) => chatLocalStream({
         endpoint: settings.endpoint,
         model,
