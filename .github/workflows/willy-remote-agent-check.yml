@@ -9,6 +9,7 @@ on:
       - "src/routes/api/remote-access.ts"
       - "src/components/remote-access-view.tsx"
       - "src/lib/version.ts"
+      - "src/components/chat-panel.tsx"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/willy-remote-agent-check.yml"
@@ -37,7 +38,7 @@ jobs:
         run: node --check willy-agent-server.mjs
       - name: Install
         run: npm ci
-      - name: TypeScript baseline note
-        run: npx tsc --noEmit --pretty false || echo "TypeScript baseline has pre-existing errors; production build remains authoritative for this PR."
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
       - name: Build WILLY
         run: npm run build
