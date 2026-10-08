@@ -41,6 +41,9 @@ const MAX_BODY = 2 * 1024 * 1024;
 const MAX_TEXT = 2 * 1024 * 1024;
 const MAX_OUTPUT = 4 * 1024 * 1024;
 const APPROVAL_TTL_MS = 2 * 60 * 1000;
+const RELAY_URL = String(process.env.WILLY_REMOTE_RELAY_URL || "").replace(/\/$/, "");
+const RELAY_SECRET = String(process.env.WILLY_REMOTE_RELAY_SECRET || "");
+const RELAY_ALLOW_HTTP = process.env.WILLY_REMOTE_RELAY_ALLOW_HTTP === "1";
 
 const startedAt = Date.now();
 const approvals = new Map();
@@ -527,6 +530,63 @@ async function handleMcp(req, res, payload) {
   return fail(-32601, "Método MCP no soportado.");
 }
 
+async function relayLoop() {
+  if (!RELAY_URL || !RELAY_SECRET) return;
+  let relay;
+  try {
+    relay = new URL(RELAY_URL);
+  } catch {
+    await audit("relay.config_error", { error: "URL de relay no válida." });
+    return;
+  }
+  if (relay.protocol !== "https:" && !(RELAY_ALLOW_HTTP && relay.protocol === "http:")) {
+    await audit("relay.config_error", { error: "El relay debe usar HTTPS." });
+    return;
+  }
+  await audit("relay.enabled", { url: relay.origin });
+
+  while (true) {
+    try {
+      const poll = await fetch(RELAY_URL + "/agent/poll", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RELAY_SECRET}`, "Content-Type": "application/json" },
+        body: "{}",
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!poll.ok) throw new Error("Relay poll " + poll.status);
+      const data = await poll.json();
+      if (!data?.job) continue;
+
+      const job = data.job;
+      let result = null;
+      let error = "";
+      try {
+        const local = await fetch(`http://127.0.0.1:${PORT}/mcp`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(job.payload),
+          signal: AbortSignal.timeout(APPROVAL_TTL_MS + 10000),
+        });
+        result = await local.json();
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err);
+      }
+
+      const sent = await fetch(RELAY_URL + "/agent/result", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RELAY_SECRET}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ id: job.id, result, error: error || undefined }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!sent.ok) throw new Error("Relay result " + sent.status);
+      await audit("relay.job_completed", { id: job.id, error: error || undefined });
+    } catch (error) {
+      await audit("relay.error", { error: error instanceof Error ? error.message : String(error) });
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+  }
+}
+
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
@@ -600,6 +660,10 @@ server.listen(PORT, BIND, async () => {
   console.log(`[willy-remote-agent] activo en http://${BIND}:${PORT}`);
   console.log(`[willy-remote-agent] token: ${TOKEN_FILE}`);
   console.log(`[willy-remote-agent] config: ${CONFIG_FILE}`);
+  if (RELAY_URL && RELAY_SECRET) {
+    console.log(`[willy-remote-agent] relay propio: ${RELAY_URL}`);
+    void relayLoop();
+  }
 });
 
 async function shutdown(signal) {
