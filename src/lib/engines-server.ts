@@ -67,7 +67,7 @@ export const PROVIDERS: Provider[] = [
     dataNote: "Solo se usan modelos marcados «:free». Cada proveedor de esos modelos tiene sus propias condiciones.",
     onlyModelSuffix: ":free",
     prefer: ["qwen3-coder", "deepseek-r1(?!.*lite)", "qwen3-235b", "llama-3\\.3-70b-instruct", "gemma-3-27b", "deepseek-chat", "mistral-small", "phi-4"],
-    timeoutMs: 90_000,
+    timeoutMs: 35_000,
   },
   // 2. NVIDIA Build (NIM): gratis y sin tarjeta, 40 req/min, modelos grandes (DeepSeek, Llama, Qwen-Coder).
   // (25/09/2026) deepseek-v4.1-flash responde bien; glm-5.3 daba timeouts → movido al final de prefer.
@@ -426,7 +426,7 @@ export function classifyFailure(status: number, body: string, retryAfterHeader: 
   return { kind: "other", cooldownMs: 5 * 60_000, message: `Error inesperado (${status}).` };
 }
 
-const NOT_CHAT = /(embed|whisper|tts|guard|moderat|rerank|imagen|image|veo|audio|transcri|realtime|dall|safeguard|orpheus|playai|speech|lyria|robotics|computer-use|aqa)/i;
+const NOT_CHAT = /(embed|whisper|tts|guard|moderat|safety|classifier|rerank|imagen|image|veo|audio|transcri|realtime|dall|safeguard|orpheus|playai|speech|lyria|robotics|computer-use|aqa)/i;
 
 function scoreModel(provider: ProviderId, id: string): number {
   const name = id.toLowerCase();
@@ -700,6 +700,11 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   // cambie silenciosamente de modelo hasta que el orquestador decida explícitamente el relevo.
   const altActive = !strictModel && engine.alt && engine.alt.until > now && !avoided.has(engine.alt.model.replace(/^models\//, "")) ? engine.alt.model : undefined;
   let model = preferredModel || altActive || engine.model;
+  // Un catálogo puede cambiar y una selección antigua puede ser de moderación/safety. Nunca se reutiliza como modelo de chat/código.
+  if (model && NOT_CHAT.test(model)) {
+    if (strictModel) return { ok: false, kind: "model", error: `El modelo fijado «${model}» no es un modelo de conversación/programación.` };
+    model = undefined;
+  }
   // Nunca volver a escoger automáticamente un modelo que ya respondió vacío/no disponible o que este trabajo ha descartado.
   if (model && ((engine.bad ?? []).includes(model.replace(/^models\//, "")) || avoided.has(model.replace(/^models\//, "")))) {
     if (strictModel) return { ok: false, kind: "model", error: `El modelo fijado «${model}» ya fue descartado para esta mejora.` };

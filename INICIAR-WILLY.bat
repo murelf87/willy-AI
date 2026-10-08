@@ -19,6 +19,11 @@ $previousHead = $null
 $previousVersion = $null
 $buildBackup = $null
 $updatedThisRun = $false
+$noticeRequired = $false
+$lastVerifiedHead = $null
+$lastVerifiedVersion = $null
+$verifiedMarkerPath = $null
+$agent = $null
 
 function Refresh-Path {
   $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User') + ';' + $env:Path
@@ -152,6 +157,29 @@ try {
   Run-Git reset --hard origin/main | Out-Null
   $head = (Run-Git rev-parse HEAD).Trim()
   $updatedThisRun = [bool]($previousHead -and $previousHead -ne $head)
+
+  # Registro de la última revisión que llegó a compilar y arrancar correctamente.
+  # Es independiente de git pull: así también se detectan revisiones integradas directamente en esta copia local.
+  $dataDir = Join-Path $repo 'datos-privados'
+  New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+  $verifiedMarkerPath = Join-Path $dataDir 'ultima-version-operativa.json'
+  try {
+    if (Test-Path $verifiedMarkerPath) {
+      $verifiedText = (Get-Content -LiteralPath $verifiedMarkerPath -Raw).TrimStart([char]0xFEFF)
+      $lastVerified = $verifiedText | ConvertFrom-Json
+      if ($lastVerified.head) { $lastVerifiedHead = [string]$lastVerified.head }
+      if ($lastVerified.version) { $lastVerifiedVersion = [string]$lastVerified.version }
+    }
+  } catch {
+    $lastVerifiedHead = $null
+    $lastVerifiedVersion = $null
+  }
+  $currentVersionBeforeStart = Read-WillyVersion $repo
+  $noticeRequired = [bool](-not $lastVerifiedHead -or $lastVerifiedHead -ne $head)
+  if (-not $noticeRequired -and $lastVerifiedVersion -and $currentVersionBeforeStart -and $lastVerifiedVersion -ne $currentVersionBeforeStart) {
+    $noticeRequired = $true
+  }
+
   Write-Host "Version actual: $head" -ForegroundColor Green
   if ($updatedThisRun) { Write-Host "Punto de rollback: $previousHead" -ForegroundColor DarkGray }
 
@@ -291,21 +319,81 @@ try {
       throw 'WILLY no ha respondido en 90 segundos. El motivo aparece justo encima.'
     }
 
+    # ---- WILLY Remote Agent propio ----
+    # Arranca con WILLY para no depender de Desktop Commander. Escucha solo en localhost y cada acción
+    # solicitada por una IA entra en la cola de aprobación del dueño antes de ejecutarse.
+    try {
+      $agentHealth = $false
+      try {
+        $health = Invoke-RestMethod -Uri 'http://127.0.0.1:4050/health' -TimeoutSec 2
+        $agentHealth = [bool]$health.ok
+      } catch { $agentHealth = $false }
+      if (-not $agentHealth) {
+        $agentScript = Join-Path $repo 'willy-agent-server.mjs'
+        if (Test-Path $agentScript) {
+          $agentOut = Join-Path $root ("willy-agent-$runStamp.log")
+          $agentErr = Join-Path $root ("willy-agent-error-$runStamp.log")
+          $agentEnvRoot = if ($env:WILLY_ROOT) { $env:WILLY_ROOT } else { $root }
+          $savedAgentPort = $env:WILLY_AGENT_PORT
+          $savedAgentBind = $env:WILLY_AGENT_BIND
+          $savedWillyRoot = $env:WILLY_ROOT
+          try {
+            $env:WILLY_AGENT_PORT = '4050'
+            $env:WILLY_AGENT_BIND = '127.0.0.1'
+            $env:WILLY_ROOT = $agentEnvRoot
+            $agent = Start-Process -FilePath $nodeExe -ArgumentList ('"' + $agentScript + '"') -WorkingDirectory $repo -RedirectStandardOutput $agentOut -RedirectStandardError $agentErr -PassThru -WindowStyle Hidden
+          } finally {
+            $env:WILLY_AGENT_PORT = $savedAgentPort
+            $env:WILLY_AGENT_BIND = $savedAgentBind
+            $env:WILLY_ROOT = $savedWillyRoot
+          }
+          for ($i = 0; $i -lt 20 -and -not $agentHealth; $i++) {
+            Start-Sleep -Milliseconds 300
+            try {
+              $health = Invoke-RestMethod -Uri 'http://127.0.0.1:4050/health' -TimeoutSec 2
+              $agentHealth = [bool]$health.ok
+            } catch { $agentHealth = $false }
+          }
+        }
+      }
+      if ($agentHealth) {
+        Write-Host 'WILLY Remote Agent propio: ACTIVO (127.0.0.1:4050, aprobación obligatoria).' -ForegroundColor Green
+      } else {
+        Write-Host 'Aviso: WILLY abrió correctamente, pero su agente remoto propio no pudo arrancar. Revisa Equipo remoto.' -ForegroundColor Yellow
+      }
+    } catch {
+      Write-Host "Aviso: no se pudo iniciar WILLY Remote Agent: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
     # Solo después de compilar Y comprobar que el servidor responde se registra la actualización.
-    # La interfaz lee este archivo y mantiene la tarjeta visible hasta que el usuario pulse Aceptar.
-    if ($updatedThisRun) {
+    # Se compara también con la última revisión operativa: la tarjeta funciona aunque el código se haya integrado
+    # directamente en esta copia local y no mediante un git pull de este mismo arranque.
+    if ($updatedThisRun -or $noticeRequired) {
       try {
         $currentVersion = Read-WillyVersion $repo
         if (-not $currentVersion) { $currentVersion = '0.0.0' }
         $notes = @()
-        if ($previousHead -and $head) {
-          $notes = @(Run-Git log --format=%s "$previousHead..$head" | Select-Object -First 12)
+        $notesFrom = if ($lastVerifiedHead -and $lastVerifiedHead -ne $head) { $lastVerifiedHead } elseif ($previousHead -and $previousHead -ne $head) { $previousHead } else { $null }
+        if ($notesFrom -and $head) {
+          try { $notes = @(Run-Git log --format=%s "$notesFrom..$head" | Select-Object -First 12) } catch { $notes = @() }
         }
         if (-not $notes.Count) { $notes = @('Código actualizado, compilado y arranque verificado correctamente.') }
-        $dataDir = Join-Path $repo 'datos-privados'
-        New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
         $noticePath = Join-Path $dataDir 'actualizacion.json'
-        $from = if ($previousVersion -and $previousVersion -ne $currentVersion) { $previousVersion } else { '' }
+        $from = if ($lastVerifiedVersion -and $lastVerifiedVersion -ne $currentVersion) { $lastVerifiedVersion } elseif ($previousVersion -and $previousVersion -ne $currentVersion) { $previousVersion } else { '' }
+
+        # Si había una tarjeta anterior sin aceptar, conserva su origen y sus novedades.
+        if (Test-Path $noticePath) {
+          try {
+            $oldText = (Get-Content -LiteralPath $noticePath -Raw).TrimStart([char]0xFEFF)
+            $oldNotice = $oldText | ConvertFrom-Json
+            if ($oldNotice -and -not [bool]$oldNotice.ack) {
+              if ($oldNotice.from) { $from = [string]$oldNotice.from }
+              $combinedNotes = @($oldNotice.notes) + @($notes)
+              $notes = @($combinedNotes | Where-Object { $_ } | Select-Object -Unique | Select-Object -First 12)
+            }
+          } catch { }
+        }
+
         $notice = [ordered]@{
           version = $currentVersion
           from = $from
@@ -314,7 +402,14 @@ try {
           notes = @($notes)
           ack = $false
         }
-        $notice | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $noticePath -Encoding UTF8
+        $verified = [ordered]@{
+          head = $head
+          version = $currentVersion
+          at = (Get-Date).ToUniversalTime().ToString('o')
+        }
+        $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
+        [System.IO.File]::WriteAllText($noticePath, ($notice | ConvertTo-Json -Depth 5), $utf8NoBom)
+        [System.IO.File]::WriteAllText($verifiedMarkerPath, ($verified | ConvertTo-Json -Depth 5), $utf8NoBom)
         Write-Host "Actualización verificada: la tarjeta de novedades se mostrará en WILLY." -ForegroundColor Green
       } catch {
         Write-Host "Aviso: la actualización funciona, pero no se pudo guardar la tarjeta de novedades: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -329,6 +424,7 @@ try {
     Write-Host 'Pulsa ENTER aqui para detener WILLY.'
     Read-Host | Out-Null
   } finally {
+    if ($agent -and -not $agent.HasExited) { Stop-Process -Id $agent.Id -Force -ErrorAction SilentlyContinue }
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
     if ($pidFile -and (Test-Path $pidFile)) {
       $pidText = (Get-Content -LiteralPath $pidFile -Raw -ErrorAction SilentlyContinue).Trim()

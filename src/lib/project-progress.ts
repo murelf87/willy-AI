@@ -454,7 +454,7 @@ export function computeProgress(plan: ProjectPlan | null | undefined): ProgressI
   else if (tests === "viejas") missing.push("hay que volver a pasar las pruebas (el proyecto ha cambiado)");
   if (plan.attention) missing.push(plan.attention.kind === "decision" ? "hay una decisión pendiente" : plan.attention.kind === "bloqueo" ? "hay un bloqueo sin resolver" : "hay un error sin resolver");
   const met = missing.length === 0;
-  let percent = Math.floor(raw);
+  let percent = raw > 0 ? Math.max(1, Math.floor(raw)) : 0;
   if (percent >= 100 && !met) percent = 99;
   if (met) percent = 100;
   const validating = !pending.length && !met;
@@ -464,6 +464,10 @@ export function computeProgress(plan: ProjectPlan | null | undefined): ProgressI
   else if (plan.attention?.kind === "error") phase = `Error: ${plan.attention.reason}`;
   else if (met) phase = "Completado";
   else if (validating) phase = "Validando";
+  else if (firstOpen && ev.discoveryDone && firstOpen.id === "discovery") {
+    const next = firstOpen.tasks.find((task) => effectiveStatus(task, ev) !== "hecha" && effectiveStatus(task, ev) !== "descartada");
+    phase = next ? `Análisis previo: ${next.title}` : "Análisis previo";
+  }
   else if (firstOpen) phase = phaseOfMilestone(plan, firstOpen.id, firstOpen.name);
   else phase = "Validando";
   return { known: true, percent, remaining: 100 - percent, milestones, phase, pending, dod: { met, missing }, validating, discoveryDone };

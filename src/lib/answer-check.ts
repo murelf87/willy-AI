@@ -97,8 +97,12 @@ export function requiredTexts(request: string): string[] {
   if (!CHANGE_VERB.test(request)) return [];
   const out: string[] = [];
   for (const m of request.matchAll(QUOTE)) {
-    const before = request.slice(Math.max(0, m.index - 40), m.index);
-    const after = request.slice(m.index + m[0].length, m.index + m[0].length + 12);
+    const at = m.index ?? 0;
+    const before = request.slice(Math.max(0, at - 90), at);
+    const after = request.slice(at + m[0].length, at + m[0].length + 20);
+    // Un verbo de cambio en otra sección de un prompt largo NO convierte todas sus citas técnicas en requisitos.
+    // La cita solo se exige si su propio contexto cercano contiene la instrucción de cambio.
+    if (!CHANGE_VERB.test(before)) continue;
     // «cambia «A» por «B»»: A es lo que desaparece; «quita «X»»: X no se exige.
     if (/\s(?:por|a)\s*$/i.test(before) || !/^\s*(?:por|a)\s+[«“"]/i.test(after) && !NOT_WANTED.test(before)) out.push(m[1]!.trim());
   }
@@ -119,7 +123,7 @@ export const REPAIR_REQUEST = /^(?:La vista previa(?: de «[^»\n]{1,200}»)? no
 
 /** ¿Tiene que cambiar archivos este encargo? (Una pregunta del dueño puede contestarse sin archivos: esas no se exigen.) */
 export function mustChangeFiles(input: { label: string; text: string; repairAttempt?: number; testsAttempt?: number }): boolean {
-  return Boolean(input.repairAttempt || input.testsAttempt) || CHANGE_LABELS.has(input.label) || REPAIR_REQUEST.test(input.text.trimStart());
+  return Boolean(input.repairAttempt || input.testsAttempt) || CHANGE_LABELS.has(input.label) || /^Autopiloto\b/i.test(input.label) || REPAIR_REQUEST.test(input.text.trimStart());
 }
 
 // ------------------------------------------------------------------------------------------- una entrega que se ha cortado

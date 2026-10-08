@@ -12,13 +12,14 @@ export const CHAT_ORDER = ["groq", "cerebras", "gemini", "openrouter", "modelsco
  * Groq NO está aquí: su límite de 8k tokens hace que rechace siempre los prompts de autoconstrucción,
  * ralentizando el proceso sin aportar nada. Para chats cortos sigue disponible en CHAT_ORDER.
  *
- * Orden: OpenAI (solo si el dueño ha guardado su clave; API de pago) → OpenRouter → Gemini → xAI →
- *        Mistral → Cohere → NVIDIA. NVIDIA queda al final porque puede tardar mucho aun con peticiones pequeñas.
+ * Orden actual: OpenAI (si el dueño tiene clave válida) → Mistral/Codestral → Cohere → OpenRouter → resto.
+ * Mistral y Cohere van delante porque en el equipo real del dueño han demostrado responder con estabilidad a contextos largos.
+ * OpenRouter conserva su catálogo gratuito como fallback, pero ya no puede retener un ciclo largo cuando sus upstream están saturados.
+ * NVIDIA queda al final porque puede tardar incluso con peticiones pequeñas.
  *
- * 28/09/2026: Groq eliminado de BUILD_ORDER — límite 8k tokens lo hace inútil para autoconstrucción.
- * 25/09/2026: Mistral (Codestral) subido para código; OpenRouter adelantado por Qwen3-Coder:free.
+ * Groq se reserva para tareas cortas por su contexto limitado.
  */
-export const BUILD_ORDER = ["openai", "openrouter", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "mistral", "cohere", "nvidia"];
+export const BUILD_ORDER = ["openai", "mistral", "cohere", "openrouter", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia"];
 
 /**
  * «Plug and play»: orden por tipo de petición.
@@ -26,8 +27,8 @@ export const BUILD_ORDER = ["openai", "openrouter", "gemini", "cerebras", "model
  * Para tareas que generan respuestas largas (razonamiento, investigación, escritura) no va primero.
  */
 export const KIND_CLOUD_ORDER: Record<string, string[]> = {
-  codigo:        ["cerebras", "openrouter", "modelscope", "gemini", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "mistral", "groq", "cohere"],
-  web:           ["openrouter", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "nvidia", "mistral", "groq", "cohere"],
+  codigo:        ["mistral", "cohere", "openrouter", "cerebras", "modelscope", "gemini", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "groq"],
+  web:           ["mistral", "cohere", "openrouter", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "nvidia", "groq"],
   datos:         ["gemini", "openrouter", "modelscope", "cerebras", "cloudflare", "siliconflow", "huggingface", "xai", "nvidia", "mistral", "cohere", "groq"],
   razonamiento:  ["openrouter", "cerebras", "gemini", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "mistral", "cohere", "groq"],
   juridico:      ["perplexity", "openai", "gemini", "openrouter", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "mistral", "cohere", "xai", "deepseek", "zai", "kimi", "nvidia", "groq"],
@@ -35,7 +36,7 @@ export const KIND_CLOUD_ORDER: Record<string, string[]> = {
   escritura:     ["gemini", "openrouter", "cerebras", "modelscope", "huggingface", "cloudflare", "siliconflow", "xai", "mistral", "cohere", "nvidia", "groq"],
   traduccion:    ["gemini", "mistral", "openrouter", "modelscope", "cerebras", "huggingface", "siliconflow", "xai", "cohere", "groq", "nvidia"],
   vision:        ["gemini", "modelscope", "openrouter", "huggingface", "siliconflow", "nvidia", "mistral", "cohere", "groq"],
-  general:       ["cerebras", "openrouter", "gemini", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "mistral", "groq", "cohere"],
+  general:       ["mistral", "cohere", "openrouter", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "groq"],
 };
 
 /** Las IA externas de una lista que se pueden usar ahora mismo (con clave, activadas y sin agotar), en su orden. */

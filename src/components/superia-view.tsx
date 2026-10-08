@@ -63,6 +63,10 @@ import {
   autoRepairRequest, brokenReason, isBrokenPreview, repairNote, repairStep, watchAfterSave, type RepairWatch,
 } from "@/lib/preview-runtime";
 import { STATUS_LABEL, needsAttention, normalizePlan, planJsonRequest, planPromptBlock, projectStatus } from "@/lib/project-progress";
+import {
+  AUTOPILOT_COOLDOWN_MS, AUTOPILOT_STALL_LIMIT, autoContinuationPrompt, autoPilotEnabled,
+  eligibleAutoProject, nextAutoStamp, readAutoMap, setAutoPilotEnabled, writeAutoStamp,
+} from "@/lib/project-autopilot";
 import { previewEvidenceOf, recordAnswer, recordAttention, recordPreview, recordTests, syncDiscoveryPlan } from "@/lib/project-plan-sync";
 import { missingRequestedPages, requestFileHints } from "@/lib/plan-evidence";
 import { fitNote, preferFitting, readFitInfo } from "@/lib/local-fit";
@@ -236,6 +240,10 @@ export function SuperIAView() {
   const discoveryTimer = useRef<number | null>(null);
   // Rev22 (rediseño, punto 99): si un cambio de WILLY rompe la vista previa, se repara solo (como mucho 2 intentos) o se dice.
   const [autoRepair, setAutoRepair] = usePersistentState<boolean>("superwilly:reparar-solo", true);
+  const [projectAutopilot, setProjectAutopilotState] = useState<boolean>(() => autoPilotEnabled());
+  const [autopilotTick, setAutopilotTick] = useState(0);
+  const autopilotTimer = useRef<number | null>(null);
+  const autopilotStarting = useRef(false);
   const repairWatch = useRef<RepairWatch | null>(null);
   const [repairTick, setRepairTick] = useState(0);
   // (25/09/2026) Tras un cambio de WILLY, cuando la vista previa vuelve a verse bien se comprueba que estén las páginas que pidió
@@ -709,7 +717,7 @@ export function SuperIAView() {
     const mustChange = working && !opts.analysis && mustChangeFiles({ label, text, ...(opts.repairAttempt ? { repairAttempt: opts.repairAttempt } : {}), ...(opts.testsAttempt ? { testsAttempt: opts.testsAttempt } : {}) });
     // Lo que el dueño pide entre comillas («pon «Reserva tu clase gratis»») tiene que aparecer en los archivos: si no, la respuesta
     // no vale y pasa a la siguiente IA (solo en lo que escribe el dueño, no en las peticiones automáticas de WILLY).
-    const mustContain = working && !opts.analysis && !opts.discoveryBuild && !opts.repairAttempt && !opts.testsAttempt && !opts.continueAttempt && !opts.completeAttempt && !opts.newProject && text === (opts.ownerText ?? text) ? requiredTexts(text) : [];
+    const mustContain = working && !opts.analysis && !/^Autopiloto\b/i.test(label) && !opts.discoveryBuild && !opts.repairAttempt && !opts.testsAttempt && !opts.continueAttempt && !opts.completeAttempt && !opts.newProject && text === (opts.ownerText ?? text) ? requiredTexts(text) : [];
     const accept = working && !opts.analysis ? (answerText: string) => unusableAnswer(answerText, projectFiles, { requireFiles: mustChange || mustContain.length > 0, mustContain }) : undefined;
     const warning = localWarning(superMode, taskKind, available, TASK_LABELS[taskKind]);
     setSteps((prev) => [...prev, { model: SUPER_MODES.find((m) => m.id === superMode)?.label ?? "Súper IA", state: "ok", detail: route.why }, ...(warning ? [{ model: "Aviso", state: "relevo" as const, detail: warning }] : [])]);
@@ -1091,7 +1099,15 @@ export function SuperIAView() {
       if (!(await openProject(h.projectId))) return;
       await wait(60);
       if (h.autoRun && h.analysis) void latest.current.execute(h.text, undefined, "Análisis del proyecto", { ownerText: "Analiza el proyecto (sus archivos reales) y calcula cuánto lleva y cuánto le falta, sin cambiar nada.", noPlaybook: true, analysis: true });
-      else if (h.autoRun) void latest.current.execute(h.text, undefined, "Construcción del proyecto", { ...(material ? { material } : {}), withPictures, ...(h.model ? { preferredModel: h.model } : {}) });
+      else if (h.autoRun) {
+        const autopilot = /^AUTOPILOTO WILLY\b/i.test(h.text);
+        void latest.current.execute(
+          h.text,
+          undefined,
+          autopilot ? "Autopiloto · Continuar" : "Construcción del proyecto",
+          { ...(material ? { material } : {}), withPictures, ...(autopilot ? { ownerAlreadySaved: true, noPlaybook: true } : {}), ...(h.model ? { preferredModel: h.model } : {}) },
+        );
+      }
       else setPrompt(h.text);
       return;
     }
@@ -1161,6 +1177,104 @@ export function SuperIAView() {
     window.addEventListener(HANDOFF_EVENT, onHandoff);
     return () => window.removeEventListener(HANDOFF_EVENT, onHandoff);
   }, []);
+
+  // Autopiloto: Súper IA permanece montada en segundo plano y continúa sola proyectos con plan real.
+  // Solo se detiene ante pausa/archivo/completado, una decisión/bloqueo del plan, falta de IA o estancamiento verificable.
+  useEffect(() => {
+    const onChange = (event: Event) => {
+      const value = (event as CustomEvent<boolean>).detail;
+      setProjectAutopilotState(typeof value === "boolean" ? value : autoPilotEnabled());
+    };
+    window.addEventListener("willy:project-autopilot-change", onChange);
+    return () => window.removeEventListener("willy:project-autopilot-change", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!projectAutopilot || running || savingFiles || interviewing || choice || autopilotStarting.current) return;
+    if (autopilotTimer.current !== null) window.clearTimeout(autopilotTimer.current);
+    autopilotTimer.current = window.setTimeout(() => {
+      autopilotTimer.current = null;
+      void (async () => {
+        if (!projectAutopilot || runningRef.current || autopilotStarting.current) return;
+
+        const candidates = projectsRef.current
+          .map((project) => eligibleAutoProject(project))
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+          .sort((a, b) => {
+            const current = sessionRef.current?.projectId;
+            if (a.project.id === current && b.project.id !== current) return -1;
+            if (b.project.id === current && a.project.id !== current) return 1;
+            return Date.parse(b.project.updatedAt) - Date.parse(a.project.updatedAt);
+          });
+        const item = candidates[0];
+        if (!item) return;
+
+        const previous = readAutoMap()[item.project.id];
+        if (previous) {
+          const remainingCooldown = AUTOPILOT_COOLDOWN_MS - (Date.now() - previous.at);
+          if (remainingCooldown > 0) {
+            autopilotTimer.current = window.setTimeout(() => {
+              autopilotTimer.current = null;
+              setAutopilotTick((value) => value + 1);
+            }, remainingCooldown + 50);
+            return;
+          }
+        }
+
+        const engines = await engineStatus().catch(() => null);
+        const cloudReady = Boolean(engines?.master && engines.engines.some((engine) => engine.enabled && engine.available));
+        if (!cloudReady && available.length === 0) return;
+
+        const stamp = nextAutoStamp(item);
+        if (stamp.stalls >= AUTOPILOT_STALL_LIMIT) {
+          await recordAttention(item.project.id, {
+            kind: "error",
+            reason: `Autopiloto detenido tras ${AUTOPILOT_STALL_LIMIT} ciclos sin avance verificable. WILLY conserva lo hecho y necesita revisar el motivo antes de seguir.`,
+          }, (current) => !current);
+          pushNotice(`⚠️ Autopiloto detenido en «${item.project.name}»: ${AUTOPILOT_STALL_LIMIT} ciclos sin avance real.`, "warn");
+          return;
+        }
+
+        autopilotStarting.current = true;
+        try {
+          if (item.project.state === "Borrador") {
+            const activated = await projectService.setState(item.project.id, "Activo");
+            if (!activated.ok) return;
+          }
+          if (!(await latest.current.openProject(item.project.id))) return;
+          await wait(80);
+
+          // Un plan ya analizado manda sobre una sesión antigua que se hubiera quedado visualmente en entrevista.
+          const currentSession = sessionRef.current;
+          if (currentSession?.projectId === item.project.id && currentSession.discovery?.stage === "entrevista" && item.progress.discoveryDone) {
+            const normalized = persist({
+              ...currentSession,
+              discovery: { ...currentSession.discovery, stage: "construido", updatedAt: Date.now() },
+            });
+            sessionRef.current = normalized;
+            setSession(normalized);
+          }
+
+          writeAutoStamp(item.project.id, stamp);
+          pushNotice(`▶ Autopiloto: continúo «${item.project.name}» · ${item.progress.phase}.`, "info");
+          void latest.current.execute(
+            autoContinuationPrompt(item),
+            undefined,
+            `Autopiloto · ${item.progress.phase}`,
+            { ownerAlreadySaved: true, noPlaybook: true },
+          );
+        } finally {
+          autopilotStarting.current = false;
+        }
+      })();
+    }, 1_800);
+    return () => {
+      if (autopilotTimer.current !== null) {
+        window.clearTimeout(autopilotTimer.current);
+        autopilotTimer.current = null;
+      }
+    };
+  }, [projectAutopilot, autopilotTick, running, savingFiles, interviewing, choice, projects, available]);
 
   const repair = async () => {
     if (running) return;
@@ -1664,6 +1778,31 @@ export function SuperIAView() {
 
   const consolePreferences = (
     <div className="grid gap-4 xl:grid-cols-2">
+      <Card className="space-y-3 border-primary/25">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-semibold"><Hammer className="size-4 text-primary" />Autopiloto de proyectos</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">Cuando WILLY está abierto y hay un motor disponible, continúa por sí solo el primer trabajo pendiente. Se detiene ante una decisión tuya, un bloqueo real o tres ciclos sin avance verificable.</p>
+          </div>
+          <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${projectAutopilot ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-border bg-muted text-muted-foreground"}`}>
+            {projectAutopilot ? "Activo" : "Pausado"}
+          </span>
+        </div>
+        <Button
+          size="sm"
+          variant={projectAutopilot ? "outline" : "secondary"}
+          className="w-full gap-2 sm:w-auto"
+          onClick={() => {
+            const next = !projectAutopilot;
+            setProjectAutopilotState(next);
+            setAutoPilotEnabled(next);
+            pushNotice(next ? "Autopiloto activado: WILLY continuará los proyectos elegibles sin esperar a que pulses Continuar." : "Autopiloto pausado.", next ? "success" : "info");
+          }}
+        >
+          {projectAutopilot ? <Square className="size-3.5" /> : <Play className="size-3.5" />}
+          {projectAutopilot ? "Pausar Autopiloto" : "Activar Autopiloto"}
+        </Button>
+      </Card>
       <Card className="space-y-2">
         <p className="flex items-center gap-2 text-sm font-semibold"><Mic className="size-4 text-primary" />Mi yo en IA</p>
         <p className="text-xs text-muted-foreground">Describe cómo hablas y escribes. Se añade a las peticiones de Súper IA para que el contenido mantenga tu estilo.</p>

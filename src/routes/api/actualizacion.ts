@@ -21,7 +21,8 @@ async function pendingFile(): Promise<string> {
 async function read(): Promise<Notice | null> {
   try {
     const fs = await import("node:fs/promises");
-    return sanitizeNotice(JSON.parse(await fs.readFile(await file(), "utf8")));
+    const text = (await fs.readFile(await file(), "utf8")).replace(/^\uFEFF/, "");
+    return sanitizeNotice(JSON.parse(text));
   } catch {
     return null;
   }
@@ -31,7 +32,8 @@ async function read(): Promise<Notice | null> {
 async function readPending(): Promise<PendingUpdate | null> {
   try {
     const fs = await import("node:fs/promises");
-    const raw = JSON.parse(await fs.readFile(await pendingFile(), "utf8")) as Record<string, unknown>;
+    const text = (await fs.readFile(await pendingFile(), "utf8")).replace(/^\uFEFF/, "");
+    const raw = JSON.parse(text) as Record<string, unknown>;
     // Ya fue confirmada: el actualizador borra el archivo al instalar, pero si no lo borra se comprueba el campo.
     if (raw["confirmed"] === true || raw["cancelled"] === true) return null;
     const version = typeof raw["version"] === "string" ? raw["version"].trim().slice(0, 40) : "";

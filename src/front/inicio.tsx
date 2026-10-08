@@ -19,6 +19,7 @@ import {
   type ProgressInfo, type ProjectPlan, type ProjectStatusId,
 } from "@/lib/project-progress";
 import { sendToSuperWilly } from "@/lib/super-willy-handoff";
+import { autoContinuationPrompt, eligibleAutoProject } from "@/lib/project-autopilot";
 import { fetchSelfStatus, type StatusBody } from "@/lib/self-build-client";
 import { SYSTEM_PROJECT_DESC, SYSTEM_PROJECT_NAME, systemPlan } from "@/lib/system-project";
 import { useViewActive } from "@/lib/view-active";
@@ -416,9 +417,31 @@ export function InicioScreen({ ping, onNav, onNewProject, onOpenProject, onAskWi
 function ContinueCard({ row, now, ping, onOpen, onProgress }: { row: Row; now: number; ping: Ping; onOpen: (p: Project) => void; onProgress: () => void }) {
   const { p, progress, status } = row;
   const action = primaryAction(status);
+  const continueNow = (project: Project) => {
+    const item = eligibleAutoProject(project);
+    if (!item) { onOpen(project); return; }
+    sendToSuperWilly({
+      text: autoContinuationPrompt(item),
+      action: "cambio",
+      attachments: [],
+      images: [],
+      urls: [],
+      from: "proyectos",
+      projectId: project.id,
+      autoRun: true,
+    });
+    ping(`WILLY continúa «${project.name}» automáticamente desde ${item.progress.phase}.`);
+  };
   const act = () => {
-    if (action === "Reanudar") void projectService.setState(p.id, "Activo").then((r) => { if (r.ok) onOpen(r.data); else ping(`⚠️ ${r.error}`); });
-    else onOpen(p);
+    if (action === "Reanudar") {
+      void projectService.setState(p.id, "Activo").then((r) => {
+        if (r.ok) continueNow(r.data);
+        else ping(`⚠️ ${r.error}`);
+      });
+      return;
+    }
+    if (action === "Continuar") { continueNow(p); return; }
+    onOpen(p);
   };
   const doState = (state: "Activo" | "Pausado", text: string) => void projectService.setState(p.id, state).then((r) => ping(r.ok ? `«${p.name}» ${text}.` : `⚠️ ${r.error}`));
   // «Analizar proyecto»: el mismo encargo real que usa la pantalla Proyectos (WILLY revisa los archivos y hace el plan, sin cambiar nada).

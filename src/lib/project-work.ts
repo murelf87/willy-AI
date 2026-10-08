@@ -39,7 +39,7 @@ export function agentsLine(active: string[]): string {
 
 /** Cómo trabajar sobre un proyecto que ya existe (va en el mensaje de sistema, después de las reglas de calidad). */
 export const PROJECT_WORK_RULES = `TRABAJAS SOBRE UN PROYECTO QUE YA EXISTE (SUPER WILLY):
-1. Parte de sus archivos actuales (abajo). No empieces de cero salvo que el dueño lo pida.
+1. Parte de sus archivos actuales (abajo). Esos bloques SON los archivos reales que WILLY acaba de leer del proyecto: nunca respondas «no tengo acceso a los archivos». No empieces de cero salvo que el dueño lo pida. Si WILLY marca algún archivo como omitido por tamaño y de verdad lo necesitas, pide SOLO ese archivo.
 2. Si cambias algo, entrega CADA archivo que cambies COMPLETO, en un bloque \`\`\`lenguaje ruta/exacta (la misma ruta que ya tiene). No entregues los archivos que no cambian: se conservan tal cual.
 3. Si un archivo es muy grande, puedes entregar solo sustituciones exactas, así:
 \`\`\`replace ruta/exacta
@@ -52,7 +52,8 @@ export const PROJECT_WORK_RULES = `TRABAJAS SOBRE UN PROYECTO QUE YA EXISTE (SUP
 4. Nunca escribas «...», «resto del código igual» ni partes omitidas: lo que entregues sustituye al archivo actual. Si falta algo, WILLY no guarda ese archivo.
 5. Si el cambio se ve en pantalla y el proyecto tiene vista-previa.html, entrega también vista-previa.html completo y al día (es lo que el dueño ve en la vista previa).
 6. Si el dueño solo pregunta algo, responde sin archivos.
-7. Solo puedes cambiar archivos cuyo contenido veas abajo; si hace falta tocar otro, dilo y pídelo.`;
+7. Solo puedes cambiar archivos cuyo contenido veas abajo; si hace falta tocar otro, dilo y pídelo.
+8. Los fragmentos marcados como ejemplo, ilustración, plantilla o referencia en la documentación NO son requisitos funcionales. Nunca copies ni exijas nombres, rutas o endpoints de ejemplo (por ejemplo, /api/notas) salvo que el encargo real del proyecto los necesite expresamente.`;
 
 const SKIP_CONTENT = /(?:^|\/)(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?)$|\.(?:png|jpe?g|gif|webp|ico|woff2?|ttf|otf|mp3|mp4|zip|pdf)$/i;
 const PREVIEW = /(?:^|\/)(?:vista-previa|index)\.html?$/i;

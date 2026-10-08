@@ -133,7 +133,8 @@ function Workspace() {
     if (wanted === "superia" || wanted === "diseno") setView(wanted);
   }, []);
   // Las pestañas que ya has abierto se quedan VIVAS (ocultas): así no pierdes lo que escribías o generabas en ellas al cambiar de una a otra.
-  const [visited, setVisited] = useState<View[]>(["chat"]);
+  // Súper IA queda montada desde el arranque, aunque esté oculta: así el Autopiloto puede continuar proyectos sin que el dueño tenga que abrir la pestaña o pulsar «Continuar».
+  const [visited, setVisited] = useState<View[]>(["chat", "superia"]);
   const shown = visited.includes(view) ? visited : [...visited, view];
   useEffect(() => {
     if (!visited.includes(view)) setVisited(shown);
