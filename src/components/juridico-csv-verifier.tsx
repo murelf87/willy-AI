@@ -58,6 +58,15 @@ type HcvStatus = {
   };
 };
 
+type HcvForensicResult = {
+  reportId: string;
+  report: {
+    conclusion: { classification: string; confidence: "alta" | "media" | "baja"; summary: string };
+    findings: Array<{ level: "positive" | "info" | "warning" | "critical"; code: string; title: string; detail: string }>;
+    generatedAt: string;
+  };
+};
+
 type Props = {
   caseId: string;
   checks: HcvCheck[];
@@ -127,6 +136,7 @@ export function JuridicoCsvVerifier({ caseId, checks, onChange, ping }: Props) {
   const [status, setStatus] = useState<HcvStatus | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [forensicReport, setForensicReport] = useState<HcvForensicResult | null>(null);
   const sourceRef = useRef<HTMLInputElement>(null);
   const originalRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLInputElement>(null);
@@ -148,6 +158,10 @@ export function JuridicoCsvVerifier({ caseId, checks, onChange, ping }: Props) {
     if (!checks.length) setActiveId("");
     else if (!checks.some((x) => x.id === activeId)) setActiveId(checks[0]!.id);
   }, [checks, activeId]);
+
+  useEffect(() => {
+    setForensicReport(null);
+  }, [activeId]);
 
   const patch = (id: string, data: Partial<HcvCheck>) => {
     onChange(checks.map((x) => x.id === id ? { ...x, ...data } : x));
@@ -273,6 +287,35 @@ export function JuridicoCsvVerifier({ caseId, checks, onChange, ping }: Props) {
     } finally { setBusy(""); }
   };
 
+  const generateForensicReport = async () => {
+    if (!active || !allArtifactIds.length) return;
+    setBusy("forensic"); setError("");
+    try {
+      const data = await jsonPost<{ ok: true; result: HcvForensicResult }>({
+        action: "forensic-report",
+        caseId,
+        artifactIds: allArtifactIds,
+        csv: active.csv,
+        officialResult: active.officialResult,
+        officialResultSource: active.officialResultSource ?? null,
+        comparison: active.comparison ?? null,
+      });
+      setForensicReport(data.result);
+      const url = "/api/juridico-hcv?caseId=" + encodeURIComponent(caseId) + "&reportId=" + encodeURIComponent(data.result.reportId) + "&reportFormat=html";
+      window.location.href = url;
+      ping("Informe informático forense generado y descargado. Incluye huellas, estructura, metadatos, CSV/HCV, comparación, hallazgos, metodología y limitaciones.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar el informe informático forense.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const downloadForensic = (format: "html" | "json") => {
+    if (!forensicReport) return;
+    window.location.href = "/api/juridico-hcv?caseId=" + encodeURIComponent(caseId) + "&reportId=" + encodeURIComponent(forensicReport.reportId) + "&reportFormat=" + format;
+  };
+
   const removeCheck = (id: string) => {
     if (!window.confirm("¿Quitar esta comprobación del expediente? Los archivos almacenados no se borran automáticamente del disco.")) return;
     onChange(checks.filter((x) => x.id !== id));
@@ -386,8 +429,24 @@ export function JuridicoCsvVerifier({ caseId, checks, onChange, ping }: Props) {
             {active.metadata && <Button variant="outline" size="sm" className="justify-start gap-2" onClick={()=>downloadArtifact(active.metadata!)}><Download className="size-3.5"/>Metadatos</Button>}
             {active.eni && <Button variant="outline" size="sm" className="justify-start gap-2" onClick={()=>downloadArtifact(active.eni!)}><Download className="size-3.5"/>Documento ENI</Button>}
             <Button className="justify-start gap-2" disabled={busy === "package" || !allArtifactIds.length} onClick={()=>void downloadPackage()}>{busy === "package" ? <Loader2 className="size-3.5 animate-spin"/> : <PackageCheck className="size-3.5"/>}Descargar TODO (.zip)</Button>
+            <Button variant="outline" className="justify-start gap-2 border-sky-500/40 bg-sky-500/5 text-sky-800 hover:bg-sky-500/10" disabled={busy === "forensic" || !allArtifactIds.length} onClick={()=>void generateForensicReport()}>
+              {busy === "forensic" ? <Loader2 className="size-3.5 animate-spin"/> : <FileSearch className="size-3.5"/>}
+              Realizar informe informático forense
+            </Button>
           </div>
           <p className="mt-3 text-[10px] leading-4 text-muted-foreground">El ZIP incluye los archivos disponibles y un manifiesto JSON con CSV, resultado registrado, comparación y huellas SHA-256.</p>
+          {forensicReport && <div className="mt-3 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
+            <p className="text-xs font-bold">Informe forense generado</p>
+            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{forensicReport.report.conclusion.summary}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className="rounded-full border border-border bg-background px-2 py-1 text-[9px] font-bold">Confianza {forensicReport.report.conclusion.confidence.toUpperCase()}</span>
+              <span className="rounded-full border border-border bg-background px-2 py-1 text-[9px] font-bold">{forensicReport.report.findings.length} hallazgo(s)</span>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <Button variant="outline" size="sm" className="gap-2" onClick={()=>downloadForensic("html")}><Download className="size-3.5"/>Informe HTML imprimible</Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={()=>downloadForensic("json")}><Download className="size-3.5"/>Datos técnicos JSON</Button>
+            </div>
+          </div>}
         </Card>
       </div>
     </div>}

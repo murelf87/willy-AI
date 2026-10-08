@@ -3,8 +3,10 @@ import { blockForeignSite } from "@/lib/same-origin";
 import {
   checkEnidocCsv,
   compareHcvArtifacts,
+  createHcvForensicReport,
   createHcvPackage,
   hcvDownload,
+  hcvForensicDownload,
   hcvStatus,
   storeHcvArtifact,
   type HcvArtifactKind,
@@ -20,11 +22,15 @@ export const Route = createFileRoute("/api/juridico-hcv")({
         const caseId = url.searchParams.get("caseId") ?? "";
         const artifactId = url.searchParams.get("artifactId") ?? undefined;
         const packageId = url.searchParams.get("packageId") ?? undefined;
-        if (!caseId || (!artifactId && !packageId)) {
+        const reportId = url.searchParams.get("reportId") ?? undefined;
+        const reportFormat = url.searchParams.get("reportFormat") === "json" ? "json" as const : "html" as const;
+        if (!caseId || (!artifactId && !packageId && !reportId)) {
           return Response.json({ ok: true, status: hcvStatus() }, { headers: { "Cache-Control": "no-store" } });
         }
         try {
-          const result = await hcvDownload(caseId, artifactId, packageId);
+          const result = reportId
+            ? await hcvForensicDownload(caseId, reportId, reportFormat)
+            : await hcvDownload(caseId, artifactId, packageId);
           return new Response(result.bytes, {
             headers: {
               "Content-Type": result.mime,
@@ -75,6 +81,19 @@ export const Route = createFileRoute("/api/juridico-hcv")({
             const ids = Array.isArray(body["artifactIds"]) ? (body["artifactIds"] as unknown[]).map(String).slice(0, 20) : [];
             const manifest = body["manifest"] && typeof body["manifest"] === "object" ? body["manifest"] as Record<string, unknown> : {};
             const result = await createHcvPackage(String(body["caseId"] ?? ""), ids, manifest);
+            return Response.json({ ok: true, result }, { headers: { "Cache-Control": "no-store" } });
+          }
+          if (action === "forensic-report") {
+            const ids = Array.isArray(body["artifactIds"]) ? (body["artifactIds"] as unknown[]).map(String).slice(0, 20) : [];
+            const comparison = body["comparison"] && typeof body["comparison"] === "object" ? body["comparison"] as Record<string, unknown> : null;
+            const result = await createHcvForensicReport({
+              caseId: String(body["caseId"] ?? ""),
+              artifactIds: ids,
+              csv: String(body["csv"] ?? ""),
+              officialResult: String(body["officialResult"] ?? "pending"),
+              officialResultSource: body["officialResultSource"] == null ? null : String(body["officialResultSource"]),
+              comparison,
+            });
             return Response.json({ ok: true, result }, { headers: { "Cache-Control": "no-store" } });
           }
           if (action === "enidoc-check") {
