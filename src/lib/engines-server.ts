@@ -66,7 +66,7 @@ export const PROVIDERS: Provider[] = [
     keyUrl: "https://openrouter.ai/keys",
     dataNote: "Solo se usan modelos marcados «:free». Cada proveedor de esos modelos tiene sus propias condiciones.",
     onlyModelSuffix: ":free",
-    prefer: ["qwen3-coder", "deepseek-r1(?!.*lite)", "qwen3-235b", "llama-3\\.3-70b-instruct", "gemma-3-27b", "deepseek-chat", "mistral-small", "phi-4"],
+    prefer: ["^nex-agi/nex-n2-pro:free$", "qwen3-coder", "deepseek-r1(?!.*lite)", "qwen3-235b", "llama-3\\.3-70b-instruct", "gemma-3-27b", "deepseek-chat", "mistral-small", "phi-4"],
     timeoutMs: 35_000,
   },
   // 2. NVIDIA Build (NIM): gratis y sin tarjeta, 40 req/min, modelos grandes (DeepSeek, Llama, Qwen-Coder).
