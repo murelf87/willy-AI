@@ -20,7 +20,7 @@ import { FAMILIES, NATURAL_TIPS, CHARACTER_TIPS } from "@/lib/avatar-engines";
 
 type Tab = "personaje" | "generar" | "motores" | "modelos";
 
-const MODEL_FOLDERS = ["checkpoints", "loras", "vae", "controlnet", "upscale_models", "embeddings", "clip_vision", "ipadapter"] as const;
+const MODEL_FOLDERS = ["checkpoints", "loras", "vae", "controlnet", "upscale_models", "embeddings", "clip_vision", "ipadapter", "diffusion_models", "text_encoders"] as const;
 type ModelFolder = (typeof MODEL_FOLDERS)[number];
 
 type InstallState = {
@@ -441,8 +441,17 @@ function MotoresTab() {
 // Tab Descargar modelos
 // ═══════════════════════════════════════════════════════════════════
 
+// Z-Image Turbo (Alibaba/Tongyi) necesita tres archivos en carpetas distintas de ComfyUI.
+// Fuente: documentación oficial de ComfyUI (docs.comfy.org) y repositorio Comfy-Org/z_image_turbo.
+const ZIMAGE_TURBO_FILES: { folder: ModelFolder; filename: string; url: string; size: string }[] = [
+  { folder: "diffusion_models", filename: "z_image_turbo_bf16.safetensors", url: "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors", size: "~12 GB" },
+  { folder: "text_encoders", filename: "qwen_3_4b.safetensors", url: "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors", size: "~7.5 GB" },
+  { folder: "vae", filename: "ae.safetensors", url: "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors", size: "~0.3 GB" },
+];
+
 function ModelosTab() {
   const [selected, setSelected] = useState<ModelPreset>(MODEL_PRESETS[0]!);
+  const [zimage, setZimage] = useState<{ status: "idle" | "running" | "done" | "error"; step: number; error?: string; line?: string }>({ status: "idle", step: 0 });
   const [customUrl, setCustomUrl] = useState("");
   const [customFolder, setCustomFolder] = useState<ModelFolder>("checkpoints");
   const [customFilename, setCustomFilename] = useState("");
@@ -478,9 +487,12 @@ function ModelosTab() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "model-install-status", jobId: data.jobId }),
           });
-          const d2 = await r2.json() as { status: string; progress?: number; downloaded?: number; total?: number; error?: string };
-          setInstall({ status: d2.status as InstallState["status"], progress: d2.progress ?? 0, downloaded: d2.downloaded ?? 0, total: d2.total ?? 0, error: d2.error ?? "" });
-          if (d2.status === "done" || d2.status === "error") stopPoll();
+          // El servidor responde { ok, job: { status, progress, ... } }: el estado va dentro de "job".
+          const d2 = await r2.json() as { job?: { status: string; progress?: number; downloaded?: number; total?: number; error?: string } | null };
+          const job = d2.job;
+          if (!job) return;
+          setInstall({ status: job.status as InstallState["status"], progress: job.progress ?? 0, downloaded: job.downloaded ?? 0, total: job.total ?? 0, error: job.error ?? "" });
+          if (job.status === "done" || job.status === "error") stopPoll();
         } catch {}
       }, 1000);
     } catch (e: unknown) {
@@ -501,11 +513,66 @@ function ModelosTab() {
   const isDone = install.status === "done";
   const isError = install.status === "error";
 
+  // Descarga un archivo y espera a que termine (una descarga a la vez en el servidor).
+  const downloadAndWait = async (file: { folder: ModelFolder; filename: string; url: string }, onProgress: (line: string) => void): Promise<void> => {
+    const res = await fetch("/api/avatar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "model-install", url: file.url, folder: file.folder, filename: file.filename }),
+    });
+    const data = await res.json() as { ok?: boolean; error?: string };
+    if (!data.ok) throw new Error(data.error ?? `No se pudo iniciar la descarga de ${file.filename}`);
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const r2 = await fetch("/api/avatar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "model-install-status" }) });
+      const d2 = await r2.json() as { job?: { status: string; progress?: number; downloaded?: number; total?: number; error?: string } | null };
+      const job = d2.job;
+      if (!job) throw new Error(`Se perdió el estado de la descarga de ${file.filename}`);
+      if (job.status === "error") throw new Error(job.error ?? `Falló la descarga de ${file.filename}`);
+      if (job.status === "done") return;
+      const pct = job.total && job.total > 0 ? ` · ${Math.round(((job.downloaded ?? 0) / job.total) * 100)} %` : "";
+      onProgress(`${file.filename}${pct}`);
+    }
+  };
+
+  const installZimage = async () => {
+    setZimage({ status: "running", step: 0 });
+    try {
+      for (let i = 0; i < ZIMAGE_TURBO_FILES.length; i += 1) {
+        const file = ZIMAGE_TURBO_FILES[i]!;
+        setZimage({ status: "running", step: i + 1, line: file.filename });
+        await downloadAndWait(file, (line) => setZimage({ status: "running", step: i + 1, line }));
+      }
+      setZimage({ status: "done", step: ZIMAGE_TURBO_FILES.length });
+    } catch (e: unknown) {
+      setZimage((s) => ({ ...s, status: "error", error: e instanceof Error ? e.message : String(e) }));
+    }
+  };
+
   return (
     <div className="space-y-5 max-w-2xl">
       <p className="text-sm text-muted-foreground">
         Descarga modelos directamente en tu ComfyUI. Elige uno del catálogo o pega tu propia URL.
       </p>
+
+      <div className="border border-primary/40 bg-primary/5 rounded-lg p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Z-Image Turbo (imágenes)</span>
+          <span className="text-xs text-muted-foreground">~20 GB · 3 archivos</span>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Genera imágenes realistas en 8 pasos. Descarga el modelo, el codificador de texto (Qwen3-4B) y el VAE en las carpetas correctas de ComfyUI.
+          Con 6 GB de memoria gráfica funciona, pero lento: el modelo no cabe entero en la gráfica y parte va a la RAM.
+        </p>
+        <Button size="sm" className="h-8 text-xs" disabled={zimage.status === "running" || isRunning} onClick={() => void installZimage()}>
+          {zimage.status === "running" ? `Descargando ${zimage.step}/${ZIMAGE_TURBO_FILES.length}…` : zimage.status === "done" ? "Z-Image Turbo instalado" : "Instalar Z-Image Turbo"}
+        </Button>
+        {zimage.status === "running" && zimage.line && <p className="text-xs font-mono text-muted-foreground break-all">{zimage.line}</p>}
+        {zimage.status === "done" && (
+          <p className="text-xs text-green-600">Archivos descargados. Falta añadir el flujo de imagen en «Crea tu avatar IA → Flujos» (rol Personaje).</p>
+        )}
+        {zimage.status === "error" && <p className="text-xs text-destructive">{zimage.error}</p>}
+      </div>
 
       {/* Selector de preset */}
       {!useCustom && (
