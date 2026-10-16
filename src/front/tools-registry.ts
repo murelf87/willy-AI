@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { CATALOG } from "@/lib/data-catalog";
 
-export type ToolCategoryId = "documentos" | "traduccion" | "imagen" | "video" | "audio" | "creacion" | "datos" | "desarrollo" | "automatizacion";
+export type ToolCategoryId = "documentos" | "traduccion" | "imagen" | "video" | "audio" | "creacion" | "datos" | "desarrollo" | "automatizacion" | "roles";
 
 export type ToolCategory = { id: ToolCategoryId; name: string; short: string; desc: string; icon: LucideIcon };
 
@@ -23,6 +23,7 @@ export const CATEGORIES: ToolCategory[] = [
   { id: "datos", name: "Datos y web", short: "Datos y web", desc: "Tiempo, divisas, criptomonedas, búsqueda en internet…", icon: Database },
   { id: "desarrollo", name: "Desarrollo", short: "Desarrollo", desc: "GitHub, proyectos, réplicas, demos e instaladores", icon: Code2 },
   { id: "automatizacion", name: "Automatización", short: "Automatización", desc: "Tus propias herramientas sin programar", icon: Zap },
+  { id: "roles", name: "Roles de equipo", short: "Roles", desc: "Revisar producto, diseño, código, pruebas y versiones con un encargo ya preparado", icon: Puzzle },
 ];
 
 export type ToolAvailability = "disponible" | "pendiente" | "no-disponible";
@@ -59,7 +60,7 @@ const dataSourceTools: Tool[] = CATALOG.map((c) => ({
   owner: "WILLY AI",
 }));
 
-export const TOOLS: Tool[] = [
+const BASE_TOOLS: Tool[] = [
   // ── Documentos y texto
   { id: "juridico", name: "Análisis Jurídico", desc: "Analiza expedientes, contratos y leyes; redacta escritos y recursos con legislación española y europea", categories: ["documentos"], icon: Scale, availability: "disponible", action: { kind: "view", view: "juridico" }, owner: "WILLY AI" },
   { id: "ocr", name: "OCR", desc: "Extrae texto de imágenes, escaneos y PDFs escaneados, en tu equipo", categories: ["documentos"], icon: ScanText, availability: "disponible", action: { kind: "view", view: "ocr" }, owner: "WILLY AI" },
@@ -108,7 +109,32 @@ export const TOOLS: Tool[] = [
   { id: "ia-externa", name: "IA externa gratuita", desc: "Claves y estado de Gemini, Groq, OpenRouter, Mistral, Cohere y NVIDIA", categories: ["automatizacion"], icon: Cloud, availability: "disponible", action: { kind: "view", view: "inteligencia", tab: "externas" }, owner: "WILLY AI" },
 ];
 
-export const toolById = (id: string): Tool | undefined => TOOLS.find((t) => t.id === id);
+// Roles de equipo: cada uno deja escrito en el Chat un encargo listo para completar (no se envía solo).
+// Texto propio de WILLY, escrito para este proyecto: no es una copia de otra herramienta.
+const roleTool = (id: string, name: string, desc: string, icon: LucideIcon, text: string): Tool => ({
+  id, name, desc, categories: ["roles"], icon, availability: "disponible", action: { kind: "chat", text, autoSend: false }, owner: "WILLY AI",
+});
+
+const ROLE_TOOLS: Tool[] = [
+  roleTool("rol-producto", "Revisar un producto", "Qué problema resuelve, para quién, qué dejar fuera y cómo saber si funciona.", Gauge,
+    "Actúa como responsable de producto. Antes de construir nada, responde:\n1. ¿Qué problema concreto resuelve y para quién?\n2. ¿Qué pasa si no lo hacemos?\n3. ¿Qué dejamos fuera en esta versión?\n4. ¿Cómo sabremos que funciona? Indica una métrica observable.\nDescribe la idea aquí:\n\n"),
+  roleTool("rol-diseno", "Revisar un diseño", "Recorridos, estados vacíos y de error, accesibilidad y uso en móvil.", Palette,
+    "Actúa como revisor de diseño. Revisa esta pantalla o flujo y dime:\n1. Si el recorrido se entiende sin explicación.\n2. Qué estados faltan (vacío, cargando, error, sin permisos).\n3. Problemas de accesibilidad (contraste, teclado, lectores de pantalla).\n4. Cómo se ve y se usa en un móvil de 360 px.\nDescribe o pega la pantalla:\n\n"),
+  roleTool("rol-tecnico", "Revisar el código", "Fallos posibles, seguridad, rendimiento y pruebas que faltan.", Code2,
+    "Actúa como revisor técnico. Revisa el cambio siguiente y busca:\n1. Errores de lógica y casos límite.\n2. Problemas de seguridad (datos de entrada, secretos, permisos).\n3. Costes de rendimiento evitables.\n4. Pruebas que faltan.\nIndica archivo y línea cuando puedas. Separa lo que has comprobado de lo que solo sospechas.\nCódigo o cambio a revisar:\n\n"),
+  roleTool("rol-qa", "Plan de pruebas", "Casos normales, errores y comprobación en distintos dispositivos.", Puzzle,
+    "Actúa como responsable de QA. Escribe un plan de pruebas para la función siguiente con: pasos, resultado esperado, caso de error y dispositivo. Cubre teclado, móvil y escritorio. No des por probado nada que no hayas ejecutado.\nFunción a probar:\n\n"),
+  roleTool("rol-version", "Preparar una versión", "Lista de comprobaciones antes de publicar y plan para deshacer.", Zap,
+    "Actúa como responsable de publicar versiones. Prepara la lista de comprobaciones antes de publicar esta versión: pruebas que deben pasar, cambios que requieren aviso al usuario, migraciones de datos y cómo volver atrás si falla. Versión y cambios:\n\n"),
+  roleTool("rol-fallo", "Investigar un fallo", "Reproducirlo, aislar la causa, probar una hipótesis y verificar la corrección.", Search,
+    "Investiga este fallo en orden: 1) pasos para reproducirlo, 2) qué cambió desde la última vez que funcionaba, 3) hipótesis ordenadas por probabilidad, 4) prueba que confirma o descarta cada una, 5) corrección y comprobación. Fallo, mensaje de error y entorno:\n\n"),
+  roleTool("rol-retro", "Retrospectiva", "Qué salió bien, qué no, y tres acciones concretas para la siguiente vez.", Sparkles,
+    "Haz una retrospectiva del trabajo siguiente: qué salió bien, qué salió mal, qué lo causó y tres acciones concretas con responsable y plazo. Trabajo realizado:\n\n"),
+];
+
+export const TOOLS: Tool[] = [...BASE_TOOLS, ...ROLE_TOOLS];
+
+export const toolById =(id: string): Tool | undefined => TOOLS.find((t) => t.id === id);
 
 export function toolsOf(category: ToolCategoryId): Tool[] {
   return TOOLS.filter((t) => t.categories.includes(category));
