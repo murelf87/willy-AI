@@ -8,7 +8,7 @@ import type { BookSpec } from "@/services/book-template";
 export type Step = { kind: "cloud"; id: string; label: string; key: string } | { kind: "local"; model: string; label: string; key: string };
 
 /** Prosa larga en español: Gemini (contexto enorme y salida larga), Mistral y Cohere (fuertes en español), los grandes de NVIDIA y de OpenRouter y, por último, Groq (rapidísimo pero de salida más corta). */
-export const BOOK_CLOUD_ORDER = ["gemini", "mistral", "cohere", "nvidia", "openrouter", "groq"];
+export const BOOK_CLOUD_ORDER = ["gemini", "mistral", "cohere", "nvidia", "openrouter", "opencode", "groq"];
 /** En tu equipo, de más a menos apto para escribir en español (los pequeños, al final). */
 export const BOOK_LOCAL_ORDER = ["gemma2:9b", "llama3.1:8b", "qwen2.5:14b", "llama3.2:3b", "phi4-mini"];
 const NOT_WRITER = /(embed|vision|llava|moondream|coder|-vl\b|qwen2\.?5vl|r1)/i;

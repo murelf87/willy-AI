@@ -2,7 +2,7 @@
 // OpenAI opcional de pago por uso. Las claves se guardan SOLO en este equipo (nunca vuelven a la pantalla). Cada motor sale
 // de la rueda cuando se agota su cuota, pide pago o rechaza la clave, y se vuelve a probar solo cuando toca.
 
-export type ProviderId = "openai" | "perplexity" | "gemini" | "groq" | "openrouter" | "mistral" | "cohere" | "nvidia" | "xai" | "deepseek" | "cerebras" | "zai" | "kimi" | "modelscope" | "cloudflare" | "huggingface" | "siliconflow" | "minimax";
+export type ProviderId = "openai" | "perplexity" | "gemini" | "groq" | "openrouter" | "opencode" | "mistral" | "cohere" | "nvidia" | "xai" | "deepseek" | "cerebras" | "zai" | "kimi" | "modelscope" | "cloudflare" | "huggingface" | "siliconflow" | "minimax";
 
 export type Provider = {
   id: ProviderId;
@@ -14,6 +14,11 @@ export type Provider = {
   credentialHint?: string;
   /** Solo se usan modelos cuyo id termine así (OpenRouter: «:free», para no gastar nunca dinero). */
   onlyModelSuffix?: string;
+  /**
+   * Solo se usan modelos cuyo id cumpla esta expresión (sin distinguir mayúsculas). Para catálogos donde los gratuitos no
+   * comparten un único sufijo: OpenCode Zen marca los suyos con «-free», salvo Big Pickle, que también es gratuito.
+   */
+  onlyModelPattern?: string;
   /** Modelos conocidos, por si el proveedor no ofrece la lista de modelos en su API compatible (Cohere). */
   fallbackModels?: string[];
   /** Si es true, nunca usa modelos fuera de fallbackModels (protección frente a catálogos que mezclan free y pago). */
@@ -68,6 +73,21 @@ export const PROVIDERS: Provider[] = [
     onlyModelSuffix: ":free",
     prefer: ["^nex-agi/nex-n2-pro:free$", "qwen3-coder", "deepseek-r1(?!.*lite)", "qwen3-235b", "llama-3\\.3-70b-instruct", "gemma-3-27b", "deepseek-chat", "mistral-small", "phi-4"],
     timeoutMs: 35_000,
+  },
+  // 1b. OpenCode Zen: los modelos gratuitos que trae OpenCode, por su API compatible con OpenAI (/chat/completions).
+  // Son «gratis por tiempo limitado» y la lista cambia a menudo: WILLY la lee en directo (/models) y se queda SOLO con los
+  // gratuitos (los «…-free» y Big Pickle). Los de pago (Claude, GPT, etc.) nunca se eligen, aunque sean los únicos de la lista.
+  // El orden de preferencia es razonado, no medido: si un modelo falla o contesta vacío, WILLY lo descarta y prueba otro.
+  {
+    id: "opencode",
+    name: "OpenCode Zen (modelos gratuitos)",
+    baseUrl: "https://opencode.ai/zen/v1",
+    keyUrl: "https://opencode.ai/auth",
+    dataNote: "Solo se usan sus modelos gratuitos (los que acaban en «-free» y Big Pickle); los de pago se descartan siempre. Son gratis por tiempo limitado y pueden cambiar o desaparecer. Mientras son gratis, lo que envíes puede usarse para mejorar el modelo. Si OpenCode te pide un depósito o datos de facturación para darte la clave, WILLY no lo hace por ti: decides tú.",
+    onlyModelPattern: "(?:-free$|^big-pickle$)",
+    fallbackModels: ["big-pickle"],
+    prefer: ["^big-pickle$", "qwen3(?:\\.\\d+)?-(?:max|plus)", "deepseek-v\\d", "minimax-m\\d", "kimi-k\\d", "glm-\\d", "nemotron-\\d+(?:\\.\\d+)?-ultra", "mimo"],
+    timeoutMs: 120_000,
   },
   // 2. NVIDIA Build (NIM): gratis y sin tarjeta, 40 req/min, modelos grandes (DeepSeek, Llama, Qwen-Coder).
   // (25/09/2026) deepseek-v4.1-flash responde bien; glm-5.3 daba timeouts → movido al final de prefer.
@@ -457,6 +477,7 @@ export function rankModels(provider: Provider, ids: string[]): string[] {
     .map((id) => id.replace(/^models\//, ""))
     .filter((id) => !NOT_CHAT.test(id))
     .filter((id) => !provider.onlyModelSuffix || id.endsWith(provider.onlyModelSuffix))
+    .filter((id) => !provider.onlyModelPattern || new RegExp(provider.onlyModelPattern, "i").test(id))
     .filter((id) => !provider.allowListedOnly || (provider.fallbackModels ?? []).includes(id))
     .filter((id) => !(provider.id === "gemini" && /-pro(?![a-z])/.test(id.toLowerCase()))))];
   if (!usable.length) return [];
@@ -482,6 +503,8 @@ export function canTryAnotherModel(provider: ProviderId, status: number, body: s
   // OpenRouter aplica límites por modelo/proveedor upstream. Si un :free se satura, probar otro
   // es mucho mejor que dejar inservible todo OpenRouter durante un minuto.
   if (provider === "openrouter" && status === 429 && /temporarily rate-limited upstream|upstream|provider returned error|rate.?limit/i.test(body)) return true;
+  // Lo mismo con los gratuitos de OpenCode Zen: cada uno tiene su propio límite, así que se prueba otro antes de apartar el motor.
+  if (provider === "opencode" && status === 429 && /upstream|provider returned error|rate.?limit|too many requests/i.test(body)) return true;
   return false;
 }
 
@@ -817,7 +840,8 @@ export async function callEngine(env: Env, id: string, messages: ChatMessage[], 
   if (!strictModel && canTryAnotherModel(provider.id, status, body)) {
     const first = { model, status, body, retryAfter };
     const listed = await listModels(provider, key, fetchImpl);
-    const maxAlternatives = provider.id === "openrouter" ? 5 : 2;
+    // Los catálogos de modelos gratuitos (OpenRouter, OpenCode Zen) tienen un límite por modelo: vale la pena probar más.
+    const maxAlternatives = provider.id === "openrouter" ? 5 : provider.id === "opencode" ? 4 : 2;
     const others = listed.ok ? rankModels(provider, listed.ids).filter((m) => m !== first.model && !(engine.bad ?? []).includes(m) && !avoided.has(m.replace(/^models\//, ""))).slice(0, maxAlternatives) : [];
     for (const other of others) {
       model = other;

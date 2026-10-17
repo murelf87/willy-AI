@@ -5,7 +5,7 @@
 // la tabla que se usa de verdad, no una copia que se pueda quedar vieja. Solo datos: sin importaciones.
 
 /** Chat normal con «IA externa»: Groq primero (más rápido para conversaciones cortas), luego el resto. */
-export const CHAT_ORDER = ["groq", "cerebras", "gemini", "openrouter", "modelscope", "cloudflare", "siliconflow", "huggingface", "perplexity", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "mistral", "cohere"];
+export const CHAT_ORDER = ["groq", "cerebras", "gemini", "openrouter", "opencode", "modelscope", "cloudflare", "siliconflow", "huggingface", "perplexity", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "mistral", "cohere"];
 
 /**
  * Autoconstrucción (y SUPER WILLY cuando construye): primero los que aguantan contextos largos (10k+ tokens).
@@ -19,24 +19,26 @@ export const CHAT_ORDER = ["groq", "cerebras", "gemini", "openrouter", "modelsco
  *
  * Groq se reserva para tareas cortas por su contexto limitado.
  */
-export const BUILD_ORDER = ["openai", "mistral", "cohere", "openrouter", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia"];
+export const BUILD_ORDER = ["openai", "mistral", "cohere", "openrouter", "opencode", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia"];
 
 /**
  * «Plug and play»: orden por tipo de petición.
  * Groq solo en tareas cortas (código simple, chat, web, traducción) donde su límite 8k no es problema.
  * Para tareas que generan respuestas largas (razonamiento, investigación, escritura) no va primero.
+ * OpenCode Zen (solo sus modelos gratuitos) va detrás de OpenRouter, salvo en Jurídico (datos de expedientes: mientras son
+ * gratis pueden aprender de lo que reciben) y en Visión (no está confirmado que sus gratuitos lean imágenes).
  */
 export const KIND_CLOUD_ORDER: Record<string, string[]> = {
-  codigo:        ["mistral", "cohere", "openrouter", "cerebras", "modelscope", "gemini", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "groq"],
-  web:           ["mistral", "cohere", "openrouter", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "nvidia", "groq"],
-  datos:         ["gemini", "openrouter", "modelscope", "cerebras", "cloudflare", "siliconflow", "huggingface", "xai", "nvidia", "mistral", "cohere", "groq"],
-  razonamiento:  ["openrouter", "cerebras", "gemini", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "mistral", "cohere", "groq"],
+  codigo:        ["mistral", "cohere", "openrouter", "opencode", "cerebras", "modelscope", "gemini", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "groq"],
+  web:           ["mistral", "cohere", "openrouter", "opencode", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "nvidia", "groq"],
+  datos:         ["gemini", "openrouter", "opencode", "modelscope", "cerebras", "cloudflare", "siliconflow", "huggingface", "xai", "nvidia", "mistral", "cohere", "groq"],
+  razonamiento:  ["openrouter", "opencode", "cerebras", "gemini", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "mistral", "cohere", "groq"],
   juridico:      ["perplexity", "openai", "gemini", "openrouter", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "mistral", "cohere", "xai", "deepseek", "zai", "kimi", "nvidia", "groq"],
-  investigacion: ["perplexity", "gemini", "openrouter", "modelscope", "cerebras", "huggingface", "cloudflare", "siliconflow", "xai", "cohere", "nvidia", "mistral", "groq"],
-  escritura:     ["gemini", "openrouter", "cerebras", "modelscope", "huggingface", "cloudflare", "siliconflow", "xai", "mistral", "cohere", "nvidia", "groq"],
-  traduccion:    ["gemini", "mistral", "openrouter", "modelscope", "cerebras", "huggingface", "siliconflow", "xai", "cohere", "groq", "nvidia"],
+  investigacion: ["perplexity", "gemini", "openrouter", "opencode", "modelscope", "cerebras", "huggingface", "cloudflare", "siliconflow", "xai", "cohere", "nvidia", "mistral", "groq"],
+  escritura:     ["gemini", "openrouter", "opencode", "cerebras", "modelscope", "huggingface", "cloudflare", "siliconflow", "xai", "mistral", "cohere", "nvidia", "groq"],
+  traduccion:    ["gemini", "mistral", "openrouter", "opencode", "modelscope", "cerebras", "huggingface", "siliconflow", "xai", "cohere", "groq", "nvidia"],
   vision:        ["gemini", "modelscope", "openrouter", "huggingface", "siliconflow", "nvidia", "mistral", "cohere", "groq"],
-  general:       ["mistral", "cohere", "openrouter", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "groq"],
+  general:       ["mistral", "cohere", "openrouter", "opencode", "gemini", "cerebras", "modelscope", "cloudflare", "siliconflow", "huggingface", "xai", "deepseek", "zai", "kimi", "minimax", "nvidia", "groq"],
 };
 
 /** Las IA externas de una lista que se pueden usar ahora mismo (con clave, activadas y sin agotar), en su orden. */
