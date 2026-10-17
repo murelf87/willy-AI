@@ -5,6 +5,7 @@
 import {
   BookOpen, Bot, Cloud, Code2, Database, FileSearch, FileText, Gauge, Github, Globe, Headphones, Image as ImageIcon, KeyRound, Languages,
   Mic, Palette, PenLine, Presentation, Puzzle, Scale, ScanText, Search, Sparkles, Subtitles, UserRound, Video, Volume2, Wand2, Zap, Clapperboard, AudioLines,
+  Lightbulb, ShieldCheck, Workflow,
   type LucideIcon,
 } from "lucide-react";
 import { CATALOG } from "@/lib/data-catalog";
@@ -23,7 +24,7 @@ export const CATEGORIES: ToolCategory[] = [
   { id: "datos", name: "Datos y web", short: "Datos y web", desc: "Tiempo, divisas, criptomonedas, búsqueda en internet…", icon: Database },
   { id: "desarrollo", name: "Desarrollo", short: "Desarrollo", desc: "GitHub, proyectos, réplicas, demos e instaladores", icon: Code2 },
   { id: "automatizacion", name: "Automatización", short: "Automatización", desc: "Tus propias herramientas sin programar", icon: Zap },
-  { id: "roles", name: "Roles de equipo", short: "Roles", desc: "Revisar producto, diseño, código, pruebas y versiones con un encargo ya preparado", icon: Puzzle },
+  { id: "roles", name: "Roles de equipo", short: "Roles", desc: "Encargos preparados para revisar ideas, planes, diseño, código, seguridad, pruebas y versiones", icon: Puzzle },
 ];
 
 export type ToolAvailability = "disponible" | "pendiente" | "no-disponible";
@@ -110,24 +111,53 @@ const BASE_TOOLS: Tool[] = [
 ];
 
 // Roles de equipo: cada uno deja escrito en el Chat un encargo listo para completar (no se envía solo).
-// Texto propio de WILLY, escrito para este proyecto: no es una copia de otra herramienta.
+// Cubren el mismo terreno que los roles de gstack (Garry Tan, licencia MIT), pero el texto es propio de WILLY:
+// no se ha copiado nada de ese proyecto. Los id no se cambian nunca: favoritas y recientes se guardan por id.
 const roleTool = (id: string, name: string, desc: string, icon: LucideIcon, text: string): Tool => ({
   id, name, desc, categories: ["roles"], icon, availability: "disponible", action: { kind: "chat", text, autoSend: false }, owner: "WILLY AI",
 });
 
 const ROLE_TOOLS: Tool[] = [
+  // ── Idea y plan
+  roleTool("rol-idea", "Evaluar una idea de negocio", "Preguntas duras antes de invertir tiempo: demanda real, alternativa actual y primer cliente.", Lightbulb,
+    "Actúa como mentor de startups exigente. Antes de opinar, hazme estas preguntas de una en una y espera cada respuesta:\n1. ¿Quién tiene este problema hoy y cómo lo resuelve ahora?\n2. ¿Qué prueba hay de que pagaría por una solución, no solo de que le gusta la idea?\n3. ¿Cuál es el cliente concreto más pequeño con el que se podría empezar?\n4. ¿Qué tendría que ser verdad para que funcione y cómo se comprueba en una semana?\nDespués dame tu valoración: puntos fuertes, riesgos principales y el siguiente paso más barato para validarla. No des por hechos datos de mercado que yo no haya aportado.\nMi idea:\n\n"),
   roleTool("rol-producto", "Revisar un producto", "Qué problema resuelve, para quién, qué dejar fuera y cómo saber si funciona.", Gauge,
     "Actúa como responsable de producto. Antes de construir nada, responde:\n1. ¿Qué problema concreto resuelve y para quién?\n2. ¿Qué pasa si no lo hacemos?\n3. ¿Qué dejamos fuera en esta versión?\n4. ¿Cómo sabremos que funciona? Indica una métrica observable.\nDescribe la idea aquí:\n\n"),
+  roleTool("rol-especificacion", "Escribir una especificación", "De una idea a un documento con objetivo, alcance, criterios de aceptación y riesgos.", PenLine,
+    "Convierte esta idea en una especificación breve con: objetivo, usuarios, lo que entra y lo que no entra, recorrido principal paso a paso, criterios de aceptación comprobables, datos necesarios, riesgos y preguntas abiertas. Si falta información para decidir algo, pregúntamelo en vez de suponerlo.\nIdea:\n\n"),
+  roleTool("rol-plan-tecnico", "Revisar un plan técnico", "Antes de programar: arquitectura, flujo de datos, casos límite y cómo se va a probar.", FileSearch,
+    "Actúa como jefe de ingeniería. Revisa este plan antes de que se escriba código:\n1. Describe los componentes y cómo pasan los datos de uno a otro.\n2. Señala los puntos frágiles: casos límite, fallos de red, datos vacíos o duplicados, acciones simultáneas.\n3. Di qué partes que ya existen conviene reutilizar en lugar de crear otras nuevas.\n4. Propón cómo se va a probar cada parte.\n5. Indica qué recortarías para una primera versión.\nPlan a revisar:\n\n"),
+  roleTool("rol-plan-completo", "Revisión completa de un plan", "Producto, diseño y técnica, uno detrás de otro, con una lista final de decisiones.", Bot,
+    "Revisa este plan en tres pasadas, en este orden, sin mezclar los puntos de vista:\nA) Producto: qué problema resuelve, para quién, qué sobra y cómo se mide el éxito.\nB) Diseño: recorrido del usuario, estados de vacío y de error, accesibilidad y móvil.\nC) Técnica: arquitectura, casos límite, seguridad y pruebas.\nTermina con la lista de decisiones pendientes, cada una con tu recomendación y el motivo.\nPlan:\n\n"),
+  // ── Diseño
   roleTool("rol-diseno", "Revisar un diseño", "Recorridos, estados vacíos y de error, accesibilidad y uso en móvil.", Palette,
     "Actúa como revisor de diseño. Revisa esta pantalla o flujo y dime:\n1. Si el recorrido se entiende sin explicación.\n2. Qué estados faltan (vacío, cargando, error, sin permisos).\n3. Problemas de accesibilidad (contraste, teclado, lectores de pantalla).\n4. Cómo se ve y se usa en un móvil de 360 px.\nDescribe o pega la pantalla:\n\n"),
+  roleTool("rol-sistema-diseno", "Crear un sistema de diseño", "Colores, tipografía, espaciados y componentes coherentes para toda la app.", Wand2,
+    "Actúa como diseñador de producto. Propón un sistema de diseño para este proyecto: paleta de colores con contraste suficiente en modo claro y oscuro, tipografías y tamaños, espaciados, bordes y sombras, y los componentes básicos (botones, campos, tarjetas y avisos) con sus estados. Explica cada decisión en una línea.\nProyecto, público y estilo que busco:\n\n"),
+  roleTool("rol-variantes", "Varias versiones de un diseño", "Tres enfoques distintos para la misma pantalla, con ventajas e inconvenientes.", ImageIcon,
+    "Propón tres versiones claramente distintas de esta pantalla, no simples cambios de color. Para cada una: idea principal, cómo se ordena la información, a quién le encaja mejor, ventajas e inconvenientes. Termina recomendando una y explica por qué.\nPantalla y objetivo:\n\n"),
+  roleTool("rol-diagrama", "Hacer un diagrama", "Un esquema del sistema o del proceso en formato Mermaid, listo para copiar.", Workflow,
+    "Haz un diagrama de lo que describo en formato Mermaid, dentro de un bloque de código, con nombres cortos y flechas que indiquen qué llama a qué o qué va después de qué. Debajo, explícalo en cinco líneas como máximo.\nSistema o proceso:\n\n"),
+  // ── Código
   roleTool("rol-tecnico", "Revisar el código", "Fallos posibles, seguridad, rendimiento y pruebas que faltan.", Code2,
     "Actúa como revisor técnico. Revisa el cambio siguiente y busca:\n1. Errores de lógica y casos límite.\n2. Problemas de seguridad (datos de entrada, secretos, permisos).\n3. Costes de rendimiento evitables.\n4. Pruebas que faltan.\nIndica archivo y línea cuando puedas. Separa lo que has comprobado de lo que solo sospechas.\nCódigo o cambio a revisar:\n\n"),
+  roleTool("rol-seguridad", "Auditoría de seguridad", "Secretos expuestos, entradas sin validar, permisos, datos personales y dependencias.", ShieldCheck,
+    "Actúa como responsable de seguridad. Revisa lo siguiente y busca, de más grave a menos grave:\n1. Secretos o contraseñas visibles en el código, en registros o en mensajes de error.\n2. Datos que escribe el usuario y llegan sin validar a consultas, comandos, rutas de archivo o HTML.\n3. Permisos: quién puede ver o cambiar qué, y si se comprueba en el servidor.\n4. Datos personales: qué se guarda, dónde y durante cuánto tiempo.\n5. Dependencias de terceros y de dónde vienen.\nPara cada problema: dónde está, qué podría pasar y cómo corregirlo. Separa lo confirmado de lo que habría que comprobar.\nCódigo o sistema a revisar:\n\n"),
+  roleTool("rol-rendimiento", "Revisar el rendimiento", "Qué va lento, por qué, cómo medirlo y qué mejorar primero.", Gauge,
+    "Actúa como especialista en rendimiento. Para lo que describo: 1) qué medir y cómo (tiempo de carga, memoria, consultas, tamaño de archivos), 2) causas probables de la lentitud ordenadas por impacto, 3) mejoras concretas empezando por la más barata, 4) cómo comprobar que la mejora es real. No inventes cifras: si no tengo medidas, dime cómo obtenerlas.\nQué va lento y dónde:\n\n"),
+  roleTool("rol-salud", "Salud del código y de las pruebas", "Partes frágiles, código duplicado, pruebas que faltan y qué arreglar primero.", ScanText,
+    "Actúa como revisor de calidad del código. Analiza lo que pego y dime: partes duplicadas o demasiado largas, funciones difíciles de entender, errores que se ignoran, pruebas que faltan o que no comprueban nada útil, y una lista de mejoras por prioridad (primero las que más riesgo quitan con menos trabajo).\nCódigo o descripción del proyecto:\n\n"),
+  // ── Pruebas, versión y seguimiento
   roleTool("rol-qa", "Plan de pruebas", "Casos normales, errores y comprobación en distintos dispositivos.", Puzzle,
     "Actúa como responsable de QA. Escribe un plan de pruebas para la función siguiente con: pasos, resultado esperado, caso de error y dispositivo. Cubre teclado, móvil y escritorio. No des por probado nada que no hayas ejecutado.\nFunción a probar:\n\n"),
   roleTool("rol-version", "Preparar una versión", "Lista de comprobaciones antes de publicar y plan para deshacer.", Zap,
     "Actúa como responsable de publicar versiones. Prepara la lista de comprobaciones antes de publicar esta versión: pruebas que deben pasar, cambios que requieren aviso al usuario, migraciones de datos y cómo volver atrás si falla. Versión y cambios:\n\n"),
+  roleTool("rol-documentacion", "Actualizar la documentación", "Después de un cambio: qué guías, ayudas y notas de versión hay que corregir.", BookOpen,
+    "Acaba de cambiar lo siguiente. Dime qué documentación ha quedado desactualizada (guías, ayudas dentro de la app, notas de versión y mensajes de error) y redacta el texto nuevo de cada parte. No describas funciones que no aparezcan en el cambio.\nCambio realizado:\n\n"),
   roleTool("rol-fallo", "Investigar un fallo", "Reproducirlo, aislar la causa, probar una hipótesis y verificar la corrección.", Search,
     "Investiga este fallo en orden: 1) pasos para reproducirlo, 2) qué cambió desde la última vez que funcionaba, 3) hipótesis ordenadas por probabilidad, 4) prueba que confirma o descarta cada una, 5) corrección y comprobación. Fallo, mensaje de error y entorno:\n\n"),
+  roleTool("rol-segunda-opinion", "Segunda opinión", "Una crítica independiente de una respuesta, un plan o un código: qué falla y qué falta.", UserRound,
+    "Actúa como un revisor independiente que no ha participado en este trabajo. Busca a propósito errores, supuestos sin comprobar, riesgos y alternativas mejores en lo que pego. No suavices las críticas, pero di también lo que está bien. Termina con las tres correcciones más importantes.\nTexto, plan o código a revisar:\n\n"),
   roleTool("rol-retro", "Retrospectiva", "Qué salió bien, qué no, y tres acciones concretas para la siguiente vez.", Sparkles,
     "Haz una retrospectiva del trabajo siguiente: qué salió bien, qué salió mal, qué lo causó y tres acciones concretas con responsable y plazo. Trabajo realizado:\n\n"),
 ];
